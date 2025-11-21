@@ -7,6 +7,10 @@ repositories:
     type: git
     url: https://github.com/ros2/rosidl_core.git
     version: jazzy
+  ros2/rosidl_dynamic_typesupport_fastrtps:
+    type: git
+    url: https://github.com/ros2/rosidl_dynamic_typesupport_fastrtps.git
+    version: jazzy
   ros2/common_interfaces:
     type: git
     url: https://github.com/ros2/common_interfaces.git
