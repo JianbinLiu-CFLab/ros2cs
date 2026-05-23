@@ -161,7 +161,7 @@ if(STANDALONE_BUILD)
   set(REQ_STANDALONE_DLLS "")
 
   macro(get_standalone_third_party_dependencies _library_name)
-    find_file(${_library_name}_PATH "${_library_name}")
+    find_file(${_library_name}_PATH NAMES ${ARGN} "${_library_name}")
     if("${${_library_name}_PATH}" STREQUAL "${_library_name}_PATH-NOTFOUND")
       message( FATAL_ERROR "Can't find third party dependency: ${_library_name}" )
     endif()
@@ -395,12 +395,17 @@ if(STANDALONE_BUILD)
   install_standalone_dependencies()
 
   if(WIN32)
+    get_standalone_third_party_dependencies(openssl_ssl libssl-3-x64.dll libssl-1_1-x64.dll)
+    get_standalone_third_party_dependencies(openssl_crypto libcrypto-3-x64.dll libcrypto-1_1-x64.dll)
+
     set(third_party_standalone_libs
-      libssl-1_1-x64.dll
-      libcrypto-1_1-x64.dll
       msvcp140.dll
       vcruntime140.dll
       vcruntime140_1.dll
+      yaml.dll
+      yaml-cpp.dll
+      spdlog.dll
+      fmt.dll
       tinyxml2.dll
     )
     foreach(third_party_lib ${third_party_standalone_libs})
