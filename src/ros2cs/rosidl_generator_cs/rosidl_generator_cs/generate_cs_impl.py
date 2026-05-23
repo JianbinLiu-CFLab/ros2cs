@@ -1,4 +1,5 @@
 # Copyright 2019-2021 Robotec.ai
+# Modifications Copyright (c) 2026 Jianbin Liu.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,6 +12,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# Modifications by Jianbin Liu:
+# - Fixed int8 sequence marshaling to use a byte-compatible native representation.
 
 from rosidl_cmake import generate_files
 from rosidl_generator_c import idl_type_to_c
@@ -113,7 +117,8 @@ BASIC_IDL_TYPES_TO_MARSHAL_ARRAY = {
     'boolean': 'byte',
     'octet': 'byte',
     'uint8': 'byte',
-    'int8': 'char',
+    # int8 sequences are copied through unmanaged bytes so signed values survive native roundtrips.
+    'int8': 'byte',
     'uint16': 'short',
     'int16': 'short',
     'uint32': 'int',

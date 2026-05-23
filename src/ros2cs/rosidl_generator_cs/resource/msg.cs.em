@@ -1,4 +1,10 @@
 @#######################################################################
+@# Modifications Copyright (c) 2026 Jianbin Liu.
+@#
+@# Modifications by Jianbin Liu:
+@#  - Added unmanaged function pointer annotations for generated delegates.
+@#  - Retained generated native library handles to keep delegates valid.
+@#
 @# Included from rosidl_generator_cs/resource/idl.cs.em
 @#
 @# Context:
@@ -148,6 +154,7 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
   private static NativeReadField@(get_field_name(member.type, member.name, message_class))Type native_read_field_@(member.name) = null;
   private static NativeWriteField@(get_field_name(member.type, member.name, message_class))Type native_write_field_@(member.name) = null;
 @[  elif isinstance(member.type, (NamedType, NamespacedType))]@
+  // Explicit calling convention keeps generated delegates aligned with the native C ABI.
   [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
   private delegate IntPtr NativeGetNestedHandle@(get_field_name(member.type, member.name, message_class))Type(
     IntPtr messageHandle);
@@ -157,19 +164,33 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
 @[  if isinstance(member.type, AbstractNestedType) and \
          isinstance(member.type.value_type, (NamedType, NamespacedType, AbstractString))]@
 @[    if isinstance(member.type.value_type, (NamedType, NamespacedType))]@
+  // Explicit calling convention keeps generated delegates aligned with the native C ABI.
+  [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
   private delegate IntPtr NativeGetNestedHandle@(get_field_name(member.type, member.name, message_class))Type(
     IntPtr messageHandle, int index);
   private static NativeGetNestedHandle@(get_field_name(member.type, member.name, message_class))Type native_get_nested_message_handle_@(member.name) = null;
 @[    end if]@
+  // Explicit calling convention keeps generated delegates aligned with the native C ABI.
+  [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
   private delegate int NativeGetArraySize@(get_field_name(member.type, member.name, message_class))Type(
     IntPtr messageHandle);
   private static NativeGetArraySize@(get_field_name(member.type, member.name, message_class))Type native_get_array_size_@(member.name) = null;
 
+  // Explicit calling convention keeps generated delegates aligned with the native C ABI.
+  [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
   private delegate bool NativeInitSequence@(get_field_name(member.type, member.name, message_class))Type(
     IntPtr messageHandle, int size);
   private static NativeInitSequence@(get_field_name(member.type, member.name, message_class))Type native_init_sequence_@(member.name) = null;
 @[  end if]@
 @[end for]@
+
+  // Retain native library handles so delegates remain valid for the message type lifetime.
+  private static NativeLibraryHandle message_library_typesupport = null;
+  private static NativeLibraryHandle message_library_generator = null;
+  private static NativeLibraryHandle message_library_intro = null;
+  private static NativeLibraryHandle native_library = null;
+  private static NativeLibraryHandle message_library_typesupport_fastrtps_cpp = null;
+  private static NativeLibraryHandle message_library_typesupport_fastrtps_c = null;
 
   // This is done to preload before ros2 rmw_implementation attempts to find custom message library (and fails without absolute path)
   static private void MessageTypeSupportPreload()
@@ -203,8 +224,9 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
         { // TODO - get rcl level constants, e.g. rosidl_typesupport_fastrtps_c__identifier
           // Load typesupport for fastrtps (_c depends on _cpp)
           var loadUtils = DllLoadUtilsFactory.GetDllLoadUtils();
-          IntPtr messageLibraryTypesupportFastRTPS_CPP = loadUtils.LoadLibraryNoSuffix("@(package_name)__rosidl_typesupport_fastrtps_cpp");
-          IntPtr messageLibraryTypesupportFastRTPS_C = loadUtils.LoadLibraryNoSuffix("@(package_name)__rosidl_typesupport_fastrtps_c");
+          // Keep FastRTPS dependencies loaded after preloading succeeds.
+          message_library_typesupport_fastrtps_cpp = NativeLibraryHandle.LoadLibraryNoSuffix(loadUtils, "@(package_name)__rosidl_typesupport_fastrtps_cpp");
+          message_library_typesupport_fastrtps_c = NativeLibraryHandle.LoadLibraryNoSuffix(loadUtils, "@(package_name)__rosidl_typesupport_fastrtps_c");
       }
     }
   }
@@ -212,12 +234,14 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
   static @(message_class)()
   {
     dllLoadUtils = DllLoadUtilsFactory.GetDllLoadUtils();
-    IntPtr messageLibraryTypesupport = dllLoadUtils.LoadLibraryNoSuffix("@(package_name)__rosidl_typesupport_c");
-    IntPtr messageLibraryGenerator = dllLoadUtils.LoadLibraryNoSuffix("@(package_name)__rosidl_generator_c");
-    IntPtr messageLibraryIntro = dllLoadUtils.LoadLibraryNoSuffix("@(package_name)__rosidl_typesupport_introspection_c");
+    message_library_typesupport = NativeLibraryHandle.LoadLibraryNoSuffix(dllLoadUtils, "@(package_name)__rosidl_typesupport_c");
+    message_library_generator = NativeLibraryHandle.LoadLibraryNoSuffix(dllLoadUtils, "@(package_name)__rosidl_generator_c");
+    message_library_intro = NativeLibraryHandle.LoadLibraryNoSuffix(dllLoadUtils, "@(package_name)__rosidl_typesupport_introspection_c");
     MessageTypeSupportPreload();
 
-    IntPtr nativelibrary = dllLoadUtils.LoadLibrary("@(package_name)_@(message_class_lower)__rosidl_typesupport_c");
+    // Keep the generated native typesupport library loaded while delegates point into it.
+    native_library = NativeLibraryHandle.LoadLibrary(dllLoadUtils, "@(package_name)_@(message_class_lower)__rosidl_typesupport_c");
+    IntPtr nativelibrary = native_library.Handle;
     IntPtr native_get_typesupport_ptr = dllLoadUtils.GetProcAddress(nativelibrary, "@(c_full_name)_native_get_type_support");
     @(message_class).native_get_typesupport = (NativeGetTypeSupportType)Marshal.GetDelegateForFunctionPointer(
       native_get_typesupport_ptr, typeof(NativeGetTypeSupportType));

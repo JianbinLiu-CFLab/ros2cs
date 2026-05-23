@@ -1,4 +1,5 @@
 // Copyright 2021 Robotec.ai
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +13,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modifications by Jianbin Liu:
+// - Added safe MessageInternals validation helper.
+// - Cached message type support handles.
+
 using System;
+using System.Collections.Generic;
 
 namespace ROS2
 {
@@ -35,12 +41,52 @@ namespace ROS2
     /// <summary> An utility class to acquire type support for a given message type </summary>
     internal static class MessageTypeSupportHelper
     {
+      // Type support handles are process-stable, so cache them to avoid repeated temporary messages.
+      private static readonly object TypeSupportHandlesMutex = new object();
+      private static readonly Dictionary<Type, IntPtr> TypeSupportHandles = new Dictionary<Type, IntPtr>();
+
+      /// <summary>Validate that a generated message exposes the internal native-message contract.</summary>
+      internal static MessageInternals AsMessageInternals(Message message, string argumentName)
+      {
+        if (message == null)
+        {
+          throw new ArgumentNullException(argumentName);
+        }
+
+        MessageInternals messageInternals = message as MessageInternals;
+        if (messageInternals == null)
+        {
+          throw new InvalidOperationException(
+            message.GetType().FullName + " must implement ROS2.Internal.MessageInternals");
+        }
+
+        return messageInternals;
+      }
+
       internal static IntPtr GetTypeSupportHandle<T>() where T : Message, new()
       {
-        T msg = new T();
-        IntPtr typeSupportHandle = (msg as MessageInternals).TypeSupportHandle;
-        msg.Dispose();
-        return typeSupportHandle;
+        Type messageType = typeof(T);
+        lock (TypeSupportHandlesMutex)
+        {
+          IntPtr typeSupportHandle;
+          if (TypeSupportHandles.TryGetValue(messageType, out typeSupportHandle))
+          {
+            return typeSupportHandle;
+          }
+
+          T msg = new T();
+          try
+          {
+            // Create one temporary generated message only when the type support handle is not cached yet.
+            typeSupportHandle = AsMessageInternals(msg, nameof(msg)).TypeSupportHandle;
+            TypeSupportHandles[messageType] = typeSupportHandle;
+            return typeSupportHandle;
+          }
+          finally
+          {
+            msg.Dispose();
+          }
+        }
       }
     }
   } // namespace Internal
