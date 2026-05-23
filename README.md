@@ -6,10 +6,24 @@ Ros2cs
 > Modifications by Jianbin Liu:
 > - Documented the current conservative verification status for the Jazzy maintenance branch.
 > - Clarified Windows 10 LTSC validation, .NET target framework split, and legacy Ubuntu status.
+> - Declared the JianbinLiu-CFLab `main` branch as the maintained integration line.
 
 A C# .NET library for ROS2, including C# implementation of rcl APIs, message generation, tests and examples.
 
 Ros2cs is also an independent part of [Ros2 For Unity](https://github.com/RobotecAI/ros2-for-unity), which enables high-performance communication between simulation and ROS2 robot packages. Follow instructions there instead if you are intending to use ros2cs with Unity3D.
+
+### Maintained integration line
+
+For the JianbinLiu-CFLab fork, `main` is the maintained integration line.
+
+The upstream RobotecAI repository and its historical branches remain the original source and licensing history, but they are no longer used as the active integration target for this Jazzy/R2FU line. Upstream changes should be reviewed and cherry-picked deliberately rather than merged blindly.
+
+Downstream projects should consume:
+
+```text
+https://github.com/JianbinLiu-CFLab/ros2cs.git
+version: main
+```
 
 ### Features
 
