@@ -343,7 +343,7 @@ if(STANDALONE_BUILD)
 
       # Fix soversion files
       foreach(_resolvedFile ${_resolvedFiles})
-        if("${_resolvedFile}" MATCHES "so(\.[0-9]*)+$")
+        if("${_resolvedFile}" MATCHES "\\.so(\\.[0-9]+)+$")
           # message("Soversion file detected ${_resolvedFile}")
 
           # Get file path without so
@@ -351,7 +351,7 @@ if(STANDALONE_BUILD)
           string(SUBSTRING "${_resolvedFile}" 0 ${_findPos} _cutted)
 
           set(_remainingPath "${_resolvedFile}")
-          while("${_remainingPath}" MATCHES "so(\.[0-9]*)+$")
+          while("${_remainingPath}" MATCHES "\\.so(\\.[0-9]+)+$")
             string(FIND "${_remainingPath}" "." _lastDotPos REVERSE)
             string(SUBSTRING "${_remainingPath}" 0 ${_lastDotPos} _tempPos)
             get_filename_component(_libPathFilename "${_tempPos}" NAME)
