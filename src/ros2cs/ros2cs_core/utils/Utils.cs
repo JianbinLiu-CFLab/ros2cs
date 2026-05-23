@@ -1,4 +1,5 @@
 // Copyright 2019-2021 Robotec.ai
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,6 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modifications by Jianbin Liu:
+// - Split rcl exception throwing so callers can inspect/filter native error messages.
+
 using System;
 using System.Runtime.InteropServices;
 
@@ -23,12 +27,20 @@ namespace ROS2
     /// <summary> Helper checker and converter of rcl return values to exceptions </summary>
     internal static void CheckReturnEnum(int ret)
     {
-      string errorMessage = Utils.PopRclErrorString();
+      if ((RCLReturnEnum)ret == RCLReturnEnum.RCL_RET_OK)
+      {
+        return;
+      }
 
+      string errorMessage = Utils.PopRclErrorString();
+      ThrowRclException(ret, errorMessage);
+    }
+
+    /// <summary>Throw a typed managed exception for an rcl return code and supplied error text.</summary>
+    internal static void ThrowRclException(int ret, string errorMessage)
+    {
       switch ((RCLReturnEnum)ret)
       {
-        case RCLReturnEnum.RCL_RET_OK:
-          break;
         case RCLReturnEnum.RCL_RET_NODE_INVALID_NAME:
           throw new InvalidNodeNameException(errorMessage);
         case RCLReturnEnum.RCL_RET_NODE_INVALID_NAMESPACE:

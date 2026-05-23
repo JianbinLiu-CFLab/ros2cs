@@ -1,5 +1,6 @@
 // Copyright 2019-2021 Robotec.ai
 // Copyright 2019 Dyno Robotics (by Samuel Lindgren samuel@dynorobotics.se)
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,6 +13,10 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// Modifications by Jianbin Liu:
+// - Added nanosecond normalization helper for negative time values.
+// - Added safe clock creation validation and disposal handling.
 
 using System;
 using System.Collections.Generic;
@@ -35,6 +40,10 @@ namespace ROS2
   /// <summary> A clock class which queries an internal rcl clock and exposes RosTime </summary>
   public class Clock : IExtendedDisposable
   {
+    /// <summary>Number of nanoseconds in one second, used for lossless normalization.</summary>
+    private const long NanosecondsPerSecond = 1000000000L;
+    // Serializes native clock reads with disposal/finalizer cleanup.
+    private readonly object mutex = new object();
     internal IntPtr handle;
     private bool disposed;
 
@@ -46,32 +55,84 @@ namespace ROS2
     {
       get
       {
-        RosTime time = new RosTime();
-        long queryNowNanoseconds = 0;
-        NativeRcl.rcl_clock_get_now(handle, ref queryNowNanoseconds);
-        time.sec = (int)(queryNowNanoseconds / (long)1e9);
-        time.nanosec = (uint)(queryNowNanoseconds - time.sec*((long)1e9));
-        return time;
+        lock (mutex)
+        {
+          if (disposed)
+          {
+            throw new ObjectDisposedException(nameof(Clock));
+          }
+
+          long queryNowNanoseconds = 0;
+          Utils.CheckReturnEnum(NativeRcl.rcl_clock_get_now(handle, ref queryNowNanoseconds));
+          return FromNanoseconds(queryNowNanoseconds);
+        }
       }
+    }
+
+    /// <summary>Normalize signed nanoseconds into ROS seconds plus non-negative nanoseconds.</summary>
+    internal static RosTime FromNanoseconds(long nanosecondsSinceEpoch)
+    {
+      long seconds = nanosecondsSinceEpoch / NanosecondsPerSecond;
+      long nanoseconds = nanosecondsSinceEpoch % NanosecondsPerSecond;
+      if (nanoseconds < 0)
+      {
+        seconds--;
+        nanoseconds += NanosecondsPerSecond;
+      }
+
+      RosTime time = new RosTime();
+      time.sec = (int)seconds;
+      time.nanosec = (uint)nanoseconds;
+      return time;
     }
 
     public Clock()
     {
       rcl_allocator_t allocator = NativeRcl.rcutils_get_default_allocator();
       handle = NativeRclInterface.rclcs_ros_clock_create(ref allocator);
+      if (handle == IntPtr.Zero)
+      {
+        throw new RuntimeError("Failed to create ROS clock");
+      }
     }
 
     ~Clock()
     {
-      Dispose();
+      Dispose(false);
     }
 
+    /// <summary>Release the native ROS clock wrapper.</summary>
     public void Dispose()
     {
-      if (!disposed)
+      Dispose(true);
+      GC.SuppressFinalize(this);
+    }
+
+    /// <summary>Shared clock disposal path used by explicit disposal and the finalizer.</summary>
+    private void Dispose(bool disposing)
+    {
+      lock (mutex)
       {
-        NativeRclInterface.rclcs_ros_clock_dispose(handle);
-        disposed = true;
+        if (disposed)
+        {
+          return;
+        }
+
+        try
+        {
+          if (handle != IntPtr.Zero)
+          {
+            NativeRclInterface.rclcs_ros_clock_dispose(handle);
+          }
+        }
+        catch
+        {
+        }
+        finally
+        {
+          handle = IntPtr.Zero;
+          disposed = true;
+        }
       }
     }
   }

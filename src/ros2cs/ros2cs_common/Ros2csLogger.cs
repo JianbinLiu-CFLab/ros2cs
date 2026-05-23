@@ -1,4 +1,5 @@
 // Copyright 2021 Robotec.ai
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +12,10 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// Modifications by Jianbin Liu:
+// - Made singleton initialization and logger callbacks thread-safe.
+// - Serialized console formatting to reduce interleaved log noise.
 
 using System;
 using System.Collections.Generic;
@@ -29,7 +34,11 @@ namespace ROS2
   public class Ros2csLogger
   {
     private Ros2csLogger() { }
-    private static Ros2csLogger _instance;
+    // Lazy<T> gives thread-safe singleton creation without a manual double-check lock.
+    private static readonly Lazy<Ros2csLogger> Instance = new Lazy<Ros2csLogger>(() => new Ros2csLogger());
+    // Protects mutable log level, callbacks, and console color writes.
+    private static readonly object LoggerMutex = new object();
+    private static LogLevel logLevel;
 
     public delegate void Callback(object message);
 
@@ -41,7 +50,24 @@ namespace ROS2
       {LogLevel.ERROR, "ERROR"},
     };
 
-    public static LogLevel LogLevel { get; set; }
+    /// <summary>Minimum level that will be emitted by the logger.</summary>
+    public static LogLevel LogLevel
+    {
+      get
+      {
+        lock (LoggerMutex)
+        {
+          return logLevel;
+        }
+      }
+      set
+      {
+        lock (LoggerMutex)
+        {
+          logLevel = value;
+        }
+      }
+    }
 
     private static Dictionary<LogLevel, Callback> LevelCallbacks = new Dictionary<LogLevel, Callback>()
     {
@@ -66,18 +92,17 @@ namespace ROS2
     /// <param name="cb"> Callback (logging mechanism) to execute when logging </param>
     public static void setCallback(LogLevel level, Callback cb)
     {
-      LevelCallbacks[level] = cb;
+      lock (LoggerMutex)
+      {
+        LevelCallbacks[level] = cb;
+      }
     }
 
     /// <summary> Acquire the singleton </summary>
     /// <description> Implements lazy construction </description>
     public static Ros2csLogger GetInstance()
     {
-      if (_instance == null)
-      {
-        _instance = new Ros2csLogger();
-      }
-      return _instance;
+      return Instance.Value;
     }
 
     /// <summary> Log a given message with a set level </summary>
@@ -85,22 +110,35 @@ namespace ROS2
     /// <param name="message"> Message to log </param>
     public void Log(LogLevel level, String message)
     {
-      if (Ros2csLogger.LogLevel > level) return;
-
-      ConsoleColor prevForeground = Console.ForegroundColor;
-      Console.ForegroundColor = Ros2csLogger.LevelColors[level];
-      if(Ros2csLogger.LevelCallbacks[level] != null)
+      Callback callback;
+      lock (LoggerMutex)
       {
-        Ros2csLogger.LevelCallbacks[level]("[ROS2CS] " + message);
+        if (logLevel > level) return;
+        callback = Ros2csLogger.LevelCallbacks[level];
       }
-      Console.WriteLine(
-          "[" +
-          DateTime.Now.ToString("HH:mm:ss.ffffff") +
-          "][" +
-          Ros2csLogger.LevelNames[level] +
-          "] " +
-          message);
-      Console.ForegroundColor = prevForeground;
+
+      // Invoke application callbacks outside the console lock so custom loggers cannot block formatting.
+      callback?.Invoke("[ROS2CS] " + message);
+
+      lock (LoggerMutex)
+      {
+        ConsoleColor prevForeground = Console.ForegroundColor;
+        try
+        {
+          Console.ForegroundColor = Ros2csLogger.LevelColors[level];
+          Console.WriteLine(
+            "[" +
+            DateTime.Now.ToString("HH:mm:ss.ffffff") +
+            "][" +
+            Ros2csLogger.LevelNames[level] +
+            "] " +
+            message);
+        }
+        finally
+        {
+          Console.ForegroundColor = prevForeground;
+        }
+      }
     }
 
     public void LogInfo(String message)

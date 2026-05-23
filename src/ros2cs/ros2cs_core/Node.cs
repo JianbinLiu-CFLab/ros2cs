@@ -1,4 +1,5 @@
 // Copyright 2019-2021 Robotec.ai
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,12 +13,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modifications by Jianbin Liu:
+// - Added child entity disposal contract for node-owned resources.
+// - Disposes child entities before node shutdown and aggregates errors.
+// - Removes entities even when disposal throws.
+
 using System;
 using System.Linq;
 using System.Collections.Generic;
 
 namespace ROS2
 {
+  /// <summary>Internal contract for entities whose native handles are owned by a node.</summary>
+  internal interface INodeChildEntity : IDisposable
+  {
+    /// <summary>Dispose from the owning node without recursively removing the entity from that node.</summary>
+    void DisposeFromNode(bool disposing);
+  }
+
   /// <summary> Represents a managed ros2 (rcl) node </summary>
   /// <see cref="INode"/>
   public class Node: INode
@@ -92,53 +105,146 @@ namespace ROS2
     /// <summary> Finalizer supporting IDisposable model </summary>
     ~Node()
     {
-      DestroyNode();
+      Dispose(false);
     }
 
     /// <summary> Release managed and native resources. IDisposable implementation </summary>
     public void Dispose()
     {
-      DestroyNode();
+      Dispose(true);
+      GC.SuppressFinalize(this);
     }
 
     /// <summary> "Destructor" supporting IDisposable model </summary>
     /// <description> Disposes all subscriptions and publishers and clients before finilizing node </description>
     internal void DestroyNode()
     {
+      Dispose();
+    }
+
+    /// <summary>Shared node disposal path used by explicit disposal and the finalizer.</summary>
+    private void Dispose(bool disposing)
+    {
       lock (mutex)
       {
-        if (!disposed)
+        if (disposed)
         {
-          foreach(ISubscriptionBase subscription in subscriptions)
-          {
-            subscription.Dispose();
-          }
-          subscriptions.Clear();
+          return;
+        }
 
-          foreach(IPublisherBase publisher in publishers)
-          {
-            publisher.Dispose();
-          }
-          publishers.Clear();
+        List<Exception> exceptions = null;
 
-          foreach(IClientBase client in clients)
-          {
-            client.Dispose();
-          }
-          clients.Clear();
+        // Even finalizer cleanup must fini children before rcl_node_fini; rcl does not cascade this.
+        DisposeChildren(subscriptions, disposing, ref exceptions);
+        subscriptions.Clear();
 
-          foreach(IServiceBase service in services)
-          {
-            service.Dispose();
-          }
-          services.Clear();
+        DisposeChildren(publishers, disposing, ref exceptions);
+        publishers.Clear();
 
-          Utils.CheckReturnEnum(NativeRcl.rcl_node_fini(ref nodeHandle));
-          NativeRclInterface.rclcs_node_dispose_options(defaultNodeOptions);
-          disposed = true;
+        DisposeChildren(clients, disposing, ref exceptions);
+        clients.Clear();
+
+        DisposeChildren(services, disposing, ref exceptions);
+        services.Clear();
+
+        try
+        {
+          int ret = NativeRcl.rcl_node_fini(ref nodeHandle);
+          if (disposing)
+          {
+            Utils.CheckReturnEnum(ret);
+          }
+        }
+        catch (Exception e)
+        {
+          if (disposing)
+          {
+            AddException(ref exceptions, e);
+          }
+        }
+        finally
+        {
+          try
+          {
+            if (defaultNodeOptions != IntPtr.Zero)
+            {
+              NativeRclInterface.rclcs_node_dispose_options(defaultNodeOptions);
+            }
+          }
+          catch (Exception e)
+          {
+            if (disposing)
+            {
+              AddException(ref exceptions, e);
+            }
+          }
+          finally
+          {
+            defaultNodeOptions = IntPtr.Zero;
+            disposed = true;
+          }
+        }
+
+        if (disposing)
+        {
           logger.LogInfo("Node " + name + " destroyed");
+          if (exceptions != null && exceptions.Count > 0)
+          {
+            throw new AggregateException(exceptions);
+          }
         }
       }
+    }
+
+    /// <summary>Copy live waitable entities into spin-local lists while holding the node lock.</summary>
+    internal void AppendEntities(
+      List<ISubscriptionBase> targetSubscriptions,
+      List<IClientBase> targetClients,
+      List<IServiceBase> targetServices)
+    {
+      lock (mutex)
+      {
+        targetSubscriptions.AddRange(subscriptions.Where(s => s != null));
+        targetClients.AddRange(clients.Where(c => c != null));
+        targetServices.AddRange(services.Where(s => s != null));
+      }
+    }
+
+    /// <summary>Dispose child entities and aggregate explicit-dispose failures.</summary>
+    private static void DisposeChildren<T>(IEnumerable<T> children, bool disposing, ref List<Exception> exceptions)
+      where T : IDisposable
+    {
+      foreach (T child in children.ToList())
+      {
+        try
+        {
+          if (child is INodeChildEntity nodeChild)
+          {
+            nodeChild.DisposeFromNode(disposing);
+          }
+          else if (disposing)
+          {
+            child.Dispose();
+          }
+        }
+        catch (Exception e)
+        {
+          if (disposing)
+          {
+            AddException(ref exceptions, e);
+          }
+        }
+      }
+    }
+
+    /// <summary>Lazy-create the exception collection used during coordinated shutdown.</summary>
+    private static void AddException(ref List<Exception> exceptions, Exception exception)
+    {
+      if (exceptions == null)
+      {
+        exceptions = new List<Exception>();
+      }
+      exceptions.Add(exception);
     }
 
     /// <summary> Create a client for this node for a given topic, qos and message type </summary>
@@ -168,8 +274,15 @@ namespace ROS2
         if (clients.Contains(client))
         {
           logger.LogInfo("Removing client for topic " + client.Topic);
-          client.Dispose();
-          return clients.Remove(client);
+          try
+          {
+            client.Dispose();
+          }
+          finally
+          {
+            clients.Remove(client);
+          }
+          return true;
         }
         return false;
       }
@@ -203,8 +316,15 @@ namespace ROS2
         if (services.Contains(service))
         {
           logger.LogInfo("Removing service for topic " + service.Topic);
-          service.Dispose();
-          return services.Remove(service);
+          try
+          {
+            service.Dispose();
+          }
+          finally
+          {
+            services.Remove(service);
+          }
+          return true;
         }
         return false;
       }
@@ -257,8 +377,15 @@ namespace ROS2
         if (publishers.Contains(publisher))
         {
           logger.LogInfo("Removing publisher for topic " + publisher.Topic);
-          publisher.Dispose();
-          return publishers.Remove(publisher);
+          try
+          {
+            publisher.Dispose();
+          }
+          finally
+          {
+            publishers.Remove(publisher);
+          }
+          return true;
         }
         return false;
       }
@@ -273,8 +400,15 @@ namespace ROS2
         if (subscriptions.Contains(subscription))
         {
           logger.LogInfo("Removing subscription for topic " + subscription.Topic);
-          subscription.Dispose();
-          return subscriptions.Remove(subscription);
+          try
+          {
+            subscription.Dispose();
+          }
+          finally
+          {
+            subscriptions.Remove(subscription);
+          }
+          return true;
         }
         return false;
       }

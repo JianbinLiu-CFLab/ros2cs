@@ -1,4 +1,5 @@
 // Copyright 2019-2021 Robotec.ai
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,6 +13,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modifications by Jianbin Liu:
+// - Added node-owned disposal path and graceful request cancellation.
+// - Reworked client handle and options ownership.
+// - Added response cleanup and spin callback reentry guard.
+
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -20,21 +26,21 @@ using System.Linq;
 using System.Threading.Tasks;
 using ROS2.Internal;
 
-
 namespace ROS2
 {
-  /// <summary>Client with a topic and Types for Messages</summary>
+  /// <summary>Client with a topic, message types, and node-owned native lifetime.</summary>
   /// <remarks>Instances are created by <see cref="INode.CreateClient"/></remarks>
   /// <typeparam name="I">Message Type to be send</typeparam>
   /// <typeparam name="O">Message Type to be received</typeparam>
-  public class Client<I, O>: IClient<I, O>
+  public class Client<I, O>: IClient<I, O>, INodeChildEntity
     where I : Message, new()
     where O : Message, new()
   {
     /// <inheritdoc/>
     public string Topic { get { return topic; } }
 
-    public rcl_client_t Handle { get { return serviceHandle; } }
+    /// <inheritdoc/>
+    public rcl_client_t Handle { get { return clientHandle; } }
 
     /// <inheritdoc/>
     public IReadOnlyDictionary<long, Task<O>> PendingRequests {get; private set;}
@@ -60,11 +66,13 @@ namespace ROS2
 
     private Ros2csLogger logger = Ros2csLogger.GetInstance();
 
-    rcl_client_t serviceHandle;
+    // Native client/options handles are finalized before the owning node is finalized.
+    private rcl_client_t clientHandle;
 
-    IntPtr serviceOptions = IntPtr.Zero;
+    private IntPtr clientOptions = IntPtr.Zero;
 
-    rcl_node_t nodeHandle;
+    // Keep the owning node reference so fini calls always use the current native node handle.
+    private readonly Node node;
 
     /// <inheritdoc/>
     public bool IsDisposed { get { return disposed; } }
@@ -77,58 +85,146 @@ namespace ROS2
     public Client(string pubTopic, Node node, QualityOfServiceProfile qos = null)
     {
       topic = pubTopic;
-      nodeHandle = node.nodeHandle;
+      this.node = node;
 
       QualityOfServiceProfile qualityOfServiceProfile = qos;
+      bool ownsQos = false;
       if (qualityOfServiceProfile == null)
+      {
         qualityOfServiceProfile = new QualityOfServiceProfile(QosPresetProfile.SERVICES_DEFAULT);
+        ownsQos = true;
+      }
 
       Requests = new Dictionary<long, (TaskCompletionSource<O>, Task<O>)>();
       PendingRequests = new PendingTasksView(Requests);
 
-      serviceOptions = NativeRclInterface.rclcs_client_create_options(qualityOfServiceProfile.handle);
+      try
+      {
+        clientOptions = NativeRclInterface.rclcs_client_create_options(qualityOfServiceProfile.Handle);
+        if (clientOptions == IntPtr.Zero)
+        {
+          throw new RuntimeError("Failed to create client options");
+        }
+      }
+      finally
+      {
+        if (ownsQos)
+        {
+          qualityOfServiceProfile.Dispose();
+        }
+      }
 
       IntPtr typeSupportHandle = MessageTypeSupportHelper.GetTypeSupportHandle<I>();
 
-      serviceHandle = NativeRcl.rcl_get_zero_initialized_client();
-      Utils.CheckReturnEnum(NativeRcl.rcl_client_init(
-                              ref serviceHandle,
-                              ref nodeHandle,
-                              typeSupportHandle,
-                              topic,
-                              serviceOptions));
+      clientHandle = NativeRcl.rcl_get_zero_initialized_client();
+      try
+      {
+        Utils.CheckReturnEnum(NativeRcl.rcl_client_init(
+                                ref clientHandle,
+                                ref node.nodeHandle,
+                                typeSupportHandle,
+                                topic,
+                                clientOptions));
+      }
+      catch
+      {
+        NativeRclInterface.rclcs_client_dispose_options(clientOptions);
+        clientOptions = IntPtr.Zero;
+        throw;
+      }
     }
 
     ~Client()
     {
-      Dispose();
+      Dispose(false);
     }
 
+    /// <summary>Release the client and fail any still-pending requests.</summary>
     public void Dispose()
     {
-      DestroyClient();
+      Dispose(true);
+      GC.SuppressFinalize(this);
     }
 
-    /// <summary> "Destructor" supporting disposable model </summary>
-    private void DestroyClient()
+    /// <summary>Release this client during node disposal without re-entering node removal.</summary>
+    void INodeChildEntity.DisposeFromNode(bool disposing)
     {
+      Dispose(disposing);
+      if (disposing)
+      {
+        GC.SuppressFinalize(this);
+      }
+    }
+
+    /// <summary>Shared client disposal path used by explicit disposal, node disposal, and finalization.</summary>
+    private void Dispose(bool disposing)
+    {
+      Exception disposeException = null;
       lock (mutex)
       {
-        if (!disposed)
+        if (disposed)
         {
-          lock (Requests)
+          return;
+        }
+
+        // Complete pending calls so callers do not wait forever after shutdown/reconnect.
+        lock (Requests)
+        {
+          foreach (var source in Requests.Values)
           {
-            foreach (var source in Requests.Values)
-            {
-              bool success = source.Item1.TrySetException(new ObjectDisposedException("client has been disposed"));
-              Debug.Assert(success);
-            }
-            Requests.Clear();
+            source.Item1.TrySetException(new ObjectDisposedException("client has been disposed"));
           }
-          Utils.CheckReturnEnum(NativeRcl.rcl_client_fini(ref serviceHandle, ref nodeHandle));
-          NativeRclInterface.rclcs_client_dispose_options(serviceOptions);
-          logger.LogInfo("Client destroyed");
-          disposed = true;
+          Requests.Clear();
+        }
+
+        try
+        {
+          if (!node.IsDisposed)
+          {
+            int ret = NativeRcl.rcl_client_fini(ref clientHandle, ref node.nodeHandle);
+            if (disposing)
+            {
+              Utils.CheckReturnEnum(ret);
+            }
+          }
+        }
+        catch (Exception e)
+        {
+          if (disposing)
+          {
+            disposeException = e;
+          }
+        }
+        finally
+        {
+          try
+          {
+            if (clientOptions != IntPtr.Zero)
+            {
+              NativeRclInterface.rclcs_client_dispose_options(clientOptions);
+            }
+          }
+          catch (Exception e)
+          {
+            if (disposing && disposeException == null)
+            {
+              disposeException = e;
+            }
+          }
+          finally
+          {
+            clientOptions = IntPtr.Zero;
+            disposed = true;
+          }
+        }
+      }
+
+      if (disposing)
+      {
+        logger.LogInfo("Client destroyed");
+        if (disposeException != null)
+        {
+          throw disposeException;
         }
       }
     }
@@ -138,8 +234,8 @@ namespace ROS2
     {
       bool available = false;
       Utils.CheckReturnEnum(NativeRcl.rcl_service_server_is_available(
-        ref nodeHandle,
-        ref serviceHandle,
+        ref node.nodeHandle,
+        ref clientHandle,
         ref available
       ));
       return available;
@@ -148,34 +244,66 @@ namespace ROS2
     /// <inheritdoc/>
     public void TakeMessage()
     {
-      MessageInternals msg = new O() as MessageInternals;
-      rcl_rmw_request_id_t request_header = default(rcl_rmw_request_id_t);
-      int ret;
+      MessageInternals msg = null;
+      rcl_rmw_request_id_t requestHeader = default(rcl_rmw_request_id_t);
+      RCLReturnEnum ret;
       lock (mutex)
       {
         if (disposed || !Ros2cs.Ok())
         {
           return;
         }
-        ret = NativeRcl.rcl_take_response(
-          ref serviceHandle,
-          ref request_header,
+
+        msg = CreateResponseMessage();
+        ret = (RCLReturnEnum)NativeRcl.rcl_take_response(
+          ref clientHandle,
+          ref requestHeader,
           msg.Handle
         );
       }
-      if ((RCLReturnEnum)ret != RCLReturnEnum.RCL_RET_CLIENT_TAKE_FAILED)
+
+      if (ret == RCLReturnEnum.RCL_RET_CLIENT_TAKE_FAILED)
       {
-        Utils.CheckReturnEnum(ret);
-        ProcessResponse(request_header.sequence_number, msg);
+        ((IDisposable)msg).Dispose();
+        return;
+      }
+
+      if (ret != RCLReturnEnum.RCL_RET_OK)
+      {
+        ((IDisposable)msg).Dispose();
+        Utils.CheckReturnEnum((int)ret);
+        return;
+      }
+
+      bool processed = ProcessResponse(requestHeader.sequence_number, msg);
+      if (!processed)
+      {
+        ((IDisposable)msg).Dispose();
+      }
+    }
+
+    /// <summary>Create a response message and validate its native-message interface.</summary>
+    private MessageInternals CreateResponseMessage()
+    {
+      O msg = new O();
+      try
+      {
+        return MessageTypeSupportHelper.AsMessageInternals(msg, nameof(msg));
+      }
+      catch
+      {
+        msg.Dispose();
+        throw;
       }
     }
 
     /// <summary>
-    /// Populates managed fields with native values and finishes the corresponding <see cref="Task"/> 
+    /// Populates managed fields with native values and finishes the corresponding <see cref="Task"/>
     /// </summary>
-    /// <param name="message">Message that will be populated and used as the task result</param>
-    /// <param name="header">sequence number received when sending the Request</param>
-    private void ProcessResponse(long sequence_number, MessageInternals msg)
+    /// <param name="msg">Message that will be populated and used as the task result</param>
+    /// <param name="sequence_number">sequence number received when sending the Request</param>
+    /// <returns>True when the response matched a pending request and now owns the message.</returns>
+    private bool ProcessResponse(long sequence_number, MessageInternals msg)
     {
       bool exists = false;
       (TaskCompletionSource<O>, Task<O>) source = default((TaskCompletionSource<O>, Task<O>));
@@ -191,10 +319,12 @@ namespace ROS2
       {
         msg.ReadNativeMessage();
         source.Item1.SetResult((O)msg);
+        return true;
       }
       else
       {
         Debug.Print("received unknown sequence number or got disposed");
+        return false;
       }
     }
 
@@ -206,11 +336,11 @@ namespace ROS2
     private long SendRequest(I msg)
     {
       long sequence_number = default(long);
-      MessageInternals msgInternals = msg as MessageInternals;
+      MessageInternals msgInternals = MessageTypeSupportHelper.AsMessageInternals(msg, nameof(msg));
       msgInternals.WriteNativeMessage();
       Utils.CheckReturnEnum(
         NativeRcl.rcl_send_request(
-          ref serviceHandle,
+          ref clientHandle,
           msgInternals.Handle,
           ref sequence_number
         )
@@ -237,6 +367,12 @@ namespace ROS2
     /// <inheritdoc/>
     public O Call(I msg)
     {
+      if (Ros2cs.IsInSpinCallback)
+      {
+        // A blocking call from a spin callback would wait for the same spin loop that is currently busy.
+        throw new InvalidOperationException("Synchronous Client.Call cannot be used from a spin callback; use CallAsync instead.");
+      }
+
       var task = CallAsync(msg);
       task.Wait();
       return task.Result;
@@ -256,9 +392,12 @@ namespace ROS2
       {
           if (!Ros2cs.Ok() || disposed)
           {
-            throw new InvalidOperationException("Cannot service as the class is already disposed or shutdown was called");
+            throw new InvalidOperationException("Cannot call as the class is already disposed or shutdown was called");
           }
-          // prevent TakeMessage from receiving Responses before we called RegisterSource
+          if (node.IsDisposed)
+          {
+            throw new InvalidOperationException("Cannot call as the owning node is already disposed");
+          }
           long sequence_number = SendRequest(msg);
           source = new TaskCompletionSource<O>(options);
           return RegisterSource(source, sequence_number);
@@ -274,7 +413,6 @@ namespace ROS2
         lock(this.Requests)
         {
           pair = this.Requests.First(entry => entry.Value.Item2 == task);
-          // has to be true
           this.Requests.Remove(pair.Key);
         }
       }
@@ -282,8 +420,7 @@ namespace ROS2
       {
         return false;
       }
-      pair.Value.Item1.SetCanceled();
-      return true;
+      return pair.Value.Item1.TrySetCanceled();
     }
 
     /// <summary>

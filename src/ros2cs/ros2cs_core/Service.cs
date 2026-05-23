@@ -1,4 +1,5 @@
 // Copyright 2019-2021 Robotec.ai
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,16 +13,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modifications by Jianbin Liu:
+// - Added node-owned disposal path and options cleanup.
+// - Suppressed stale client response noise during shutdown/reconnect.
+// - Added safe request message disposal.
+
 using System;
 using ROS2.Internal;
 
 namespace ROS2
 {
-    /// <summary>Service with a topic and Types for Messages</summary>
+    /// <summary>Service with a topic, message types, and node-owned native lifetime.</summary>
     /// <remarks>Instances are created by <see cref="INode.CreateService"/></remarks>
     /// <typeparam name="I">Message Type to be received</typeparam>
     /// <typeparam name="O">Message Type to be send</typeparam>
-    public class Service<I, O>: IService<I, O>
+    public class Service<I, O>: IService<I, O>, INodeChildEntity
     where I : Message, new ()
     where O : Message, new ()
   {
@@ -38,14 +44,15 @@ namespace ROS2
     public bool IsDisposed { get { return disposed; } }
     private bool disposed = false;
 
-    /// <inheritdoc/>
-    private rcl_node_t nodeHandle;
+    // Keep the owning node reference so fini calls always use the current native node handle.
+    private readonly Node node;
 
     /// <summary>
     /// Callback to be called to process incoming requests
     /// </summary>
     private readonly Func<I, O> callback;
-    private IntPtr serviceOptions;
+    // Native service options are released with the service, including constructor failure paths.
+    private IntPtr serviceOptions = IntPtr.Zero;
 
     /// <inheritdoc/>
     public object Mutex { get { return mutex; } }
@@ -58,29 +65,51 @@ namespace ROS2
     internal Service(string subTopic, Node node, Func<I, O> cb, QualityOfServiceProfile qos = null)
     {
       callback = cb;
-      nodeHandle = node.nodeHandle;
+      this.node = node;
       topic = subTopic;
       serviceHandle = NativeRcl.rcl_get_zero_initialized_service();
 
       QualityOfServiceProfile qualityOfServiceProfile = qos;
+      bool ownsQos = false;
       if (qualityOfServiceProfile == null)
       {
         qualityOfServiceProfile = new QualityOfServiceProfile(QosPresetProfile.SERVICES_DEFAULT);
+        ownsQos = true;
       }
 
-      serviceOptions = NativeRclInterface.rclcs_service_create_options(qualityOfServiceProfile.handle);
+      try
+      {
+        serviceOptions = NativeRclInterface.rclcs_service_create_options(qualityOfServiceProfile.Handle);
+        if (serviceOptions == IntPtr.Zero)
+        {
+          throw new RuntimeError("Failed to create service options");
+        }
+      }
+      finally
+      {
+        if (ownsQos)
+        {
+          qualityOfServiceProfile.Dispose();
+        }
+      }
 
-      I msg = new I();
-      MessageInternals msgInternals = msg as MessageInternals;
-      IntPtr typeSupportHandle = msgInternals.TypeSupportHandle;
-      msg.Dispose();
+      IntPtr typeSupportHandle = MessageTypeSupportHelper.GetTypeSupportHandle<I>();
 
-      Utils.CheckReturnEnum(NativeRcl.rcl_service_init(
-        ref serviceHandle,
-        ref node.nodeHandle,
-        typeSupportHandle,
-        topic,
-        serviceOptions));
+      try
+      {
+        Utils.CheckReturnEnum(NativeRcl.rcl_service_init(
+          ref serviceHandle,
+          ref node.nodeHandle,
+          typeSupportHandle,
+          topic,
+          serviceOptions));
+      }
+      catch
+      {
+        NativeRclInterface.rclcs_service_dispose_options(serviceOptions);
+        serviceOptions = IntPtr.Zero;
+        throw;
+      }
     }
 
     /// <summary>
@@ -90,10 +119,23 @@ namespace ROS2
     /// <param name="msg">Message to be send</param>
     private void SendResp(rcl_rmw_request_id_t header, O msg)
     {
-      RCLReturnEnum ret;
-      MessageInternals msgInternals = msg as MessageInternals;
+      MessageInternals msgInternals = MessageTypeSupportHelper.AsMessageInternals(msg, nameof(msg));
       msgInternals.WriteNativeMessage();
-      ret = (RCLReturnEnum)NativeRcl.rcl_send_response(ref serviceHandle, ref header, msgInternals.Handle);
+      int ret = NativeRcl.rcl_send_response(ref serviceHandle, ref header, msgInternals.Handle);
+      if ((RCLReturnEnum)ret == RCLReturnEnum.RCL_RET_OK)
+      {
+        return;
+      }
+
+      string errorMessage = Utils.PopRclErrorString();
+      if (errorMessage != null &&
+          errorMessage.IndexOf("client will not receive response", StringComparison.Ordinal) >= 0)
+      {
+        // Late responses can occur during reconnect/shutdown; rcl reports them even though no fix is needed.
+        return;
+      }
+
+      Utils.ThrowRclException(ret, errorMessage);
     }
 
     /// <inheritdoc/>
@@ -102,7 +144,7 @@ namespace ROS2
     {
       RCLReturnEnum ret;
       rcl_rmw_request_id_t header = default(rcl_rmw_request_id_t);
-      MessageInternals message;
+      MessageInternals message = null;
 
       lock (mutex)
       {
@@ -110,14 +152,46 @@ namespace ROS2
         {
           return;
         }
-        message = new I() as MessageInternals;
+        message = CreateMessage();
 
-        ret = (RCLReturnEnum)NativeRcl.rcl_take_request(ref serviceHandle, ref header,  message.Handle);
+        ret = (RCLReturnEnum)NativeRcl.rcl_take_request(ref serviceHandle, ref header, message.Handle);
       }
 
-      if ((RCLReturnEnum)ret == RCLReturnEnum.RCL_RET_OK)
+      if (ret == RCLReturnEnum.RCL_RET_SERVICE_TAKE_FAILED)
+      {
+        ((IDisposable)message).Dispose();
+        return;
+      }
+
+      if (ret != RCLReturnEnum.RCL_RET_OK)
+      {
+        ((IDisposable)message).Dispose();
+        Utils.CheckReturnEnum((int)ret);
+        return;
+      }
+
+      try
       {
         ProcessRequest(header, message);
+      }
+      finally
+      {
+        ((IDisposable)message).Dispose();
+      }
+    }
+
+    /// <summary>Create a request message and validate its native-message interface.</summary>
+    private MessageInternals CreateMessage()
+    {
+      I msg = new I();
+      try
+      {
+        return MessageTypeSupportHelper.AsMessageInternals(msg, nameof(msg));
+      }
+      catch
+      {
+        msg.Dispose();
+        throw;
       }
     }
 
@@ -136,25 +210,85 @@ namespace ROS2
 
     ~Service()
     {
-      DestroyService();
+      Dispose(false);
     }
 
+    /// <summary>Release the service and its native options.</summary>
     public void Dispose()
     {
-      DestroyService();
+      Dispose(true);
+      GC.SuppressFinalize(this);
     }
 
-    /// <summary> "Destructor" supporting disposable model </summary>
-    private void DestroyService()
+    /// <summary>Release this service during node disposal without re-entering node removal.</summary>
+    void INodeChildEntity.DisposeFromNode(bool disposing)
     {
+      Dispose(disposing);
+      if (disposing)
+      {
+        GC.SuppressFinalize(this);
+      }
+    }
+
+    /// <summary>Shared service disposal path used by explicit disposal, node disposal, and finalization.</summary>
+    private void Dispose(bool disposing)
+    {
+      Exception disposeException = null;
       lock (mutex)
       {
-        if (!disposed)
+        if (disposed)
         {
-          Utils.CheckReturnEnum(NativeRcl.rcl_service_fini(ref serviceHandle, ref nodeHandle));
-          NativeRclInterface.rclcs_node_dispose_options(serviceOptions);
-          disposed = true;
-          Ros2csLogger.GetInstance().LogInfo("Service destroyed");
+          return;
+        }
+
+        try
+        {
+          if (!node.IsDisposed)
+          {
+            int ret = NativeRcl.rcl_service_fini(ref serviceHandle, ref node.nodeHandle);
+            if (disposing)
+            {
+              Utils.CheckReturnEnum(ret);
+            }
+          }
+        }
+        catch (Exception e)
+        {
+          if (disposing)
+          {
+            disposeException = e;
+          }
+        }
+        finally
+        {
+          try
+          {
+            if (serviceOptions != IntPtr.Zero)
+            {
+              NativeRclInterface.rclcs_service_dispose_options(serviceOptions);
+            }
+          }
+          catch (Exception e)
+          {
+            if (disposing && disposeException == null)
+            {
+              disposeException = e;
+            }
+          }
+          finally
+          {
+            serviceOptions = IntPtr.Zero;
+            disposed = true;
+          }
+        }
+      }
+
+      if (disposing)
+      {
+        Ros2csLogger.GetInstance().LogInfo("Service destroyed");
+        if (disposeException != null)
+        {
+          throw disposeException;
         }
       }
     }

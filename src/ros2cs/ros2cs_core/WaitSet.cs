@@ -1,4 +1,5 @@
 // Copyright 2019-2021 Robotec.ai
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,6 +13,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modifications by Jianbin Liu:
+// - Made wait set lifetime disposable.
+// - Added disposed-state checks for spin and entity registration.
+
 using System;
 
 namespace ROS2
@@ -20,10 +25,12 @@ namespace ROS2
   {
     SUCCESS,
     FULL,
+    // The wait set or target entity was disposed before it could be registered.
     DISPOSED
   }
 
-  internal class WaitSet
+  /// <summary>Disposable wrapper around rcl_wait_set_t used by Ros2cs spinning.</summary>
+  internal class WaitSet : IDisposable
   {
     internal ulong SubscriptionCount {get { return Handle.size_of_subscriptions.ToUInt64(); }}
 
@@ -32,6 +39,7 @@ namespace ROS2
     internal ulong ServiceCount {get { return Handle.size_of_services.ToUInt64(); }}
 
     private rcl_wait_set_t Handle;
+    private bool disposed;
 
     internal WaitSet(ref rcl_context_t context)
     {
@@ -50,16 +58,55 @@ namespace ROS2
 
     ~WaitSet()
     {
-      Utils.CheckReturnEnum(NativeRcl.rcl_wait_set_fini(ref Handle));
+      Dispose(false);
+    }
+
+    /// <summary>Release the native wait set.</summary>
+    public void Dispose()
+    {
+      Dispose(true);
+      GC.SuppressFinalize(this);
+    }
+
+    /// <summary>Shared wait set disposal path used by explicit disposal and the finalizer.</summary>
+    private void Dispose(bool disposing)
+    {
+      // Explicit shutdown disposes this internal type under Ros2cs waitSetMutex; finalizer cleanup is best-effort.
+      if (disposed)
+      {
+        return;
+      }
+
+      try
+      {
+        int ret = NativeRcl.rcl_wait_set_fini(ref Handle);
+        if (disposing)
+        {
+          Utils.CheckReturnEnum(ret);
+        }
+      }
+      catch
+      {
+        if (disposing)
+        {
+          throw;
+        }
+      }
+      finally
+      {
+        disposed = true;
+      }
     }
 
     internal void Clear()
     {
+      ThrowIfDisposed();
       Utils.CheckReturnEnum(NativeRcl.rcl_wait_set_clear(ref Handle));
     }
 
     internal void Resize(ulong subscriptionCount, ulong clientCount, ulong serviceCount)
     {
+      ThrowIfDisposed();
       Utils.CheckReturnEnum(NativeRcl.rcl_wait_set_resize(
       ref Handle,
       (UIntPtr)subscriptionCount,
@@ -72,8 +119,15 @@ namespace ROS2
 
     internal AddResult TryAddSubscription(ISubscriptionBase subscription, out ulong index)
     {
+      if (disposed)
+      {
+        index = default(ulong);
+        return AddResult.DISPOSED;
+      }
+
       UIntPtr native_index = default(UIntPtr);
       int ret;
+      // Entity locks prevent Dispose from finalizing handles while they are being registered.
       lock (subscription.Mutex)
       {
         if (subscription.IsDisposed)
@@ -105,8 +159,15 @@ namespace ROS2
 
     internal AddResult TryAddClient(IClientBase client, out ulong index)
     {
+      if (disposed)
+      {
+        index = default(ulong);
+        return AddResult.DISPOSED;
+      }
+
       UIntPtr native_index = default(UIntPtr);
       int ret;
+      // Entity locks prevent Dispose from finalizing handles while they are being registered.
       lock (client.Mutex)
       {
         if (client.IsDisposed)
@@ -138,9 +199,16 @@ namespace ROS2
 
     internal AddResult TryAddService(IServiceBase service, out ulong index)
     {
+      if (disposed)
+      {
+        index = default(ulong);
+        return AddResult.DISPOSED;
+      }
+
       UIntPtr native_index = default(UIntPtr);
       int ret;
 
+      // Entity locks prevent Dispose from finalizing handles while they are being registered.
       lock (service.Mutex)
       {
         if (service.IsDisposed)
@@ -178,6 +246,7 @@ namespace ROS2
 
     internal bool Wait(TimeSpan timeout)
     {
+      ThrowIfDisposed();
       int ret = NativeRcl.rcl_wait(ref Handle, timeout.Ticks * 100);
       if ((RCLReturnEnum)ret == RCLReturnEnum.RCL_RET_TIMEOUT)
       {
@@ -187,6 +256,15 @@ namespace ROS2
       {
         Utils.CheckReturnEnum(ret);
         return true;
+      }
+    }
+
+    /// <summary>Reject wait set operations after shutdown has released the native handle.</summary>
+    private void ThrowIfDisposed()
+    {
+      if (disposed)
+      {
+        throw new ObjectDisposedException(nameof(WaitSet));
       }
     }
   }

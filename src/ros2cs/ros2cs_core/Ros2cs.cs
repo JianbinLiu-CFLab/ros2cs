@@ -1,4 +1,5 @@
 // Copyright 2019-2021 Robotec.ai
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +12,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// Modifications by Jianbin Liu:
+// - Added coordinated shutdown of nodes, wait set, and rcl context.
+// - Added spin callback tracking to prevent synchronous call reentry.
+// - Serialized wait set access and reduced reconnect/spin noise.
 
 using System;
 using System.Linq;
@@ -31,12 +37,25 @@ namespace ROS2
   {
     private static readonly Destructor destructor = new Destructor();
     private static readonly object mutex = new object();
+    // Wait set access is serialized separately so shutdown cannot race a spin wait.
+    private static readonly object waitSetMutex = new object();
+    [ThreadStatic]
+    // Tracks callback execution per spinning thread to reject deadlock-prone synchronous client calls.
+    private static int spinCallbackDepth;
     private static bool initialized = false;  // for most part equivalent to rcl::ok()
+    // Prevents rcl_context_fini from running twice across explicit shutdown and finalization.
+    private static bool contextFinalized = true;
     private static rcl_context_t global_context;  // a simplification, we only use global default context
     private static rcl_allocator_t default_allocator;
     private static List<INode> nodes = new List<INode>(); // kept to shutdown everything in order
 
     private static WaitSet WaitSet;
+
+    /// <summary>Whether the current thread is executing subscription/client/service callbacks.</summary>
+    internal static bool IsInSpinCallback
+    {
+      get { return spinCallbackDepth > 0; }
+    }
 
     /// <summary> Globally initialize ros2 (rcl) </summary>
     /// <description> Note that only a single context is used. </description>
@@ -56,6 +75,7 @@ namespace ROS2
         Utils.CheckReturnEnum(NativeRclInterface.rclcs_init(ref global_context, default_allocator));
         WaitSet = new WaitSet(ref global_context);
         initialized = true;
+        contextFinalized = false;
       }
     }
 
@@ -70,6 +90,7 @@ namespace ROS2
     /// </description>
     public static void Shutdown()
     {
+      List<Exception> exceptions = null;
       lock (mutex)
       {
         if (!initialized)
@@ -79,13 +100,60 @@ namespace ROS2
         initialized = false;
 
         Ros2csLogger.GetInstance().LogInfo("Ros2cs shutdown");
-        Utils.CheckReturnEnum(NativeRcl.rcl_shutdown(ref global_context));
 
+        // Dispose nodes before rcl_shutdown so child handles can finalize against a valid context.
         foreach (var node in nodes)
         {
-          node.Dispose();
+          try
+          {
+            node.Dispose();
+          }
+          catch (Exception e)
+          {
+            AddException(ref exceptions, e);
+          }
         }
         nodes.Clear();
+
+        // The wait set must be released while no SpinOnce call can mutate or wait on it.
+        lock (waitSetMutex)
+        {
+          try
+          {
+            if (WaitSet != null)
+            {
+              WaitSet.Dispose();
+              WaitSet = null;
+            }
+          }
+          catch (Exception e)
+          {
+            AddException(ref exceptions, e);
+          }
+        }
+
+        try
+        {
+          Utils.CheckReturnEnum(NativeRcl.rcl_shutdown(ref global_context));
+        }
+        catch (Exception e)
+        {
+          AddException(ref exceptions, e);
+        }
+
+        try
+        {
+          FiniContext(true);
+        }
+        catch (Exception e)
+        {
+          AddException(ref exceptions, e);
+        }
+      }
+
+      if (exceptions != null && exceptions.Count > 0)
+      {
+        throw new AggregateException(exceptions);
       }
     }
 
@@ -105,9 +173,14 @@ namespace ROS2
     {
       ~Destructor()
       {
-        Ros2csLogger.GetInstance().LogInfo("Ros2cs destructor called");
-        Ros2cs.Shutdown();
-        NativeRcl.rcl_context_fini(ref global_context);
+        try
+        {
+          Ros2cs.Shutdown();
+          FiniContext(false);
+        }
+        catch
+        {
+        }
       }
     }
 
@@ -159,8 +232,15 @@ namespace ROS2
         {
           return false; // removal is handled with shutdown already
         }
-        node.Dispose();
-        return nodes.Remove(node);
+        try
+        {
+          node.Dispose();
+        }
+        finally
+        {
+          nodes.Remove(node);
+        }
+        return true;
       }
     }
 
@@ -195,7 +275,7 @@ namespace ROS2
     /// <summary> Spin only once </summary>
     /// <description> This overload is meant for when the while loop is better to
     /// handle in the application layer  </description>
-    /// <returns> Whether the spin was successful (wait set not empty or Ros2cs not initialized) </returns>
+    /// <returns> Whether the wait set was populated and waited on. Timeout with entities returns true. </returns>
     /// <see cref="Spin(INode,double)"/>
     public static bool SpinOnce(INode node, double timeoutSec = 0.1)
     {
@@ -203,37 +283,45 @@ namespace ROS2
       return SpinOnce(nodes, timeoutSec);
     }
 
-    private static bool warned_once = false;
-
     /// <summary> SpinOnce overload for multiple nodes </summary>
     /// <remarks> This overload saves on implicit List creation </remarks>
-    /// <returns> Whether the spin was successful (wait set not empty or Ros2cs not initialized) </returns>
+    /// <returns> Whether the wait set was populated and waited on. Timeout with entities returns true. </returns>
     /// <see cref="SpinOnce(INode,double)"/>
     public static bool SpinOnce(List<INode> nodes, double timeoutSec = 0.1)
     {
+      List<ISubscriptionBase> allSubscriptions;
+      List<IClientBase> allClients;
+      List<IServiceBase> allServices;
+      bool success;
+
       lock (mutex)
-      {  // Figure out how to minimize this lock
+      {
         if (!initialized)
         {
           return false;
         }
 
-        // TODO - This can be optimized so that we cache the list and invalidate only with changes
-        var allSubscriptions = new List<ISubscriptionBase>();
-        var allClients = new List<IClientBase>();
-        var allServices = new List<IServiceBase>();
+        // Snapshot entity collections under the global/node locks, then release them before waiting.
+        allSubscriptions = new List<ISubscriptionBase>();
+        allClients = new List<IClientBase>();
+        allServices = new List<IServiceBase>();
         foreach (INode node_interface in nodes)
         {
           Node node = node_interface as Node;
           if (node == null)
             continue; //Rare situation in which we are disposing
-          
-          allSubscriptions.AddRange(node.Subscriptions.Where(s => s != null));
-          allClients.AddRange(node.Clients.Where(c => c != null));
-          allServices.AddRange(node.Services.Where(s => s != null));
+
+          node.AppendEntities(allSubscriptions, allClients, allServices);
+        }
+      }
+
+      lock (waitSetMutex)
+      {
+        if (!initialized || WaitSet == null)
+        {
+          return false;
         }
 
-        // TODO - investigate performance impact
         WaitSet.Resize(
           (ulong)allSubscriptions.Count,
           (ulong)allClients.Count,
@@ -254,7 +342,6 @@ namespace ROS2
           AddResult result = WaitSet.TryAddService(service, out ulong _);
           Debug.Assert(result != AddResult.FULL, "no space for Service in WaitSet");
         }
-        bool success;
         try
         {
           success = WaitSet.Wait(TimeSpan.FromSeconds(timeoutSec));
@@ -263,15 +350,51 @@ namespace ROS2
         {
           return false;
         }
-        if (success)
+      }
+
+      if (success)
+      {
+        // Mark callback execution so synchronous client calls can fail fast instead of blocking spin.
+        spinCallbackDepth++;
+        try
         {
           // Sequential processing
           allSubscriptions.ForEach(subscription => subscription.TakeMessage());
           allClients.ForEach(client => client.TakeMessage());
           allServices.ForEach(service => service.TakeMessage());
         }
-        return true;
+        finally
+        {
+          spinCallbackDepth--;
+        }
       }
+      return true;
+    }
+
+    /// <summary>Finalize the global rcl context exactly once.</summary>
+    private static void FiniContext(bool throwing)
+    {
+      if (contextFinalized)
+      {
+        return;
+      }
+
+      int ret = NativeRcl.rcl_context_fini(ref global_context);
+      contextFinalized = true;
+      if (throwing)
+      {
+        Utils.CheckReturnEnum(ret);
+      }
+    }
+
+    /// <summary>Lazy-create the exception collection used by coordinated shutdown.</summary>
+    private static void AddException(ref List<Exception> exceptions, Exception exception)
+    {
+      if (exceptions == null)
+      {
+        exceptions = new List<Exception>();
+      }
+      exceptions.Add(exception);
     }
   }
 }
