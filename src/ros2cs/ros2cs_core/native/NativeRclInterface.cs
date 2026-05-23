@@ -1,4 +1,5 @@
 // Copyright 2019-2021 Robotec.ai
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +12,10 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// Modifications by Jianbin Liu:
+// - Retained ros2cs native library handle while wrapper delegates are in use.
+// - Added calling convention metadata for rclcs init delegate.
 
 using System;
 using System.Runtime.InteropServices;
@@ -26,8 +31,11 @@ namespace ROS2
   internal static class NativeRclInterface
   {
     private static readonly DllLoadUtils dllLoadUtils = DllLoadUtilsFactory.GetDllLoadUtils();
-    private static readonly IntPtr nativeROS2CS = dllLoadUtils.LoadLibrary("ros2cs");
+    // Keep ros2cs native wrapper loaded while managed delegates point into it.
+    private static readonly NativeLibraryHandle nativeROS2CSHandle = NativeLibraryHandle.LoadLibrary(dllLoadUtils, "ros2cs");
+    private static readonly IntPtr nativeROS2CS = nativeROS2CSHandle.Handle;
 
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate int RCLCSInitType(ref rcl_context_t context, rcl_allocator_t allocator);
     internal static RCLCSInitType
         rclcs_init =

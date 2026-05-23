@@ -1,4 +1,5 @@
 // Copyright 2019-2021 Robotec.ai
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +12,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// Modifications by Jianbin Liu:
+// - Added explicit sequential layout annotations for native interop structs.
 
 using System;
 using System.Runtime.InteropServices;
@@ -28,6 +32,8 @@ namespace ROS2
 
   #pragma warning disable 0169
 
+  /// <summary>Managed mirror of rcl_allocator_t with explicit native field order.</summary>
+  [StructLayout(LayoutKind.Sequential)]
   public struct rcl_allocator_t
   {
     public IntPtr allocate;
@@ -37,11 +43,15 @@ namespace ROS2
     public IntPtr state;
   }
 
+  /// <summary>Managed mirror of rcl_arguments_t with explicit native field order.</summary>
+  [StructLayout(LayoutKind.Sequential)]
   public struct rcl_arguments_t
   {
     private IntPtr impl;
   }
 
+  /// <summary>Managed mirror of rcl_context_t with explicit native field order.</summary>
+  [StructLayout(LayoutKind.Sequential)]
   public struct rcl_context_t
 {
     private IntPtr global_arguments;
@@ -49,42 +59,57 @@ namespace ROS2
     private IntPtr instance_id_storage;
   }
 
+  /// <summary>Managed mirror of rcl_error_string_t with explicit native field order.</summary>
+  [StructLayout(LayoutKind.Sequential)]
   public struct rcl_error_string_t
   {
     internal IntPtr str;
   }
 
+  /// <summary>Managed mirror of rcl_init_options_t with explicit native field order.</summary>
+  [StructLayout(LayoutKind.Sequential)]
   public struct rcl_init_options_t
   {
     private IntPtr impl;
   }
 
+  /// <summary>Managed mirror of rcl_node_t with explicit native field order.</summary>
+  [StructLayout(LayoutKind.Sequential)]
   public struct rcl_node_t
   {
     private IntPtr context;
     private IntPtr rcl_node_impl_t;
   }
 
+  /// <summary>Managed mirror of rcl_publisher_t with explicit native field order.</summary>
+  [StructLayout(LayoutKind.Sequential)]
   public struct rcl_publisher_t
   {
     private IntPtr impl;
   }
 
+  /// <summary>Managed mirror of rcl_subscription_t with explicit native field order.</summary>
+  [StructLayout(LayoutKind.Sequential)]
   public struct rcl_subscription_t
   {
     private IntPtr impl;
   }
 
+  /// <summary>Managed mirror of rcl_client_t with explicit native field order.</summary>
+  [StructLayout(LayoutKind.Sequential)]
   public struct rcl_client_t
   {
     private IntPtr impl;
   }
 
+  /// <summary>Managed mirror of rcl_service_t with explicit native field order.</summary>
+  [StructLayout(LayoutKind.Sequential)]
   public struct rcl_service_t
   {
     private IntPtr impl;
   }
 
+  /// <summary>Managed mirror of rcl_rmw_request_id_t with explicit native field order.</summary>
   [StructLayout(LayoutKind.Sequential)]
   public struct rcl_rmw_request_id_t
   {
@@ -96,6 +121,8 @@ namespace ROS2
     public long sequence_number;
   };
 
+  /// <summary>Managed mirror of rcl_wait_set_t with explicit native field order.</summary>
+  [StructLayout(LayoutKind.Sequential)]
   public struct rcl_wait_set_t
   {
     private IntPtr subscriptions;
@@ -113,6 +140,8 @@ namespace ROS2
     private IntPtr impl;
   }
 
+  /// <summary>Managed mirror of rcl_clock_t with explicit native field order.</summary>
+  [StructLayout(LayoutKind.Sequential)]
   public struct rcl_clock_t
   {
     private int type;

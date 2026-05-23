@@ -1,5 +1,6 @@
 // Copyright 2019-2021 Robotec.ai
 // Copyright 2016-2018 Esteve Fernandez <esteve@apache.org>
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,6 +13,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// Modifications by Jianbin Liu:
+// - Added disposable ownership for native library handles.
+// - Hardened platform detection and native unload guards.
+// - Reworked Linux preload tracking to avoid stale handles.
 
 // Based on http://dimitry-i.blogspot.com.es/2013/01/mononet-how-to-dynamically-load-native.html
 
@@ -80,10 +86,18 @@ namespace ROS2
 
     private static bool IsUWP () {
       try {
-        IntPtr ptr = LoadPackagedLibrary ("api-ms-win-core-libraryloader-l2-1-0.dll");
+        // Probe a stable system library; app containers reject this path on desktop-only runtimes.
+        IntPtr ptr = LoadPackagedLibrary ("kernel32.dll");
+        if (ptr == IntPtr.Zero) {
+          return false;
+        }
         FreeLibraryUWP (ptr);
         return true;
-      } catch (TypeLoadException) {
+      } catch (Exception e) when (
+          e is TypeLoadException ||
+          e is DllNotFoundException ||
+          e is EntryPointNotFoundException ||
+          e is BadImageFormatException) {
         return false;
       }
     }
@@ -119,26 +133,20 @@ namespace ROS2
     }
 
     private static Platform CheckPlatform () {
-          if (IsUnix())
-          {
-              return Platform.Unix;
-          }
-          else if (IsMacOSX())
-          {
-              return Platform.MacOSX;
-          }
-          else if (IsWindowsDesktop())
-          {
-              return Platform.WindowsDesktop;
-          }
-          else if (IsUWP())
-          {
-              return Platform.UWP;
-          }
-          else
-          {
-              return Platform.Unknown;
-          }
+      // Prefer RuntimeInformation for coarse OS detection before probing platform-specific loaders.
+      if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+      {
+        return IsUWP() ? Platform.UWP : Platform.WindowsDesktop;
+      }
+      if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+      {
+        return Platform.MacOSX;
+      }
+      if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+      {
+        return Platform.Unix;
+      }
+      return Platform.Unknown;
     }
   }
 
@@ -147,6 +155,93 @@ namespace ROS2
     IntPtr LoadLibraryNoSuffix (string fileName);
     void FreeLibrary (IntPtr handle);
     IntPtr GetProcAddress (IntPtr dllHandle, string name);
+  }
+
+  /// <summary>Owns a loaded native library and releases it when disposed.</summary>
+  /// <remarks>Keeps native libraries alive while delegates created from them remain reachable.</remarks>
+  public sealed class NativeLibraryHandle : IDisposable
+  {
+    private readonly DllLoadUtils dllLoadUtils;
+    private IntPtr handle;
+    private bool disposed;
+
+    private NativeLibraryHandle(DllLoadUtils dllLoadUtils, IntPtr handle)
+    {
+      this.dllLoadUtils = dllLoadUtils;
+      this.handle = handle;
+    }
+
+    /// <summary>Native library handle used for symbol resolution.</summary>
+    public IntPtr Handle
+    {
+      get
+      {
+        if (disposed)
+        {
+          throw new ObjectDisposedException(nameof(NativeLibraryHandle));
+        }
+        return handle;
+      }
+    }
+
+    /// <summary>Load a ros2cs-style native library and wrap ownership of the returned handle.</summary>
+    public static NativeLibraryHandle LoadLibrary(DllLoadUtils dllLoadUtils, string fileName)
+    {
+      return new NativeLibraryHandle(dllLoadUtils, dllLoadUtils.LoadLibrary(fileName));
+    }
+
+    /// <summary>Load a native library by its exact platform name and wrap ownership of the handle.</summary>
+    public static NativeLibraryHandle LoadLibraryNoSuffix(DllLoadUtils dllLoadUtils, string fileName)
+    {
+      return new NativeLibraryHandle(dllLoadUtils, dllLoadUtils.LoadLibraryNoSuffix(fileName));
+    }
+
+    /// <summary>Wrap an already loaded native library handle so it is released exactly once.</summary>
+    public static NativeLibraryHandle FromHandle(DllLoadUtils dllLoadUtils, IntPtr handle)
+    {
+      if (handle == IntPtr.Zero)
+      {
+        throw new ArgumentException("Native library handle cannot be zero", nameof(handle));
+      }
+      return new NativeLibraryHandle(dllLoadUtils, handle);
+    }
+
+    ~NativeLibraryHandle()
+    {
+      Dispose(false);
+    }
+
+    /// <summary>Release the native library handle.</summary>
+    public void Dispose()
+    {
+      Dispose(true);
+      GC.SuppressFinalize(this);
+    }
+
+    /// <summary>Shared dispose path used by explicit disposal and the finalizer.</summary>
+    private void Dispose(bool disposing)
+    {
+      if (disposed)
+      {
+        return;
+      }
+
+      try
+      {
+        if (handle != IntPtr.Zero)
+        {
+          dllLoadUtils.FreeLibrary(handle);
+        }
+      }
+      catch
+      {
+      }
+      finally
+      {
+        handle = IntPtr.Zero;
+        disposed = true;
+      }
+    }
   }
 
   public class DllLoadUtilsUWP : DllLoadUtils {
@@ -161,7 +256,9 @@ namespace ROS2
     private static extern IntPtr GetProcAddress (IntPtr handle, string procedureName);
 
     void DllLoadUtils.FreeLibrary (IntPtr handle) {
-      FreeLibrary (handle);
+      if (handle != IntPtr.Zero) {
+        FreeLibrary (handle);
+      }
     }
 
     IntPtr DllLoadUtils.GetProcAddress (IntPtr dllHandle, string name) {
@@ -199,7 +296,9 @@ namespace ROS2
     private static extern IntPtr GetProcAddress (IntPtr handle, string procedureName);
 
     void DllLoadUtils.FreeLibrary (IntPtr handle) {
-      FreeLibrary (handle);
+      if (handle != IntPtr.Zero) {
+        FreeLibrary (handle);
+      }
     }
 
     IntPtr DllLoadUtils.GetProcAddress (IntPtr dllHandle, string name) {
@@ -244,21 +343,33 @@ namespace ROS2
 
     //TODO (adamdbrw) Somewhat hacky solution to open (and dereference) the problematic library
     //that otherwise causes crashes in Unity Editor.
-    private static bool libPreloaded = false;
+    // Tracks the exact preload target so path/name changes refresh the native handle.
+    private static string preloadedLibraryKey = "";
+    // Retains ownership of the preloaded dependency for the lifetime of the Unix loader.
+    private static NativeLibraryHandle preloadedLibraryHandle = null;
+    /// <summary>Preload a configured dependency once per absolute path/name pair.</summary>
     void CheckPreloadLibraries()
     {
-        if (libPreloaded || GlobalVariables.preloadLibraryName == "")
+        string preloadKey = GlobalVariables.absolutePath + "|" + GlobalVariables.preloadLibraryName;
+        if (preloadedLibraryKey == preloadKey || GlobalVariables.preloadLibraryName == "")
             return;
         Ros2csLogger.GetInstance().LogDebug("Preloading " + GlobalVariables.preloadLibraryName);
         IntPtr libPtr = Load(GlobalVariables.preloadLibraryName);
+        if (preloadedLibraryHandle != null)
+        {
+          preloadedLibraryHandle.Dispose();
+        }
+        preloadedLibraryHandle = NativeLibraryHandle.FromHandle(this, libPtr);
 
         Ros2csLogger.GetInstance().LogDebug("Preloading " + GlobalVariables.preloadLibraryName + " successful.");
 
-        libPreloaded = true;
+        preloadedLibraryKey = preloadKey;
     }
 
     public void FreeLibrary (IntPtr handle) {
-      dlclose (handle);
+      if (handle != IntPtr.Zero) {
+        dlclose (handle);
+      }
     }
 
     public IntPtr GetProcAddress (IntPtr dllHandle, string name) {
@@ -327,7 +438,9 @@ namespace ROS2
     const int RTLD_NOW = 2;
 
     public void FreeLibrary (IntPtr handle) {
-      dlclose (handle);
+      if (handle != IntPtr.Zero) {
+        dlclose (handle);
+      }
     }
 
     public IntPtr GetProcAddress (IntPtr dllHandle, string name) {

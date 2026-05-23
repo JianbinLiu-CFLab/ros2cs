@@ -1,4 +1,5 @@
 // Copyright 2019-2021 Robotec.ai
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,6 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modifications by Jianbin Liu:
+// - Retained ros2cs native library handle while rmw delegates are in use.
+
 using System;
 using System.Runtime.InteropServices;
 
@@ -23,7 +27,9 @@ namespace ROS2
   internal static class NativeRmwInterface
   {
     private static readonly DllLoadUtils dllLoadUtils = DllLoadUtilsFactory.GetDllLoadUtils();
-    private static readonly IntPtr nativeRMW = dllLoadUtils.LoadLibrary("ros2cs");
+    // Keep ros2cs native wrapper loaded while managed rmw delegates point into it.
+    private static readonly NativeLibraryHandle nativeRMWHandle = NativeLibraryHandle.LoadLibrary(dllLoadUtils, "ros2cs");
+    private static readonly IntPtr nativeRMW = nativeRMWHandle.Handle;
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate IntPtr RMWImplementationIdentifier();

@@ -1,4 +1,5 @@
 // Copyright 2019-2021 Robotec.ai
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,6 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modifications by Jianbin Liu:
+// - Retained native library handles while rcl delegates are in use.
+
 using System;
 using System.Runtime.InteropServices;
 
@@ -23,8 +27,11 @@ namespace ROS2
   internal static class NativeRcl
   {
     private static readonly DllLoadUtils dllLoadUtils = DllLoadUtilsFactory.GetDllLoadUtils();
-    private static readonly IntPtr nativeRCL = dllLoadUtils.LoadLibraryNoSuffix("rcl");
-    private static readonly IntPtr nativeRCUtils = dllLoadUtils.LoadLibraryNoSuffix("rcutils");
+    // Keep library handles alive for the lifetime of all delegates created from their symbols.
+    private static readonly NativeLibraryHandle nativeRCLHandle = NativeLibraryHandle.LoadLibraryNoSuffix(dllLoadUtils, "rcl");
+    private static readonly NativeLibraryHandle nativeRCUtilsHandle = NativeLibraryHandle.LoadLibraryNoSuffix(dllLoadUtils, "rcutils");
+    private static readonly IntPtr nativeRCL = nativeRCLHandle.Handle;
+    private static readonly IntPtr nativeRCUtils = nativeRCUtilsHandle.Handle;
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate rcl_context_t GetZeroInitializedContextType();

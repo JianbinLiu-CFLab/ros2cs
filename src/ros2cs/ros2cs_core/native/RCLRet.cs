@@ -1,4 +1,5 @@
 // Copyright 2019-2021 Robotec.ai
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +12,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// Modifications by Jianbin Liu:
+// - Added corrected return-code aliases for take-failed values.
 
 namespace ROS2
 {
@@ -48,6 +52,8 @@ namespace ROS2
     RCL_RET_CLIENT_TAKE_FAILED = 501,
     // rcl service server specific ret codes in 6XX
     RCL_RET_SERVICE_INVALID = 600,
+    // Correct spelling retained beside the legacy misspelled alias for compatibility.
+    RCL_RET_SERVICE_TAKE_FAILED = 601,
     RCL_RET_SERIVCE_TAKE_FAILD = 601,
     // rcl guard condition specific ret codes in 7XX
     // rcl timer specific ret codes in 8XX
@@ -66,6 +72,8 @@ namespace ROS2
     RCL_RET_INVALID_LOG_LEVEL_RULE = 1020,
 
     RCL_RET_INVALID_EVENT_ID = 2000,
+    // Correct spelling retained beside the legacy misspelled alias for compatibility.
+    RCL_RET_EVENT_TAKE_FAILED = 2001,
     RCL_RET_EVENT_TAKE_FAILER = 2001
 	}
 }

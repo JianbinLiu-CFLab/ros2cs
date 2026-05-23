@@ -1,4 +1,5 @@
 // Copyright 2019-2021 Robotec.ai
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +12,10 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// Modifications by Jianbin Liu:
+// - Added allocation failure and null dispose guards for clock wrappers.
+// - Finalizes rcl clock before freeing the wrapper allocation.
 
 #include <rcl/error_handling.h>
 #include <rcl/node.h>
@@ -133,10 +138,16 @@ ROSIDL_GENERATOR_C_EXPORT
 rcl_clock_t * rclcs_ros_clock_create(rcl_allocator_t * allocator_handle)
 {
   rcl_clock_t  * clock_handle = (rcl_clock_t *)malloc(sizeof(rcl_clock_t));
+  // Return NULL on allocation failure so managed code can throw a clear creation error.
+  if (clock_handle == NULL)
+  {
+    return NULL;
+  }
   int32_t ret = rcl_ros_clock_init(clock_handle, allocator_handle);
   if (ret != RCL_RET_OK)
   {
     free(clock_handle);
+    return NULL;
   }
   return clock_handle;
 }
@@ -144,5 +155,12 @@ rcl_clock_t * rclcs_ros_clock_create(rcl_allocator_t * allocator_handle)
 ROSIDL_GENERATOR_C_EXPORT
 void rclcs_ros_clock_dispose(rcl_clock_t * clock_handle)
 {
+  // Dispose can be called from finalizers or failed construction paths; NULL is a no-op.
+  if (clock_handle == NULL)
+  {
+    return;
+  }
+  // Finalize the rcl clock before freeing the wrapper allocation.
+  rcl_clock_fini(clock_handle);
   free(clock_handle);
 }
