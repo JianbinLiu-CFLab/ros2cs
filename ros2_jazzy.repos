@@ -1,3 +1,8 @@
+# Modifications Copyright (c) 2026 Jianbin Liu.
+#
+# Modifications by Jianbin Liu:
+# - Pin dotnet_cmake_module to a fork commit that fixes Jazzy .NET test registration.
+
 repositories:
   ros2/rosidl_defaults:
     type: git
@@ -37,8 +42,8 @@ repositories:
     version: jazzy
   external/build_tools/dotnet_cmake_module:
     type: git
-    url: https://github.com/RobotecAI/dotnet_cmake_module
-    version: 1.1.0
+    url: https://github.com/JianbinLiu-CFLab/dotnet_cmake_module.git
+    version: c884bbb5ae6ec35c69aa7c5375401696f08750f3
   external/build_tools/ament_cmake_export_assemblies:
     type: git
     url: https://github.com/RobotecAI/ament_cmake_export_assemblies
