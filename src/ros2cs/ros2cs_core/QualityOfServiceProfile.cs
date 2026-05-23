@@ -1,4 +1,5 @@
 // Copyright 2019-2021 Robotec.ai
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +12,10 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// Modifications by Jianbin Liu:
+// - Made QoS profiles disposable.
+// - Added native handle validation before QoS mutation.
 
 using System;
 
@@ -57,29 +62,94 @@ namespace ROS2
   }
 
   /// <summary> Quality of Service settings for publishers and subscriptions </summary>
-  public class QualityOfServiceProfile
+  public class QualityOfServiceProfile : IDisposable
   {
+    // Native rmw_qos_profile_t wrapper owned by this managed object.
     internal IntPtr handle;
+    private bool disposed;
+
+    /// <summary>Native QoS profile handle, guarded against use after disposal.</summary>
+    internal IntPtr Handle
+    {
+      get
+      {
+        ThrowIfDisposed();
+        return handle;
+      }
+    }
 
     /// <summary> Construct using a preset </summary>
     public QualityOfServiceProfile(QosPresetProfile preset_profile = QosPresetProfile.DEFAULT)
     {
       handle = NativeRmwInterface.rmw_native_interface_create_qos_profile((int)preset_profile);
+      if (handle == IntPtr.Zero)
+      {
+        throw new RuntimeError("Failed to create QoS profile");
+      }
     }
 
     public void SetHistory(HistoryPolicy policy, int depth)
     {
+      ThrowIfDisposed();
       NativeRmwInterface.rmw_native_interface_set_history(handle, (int)policy, depth);
     }
 
     public void SetReliability(ReliabilityPolicy policy)
     {
+      ThrowIfDisposed();
       NativeRmwInterface.rmw_native_interface_set_reliability(handle, (int)policy);
     }
 
     public void SetDurability(DurabilityPolicy policy)
     {
+      ThrowIfDisposed();
       NativeRmwInterface.rmw_native_interface_set_durability(handle, (int)policy);
+    }
+
+    /// <summary>Release the native QoS profile wrapper.</summary>
+    public void Dispose()
+    {
+      Dispose(true);
+      GC.SuppressFinalize(this);
+    }
+
+    ~QualityOfServiceProfile()
+    {
+      Dispose(false);
+    }
+
+    /// <summary>Shared QoS disposal path used by explicit disposal and the finalizer.</summary>
+    private void Dispose(bool disposing)
+    {
+      if (disposed)
+      {
+        return;
+      }
+
+      try
+      {
+        if (handle != IntPtr.Zero)
+        {
+          NativeRmwInterface.rmw_native_interface_delete_qos_profile(handle);
+        }
+      }
+      catch
+      {
+      }
+      finally
+      {
+        handle = IntPtr.Zero;
+        disposed = true;
+      }
+    }
+
+    /// <summary>Reject mutations after the native QoS profile has been released.</summary>
+    private void ThrowIfDisposed()
+    {
+      if (disposed)
+      {
+        throw new ObjectDisposedException(nameof(QualityOfServiceProfile));
+      }
     }
   }
 }
