@@ -1,5 +1,6 @@
 ﻿// Copyright 2019 Dyno Robotics (by Samuel Lindgren samuel@dynorobotics.se)
 // Copyright 2019-2021 Robotec.ai
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,6 +13,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// Modifications by Jianbin Liu:
+// - Added native roundtrip coverage for int8 sequences.
 
 using NUnit.Framework;
 
@@ -105,6 +109,21 @@ namespace ROS2.Test
             Assert.That(getStringSequence.Length, Is.EqualTo(2));
             Assert.That(getStringSequence[0], Is.EqualTo("Hello"));
             Assert.That(getStringSequence[1], Is.EqualTo("world"));
+        }
+
+        /// <summary>Verifies generated int8 sequence marshaling preserves signed values through native storage.</summary>
+        [Test]
+        public void NativeRoundtripPreservesInt8Sequence()
+        {
+            sbyte[] expected = new sbyte[] { -128, -1, 0, 1, 127 };
+            test_msgs.msg.UnboundedSequences msg = new test_msgs.msg.UnboundedSequences();
+            msg.Int8_values = expected;
+
+            msg.WriteNativeMessage();
+            msg.Int8_values = new sbyte[0];
+            msg.ReadNativeMessage();
+
+            Assert.That(msg.Int8_values, Is.EqualTo(expected));
         }
 
         [Test]

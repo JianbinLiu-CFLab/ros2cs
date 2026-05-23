@@ -1,4 +1,5 @@
 # Copyright 2019-2021 Robotec.ai
+# Modifications Copyright (c) 2026 Jianbin Liu.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,6 +12,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# Modifications by Jianbin Liu:
+# - Updated the C# target framework to .NET 8.
 
 cmake_minimum_required(VERSION 3.5)
 
@@ -26,7 +30,8 @@ find_package(builtin_interfaces REQUIRED)
 find_package(dotnet_cmake_module REQUIRED)
 find_package(rosidl_generator_cs REQUIRED)
 
-set(CSHARP_TARGET_FRAMEWORK "netcoreapp6.0")
+# Build examples on .NET 8 while core/common remain netstandard2.0.
+set(CSHARP_TARGET_FRAMEWORK "net8.0")
 set(CSBUILD_TOOL "DotNetCore")
 
 find_package(DotNETExtra REQUIRED)

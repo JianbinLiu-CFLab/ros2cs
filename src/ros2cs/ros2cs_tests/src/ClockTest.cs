@@ -1,5 +1,6 @@
 // Copyright 2019-2021 Robotec.ai
 // Copyright 2019 Dyno Robotics (by Samuel Lindgren samuel@dynorobotics.se)
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,6 +14,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modifications by Jianbin Liu:
+// - Added setup/teardown guard for tests that do not require ROS initialization.
+// - Added negative nanosecond normalization coverage.
+
 using NUnit.Framework;
 
 namespace ROS2.Test
@@ -20,16 +25,29 @@ namespace ROS2.Test
     [TestFixture]
     public class ClockTest
     {
+        // Tracks whether the current test initialized ROS so teardown can skip utility-only tests.
+        private bool rosInitialized;
+
         [SetUp]
         public void SetUp()
         {
+            if (TestContext.CurrentContext.Test.Name == nameof(RosTimeFromNegativeNanosecondsIsNormalized))
+            {
+                return;
+            }
+
             Ros2cs.Init();
+            rosInitialized = true;
         }
 
         [TearDown]
         public void TearDown()
         {
-            Ros2cs.Shutdown();
+            if (rosInitialized)
+            {
+                Ros2cs.Shutdown();
+                rosInitialized = false;
+            }
         }
 
         [Test]
@@ -56,6 +74,16 @@ namespace ROS2.Test
 
             RosTime twoPointSix = new RosTime { sec = 2, nanosec = 600000000 };
             Assert.That(twoPointSix.Seconds, Is.EqualTo(2.6d));
+        }
+
+        /// <summary>Negative nanoseconds should normalize to the previous second plus positive nanoseconds.</summary>
+        [Test]
+        public void RosTimeFromNegativeNanosecondsIsNormalized()
+        {
+            RosTime time = Clock.FromNanoseconds(-1);
+
+            Assert.That(time.sec, Is.EqualTo(-1));
+            Assert.That(time.nanosec, Is.EqualTo(999999999));
         }
     }
 }
