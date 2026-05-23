@@ -226,6 +226,27 @@ if(STANDALONE_BUILD)
         endif()
       endif()
 
+      # Get C++ runtime support libraries used by tf2/rclcpp based packages.
+      if(UNIX AND "${_library_name}" STREQUAL "class_loader")
+        fetch_target_lib(class_loader::class_loader)
+        list(APPEND REQ_STANDALONE_LIBS ${class_loader_class_loader_LIB_PATH})
+      endif()
+
+      if(UNIX AND "${_library_name}" STREQUAL "libstatistics_collector")
+        fetch_target_lib(libstatistics_collector::libstatistics_collector)
+        list(APPEND REQ_STANDALONE_LIBS ${libstatistics_collector_libstatistics_collector_LIB_PATH})
+      endif()
+
+      if(UNIX AND "${_library_name}" STREQUAL "rclcpp")
+        fetch_target_lib(rclcpp::rclcpp)
+        list(APPEND REQ_STANDALONE_LIBS ${rclcpp_rclcpp_LIB_PATH})
+      endif()
+
+      if(UNIX AND "${_library_name}" STREQUAL "rclcpp_action")
+        fetch_target_lib(rclcpp_action::rclcpp_action)
+        list(APPEND REQ_STANDALONE_LIBS ${rclcpp_action_rclcpp_action_LIB_PATH})
+      endif()
+
       # Get spdlog and dependency
       if(UNIX AND "${_library_name}" STREQUAL "spdlog")
         include(${${_library_name}_CONFIG})
