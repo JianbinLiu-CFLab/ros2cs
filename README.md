@@ -1,6 +1,12 @@
 Ros2cs
 =============
 
+> Modifications Copyright (c) 2026 Jianbin Liu.
+>
+> Modifications by Jianbin Liu:
+> - Documented the current conservative verification status for the Jazzy maintenance branch.
+> - Clarified Windows 10 LTSC validation, .NET target framework split, and legacy Ubuntu status.
+
 A C# .NET library for ROS2, including C# implementation of rcl APIs, message generation, tests and examples.
 
 Ros2cs is also an independent part of [Ros2 For Unity](https://github.com/RobotecAI/ros2-for-unity), which enables high-performance communication between simulation and ROS2 robot packages. Follow instructions there instead if you are intending to use ros2cs with Unity3D.
@@ -12,18 +18,38 @@ Ros2cs is also an independent part of [Ros2 For Unity](https://github.com/Robote
 - Custom messages can be easily generated from unmodified ROS2 packages
 - A logger that can be hooked to your application callbacks (e.g. in Unity3D)
 
-### Platforms
+### Current verification status
 
-Supported OSes:
+This maintenance branch keeps the historical ros2cs platform goals, but current GREEN evidence is narrower than the legacy support matrix below.
+
+Verified in the current local validation:
+
+- Windows 10 IoT Enterprise LTSC 2021 (`10.0.19044`) with ROS 2 Jazzy.
+- `RMW_IMPLEMENTATION=rmw_fastrtps_cpp`.
+- MSVC toolchain with Ninja generator.
+- `ros2cs` workspace build/test for the Jazzy source workspace.
+- `ros2cs_common`, `ros2cs_core`, and generated message assemblies remain `netstandard2.0`.
+- `ros2cs_tests` and `ros2cs_examples` target `net8.0`.
+
+Not yet verified in the current maintenance round:
+
+- Ubuntu 20.04 / 22.04 / 24.04.
+- Windows 11.
+- ROS 2 Foxy / Galactic / Humble / Rolling on this branch.
+- Unity / R2FU runtime import and Player validation.
+
+### Platform goals and legacy matrix
+
+Historical/project OS targets:
 - Ubuntu 24.04 (bash)
 - Ubuntu 22.04 (bash)
 - Ubuntu 20.04 (bash)
-- Windows 10* (powershell)
-- Windows 11* (powershell)
+- Windows 10 / Windows 10 LTSC (powershell)
+- Windows 11 (powershell)
 
-> \* ROS2 Galactic and Humble support only Windows 10 ([ROS 2 Windows system requirements](https://docs.ros.org/en/humble/Installation/Windows-Install-Binary.html#system-requirements)), but it is proven that it also works fine on Windows 11.
+> The current Jazzy validation evidence is Windows 10 LTSC only. Treat Windows 11 and Ubuntu entries as expected or legacy targets until they have fresh build/test evidence.
 
-Supported ROS2 distributions:
+Historical/project ROS2 distribution targets:
 - Jazzy
 - Humble
 - Galactic
@@ -43,16 +69,16 @@ After cloning the project and importing .repos, you can simply put your message 
 
 ### Build instructions
 
-Please follow the  OS-specific instructions for your build:
+Please follow the OS-specific instructions for your build:
 
-- [Ubuntu 20.04 Instructions](README-UBUNTU.md)
-- [Windows 10 Instructions](README-WINDOWS.md)
+- [Ubuntu Instructions](README-UBUNTU.md) - legacy, not recently verified for this Jazzy maintenance branch
+- [Windows Instructions](README-WINDOWS.md) - current validation target is Windows 10 LTSC + Jazzy
 
 ## Testing
 
-Make sure your NuGet repositories can resolve `xUnit` dependency. You can call `dotnet nuget list source` to see your current sources for NuGet packages. Please note that `Microsoft Visual Studio Offline Packages` are usually insufficient. You can fix it by adding `nuget.org` repository: `dotnet nuget add source --name nuget.org https://api.nuget.org/v3/index.json`.
+Make sure your NuGet repositories can resolve the test dependencies used by `ros2cs_tests` (currently NUnit-based). You can call `dotnet nuget list source` to see your current sources for NuGet packages. Please note that `Microsoft Visual Studio Offline Packages` are usually insufficient. You can fix it by adding `nuget.org` repository: `dotnet nuget add source --name nuget.org https://api.nuget.org/v3/index.json`.
 
-- Make sure you built tests ( OS-specific build script with `--with-tests` flag).
+- Make sure you built tests (OS-specific build script with `--with-tests` flag).
 - Run OS-specific test script:
     - ubuntu:
     ```bash
@@ -60,7 +86,7 @@ Make sure your NuGet repositories can resolve `xUnit` dependency. You can call `
     ```
     - windows:
     ```powershell
-    test.sp1
+    test.ps1
     ```
 - Run a manual test with basic listener/publisher examples (you have to source your ROS2 first):
     - ubuntu

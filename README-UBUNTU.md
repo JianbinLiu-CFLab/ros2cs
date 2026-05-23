@@ -1,5 +1,24 @@
 # ROS2CS - Ubuntu 20.04 and Ubuntu 22.04
 
+> Modifications Copyright (c) 2026 Jianbin Liu.
+>
+> Modifications by Jianbin Liu:
+> - Marked Ubuntu instructions as legacy / not recently verified for the current Jazzy maintenance branch.
+> - Noted the .NET 8 tests/examples target framework change without rewriting the Ubuntu flow.
+
+## Current verification status
+
+These Ubuntu instructions are legacy guidance. They have not been recently verified for the current Jazzy maintenance branch.
+
+Current local validation was performed on Windows 10 LTSC with ROS 2 Jazzy. Ubuntu 20.04 / 22.04 / 24.04 should be treated as unverified until a fresh Ubuntu build/test run records commands, exit codes, and key output.
+
+The current target framework split is:
+
+- `ros2cs_common`, `ros2cs_core`, and generated message assemblies: `netstandard2.0`.
+- `ros2cs_tests` and `ros2cs_examples`: `net8.0`.
+
+The older `.NET 6.0` references below are retained as historical setup context and need refresh before claiming Ubuntu support for this branch.
+
 ## Building
 
 ### Prerequisites

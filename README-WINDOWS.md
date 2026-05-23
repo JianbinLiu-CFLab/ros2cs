@@ -1,19 +1,43 @@
-# ROS2CS - Windows 10
+# ROS2CS - Windows 10 / Windows 10 LTSC / Windows 11
+
+> Modifications Copyright (c) 2026 Jianbin Liu.
+>
+> Modifications by Jianbin Liu:
+> - Documented the Jazzy/FastRTPS RTI Connext DDS Micro probe stderr as a known non-blocking environment warning.
+> - Documented Ninja as the required Windows Jazzy generator policy for VS 2026 / VS 18 toolchains.
+> - Updated the current Windows verification status for Windows 10 LTSC + ROS 2 Jazzy and .NET 8 tests/examples.
 
 ## Building
 
+### Current verification status
+
+Current GREEN evidence for this maintenance branch is:
+
+- Windows 10 IoT Enterprise LTSC 2021 (`10.0.19044`).
+- ROS 2 Jazzy from the local pixi-based Windows distribution.
+- `RMW_IMPLEMENTATION=rmw_fastrtps_cpp`.
+- MSVC compiler with Ninja generator.
+- `ros2cs` source workspace build/test.
+- `ros2cs_common`, `ros2cs_core`, and generated message assemblies on `netstandard2.0`.
+- `ros2cs_tests` and `ros2cs_examples` on `net8.0`.
+
+Windows 11 is an expected target but was not the OS used for the current local validation. Older ROS 2 distributions in this README are legacy context unless fresh evidence is added.
+
 ### Prerequisites
 
-*  ROS2 installed on the system (additionally you should go to [Building ROS2 section](https://docs.ros.org/en/foxy/Installation/Windows-Development-Setup.html) and check if all `pip` [Install dependencies](https://docs.ros.org/en/foxy/Installation/Windows-Development-Setup.html#install-dependencies) and [Developer tools](https://docs.ros.org/en/foxy/Installation/Windows-Development-Setup.html#install-developer-tools) are installed)
+*  ROS2 installed on the system. For this maintenance branch, the verified target is ROS 2 Jazzy.
 *  vcstool package - [see here](https://github.com/dirk-thomas/vcstool)
-*  .NET 6.0 sdk - [see here](https://dotnet.microsoft.com/download/dotnet/6.0)
-*  For tests only: xUnit testing framework - [see here](https://xunit.net/)
+*  .NET 8 SDK for tests/examples.
+*  `ros2cs_common`, `ros2cs_core`, and generated message assemblies remain compatible with `netstandard2.0`.
+*  For tests only: NUnit test infrastructure as configured by `ros2cs_tests`.
 
 ### Important notices
 
 - Windows [path length is limited to 260 characters](https://docs.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation) by default. A good solution is to modify your `HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\FileSystem` registry key `LongPathsEnabled` to 1. This way you will avoid path length issues. Alternatively, you need to clone your repo to `C:\dev` into `r2cs` folder or a similar shallow path to avoid this issue during build. **Cloning into longer path will cause compilation errors!**
 
-- For building and running a Visual Studio preconfigured powershell terminal must be used. Standard powershell prompt might not be configured properly to be used with MSVC compiler and Windows SDKs.  You should have Visual Studio already installed (ROS2 dependency) and you can find shortcut for `Developer PowerShell for VS` here: `C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Visual Studio 2019\Visual Studio Tools`.
+- For building and running, an MSVC/Visual Studio configured PowerShell terminal must be used. Standard PowerShell may not have the compiler and Windows SDK paths configured. Visual Studio 2022 and Visual Studio 2026 / VS 18 toolchains are both acceptable compiler environments when Ninja is used.
+
+- Windows Jazzy builds should use the Ninja generator with MSVC (`-G Ninja` or `CMAKE_GENERATOR=Ninja`). Visual Studio 2026 / VS 18 environments are valid compiler environments, but the Jazzy-pinned `colcon_cmake` and CMake versions do not support auto-selecting a Visual Studio 18 generator. Do not rely on colcon's automatic Visual Studio generator detection.
 
 - A powershell terminal with administrator privileges is required for **Windows** and **ros2 galactic**. This is because python packages installation requires a privilage for creating symlinks. More about this issue: [github issue](https://github.com/ament/ament_cmake/issues/350).
 
@@ -24,7 +48,9 @@
 ### Steps
 
 - Clone this project.
-- Source your ROS2 installation (`C:\dev\ros2_foxy\local_setup.ps1`)
+- Source your ROS2 installation.
+  - Legacy example: `C:\dev\ros2_foxy\local_setup.ps1`
+  - Current maintenance target: ROS 2 Jazzy.
 - Navigate to the top project folder and pull required repositories (`get_repos.ps1`)
   - You can run script with `--get-custom-messages` argument to fetch extra messages from `custom_messages.repos` file.
   - It will use `vcstool` to download required ROS2 packages. By default, this will get repositories as set in `${ROS_DISTRO}`.
@@ -32,6 +58,11 @@
   - It invokes `colcon_build` with `--merge-install` argument to simplify libraries installation
   - You can build tests by adding `--with-tests` argument
 - To test your build please check main readme [Testing section](README.md#testing)
+
+Current local validation commands are recorded in:
+
+- `D:\ros2unity\plan\ros2cs\06-ros2cs-jazzy-build-test-validation-report.md`
+- `D:\ros2unity\plan\ros2cs\07-ros2cs-src-workspace-build-test-validation.md`
 
 ### Standalone version (Windows)
 
@@ -50,5 +81,28 @@ Additionally all libraries need to be in a visible path, since they are loaded d
 Problem may occur on non english version of Windows. This error is caused by impossibility in decoding `dotnet` output by ament tools.
 
 **Fix**: Change your `dotnet` output to english by temporarily renaming your localization directory (`pl` to `pl.bak`, `fr` to `fr.bak` etc.) in your `dotnet` sdk directory.
+
+- Known non-blocking stderr: `ERRORFailed to load RTI Connext DDS Micro`
+
+Windows Jazzy + FastRTPS builds may print this line while generating interface typesupport. It comes from the ROS 2 `rmw_implementation` loader probing the installed `rmw_connextddsmicro_cpp` plugin without an RTI Connext DDS Micro runtime. It is not a ros2cs code path.
+
+Treat it as non-blocking environment noise only when all of these are true:
+
+- `RMW_IMPLEMENTATION=rmw_fastrtps_cpp`
+- `colcon build` exits with code 0
+- `colcon test` exits with code 0 and the CTest `Test.xml` / NUnit output has 0 failures
+- the message appears only in interface package stderr, not in ros2cs C# or native shim compile/link stderr
+
+Re-evaluate if you switch to `rmw_connextddsmicro_cpp`, install RTI Connext DDS Micro runtime, or any of the conditions above stop being true.
+
+- `Unknown / unsupported VS version '18.0'`
+
+This indicates colcon/CMake tried to infer a Visual Studio generator from a Visual Studio 2026 / VS 18 environment. Use Ninja instead:
+
+```powershell
+colcon build --cmake-args -G Ninja
+```
+
+When using the local Jazzy wrapper, `D:\ros2unity\tools\Enter-Ros2JazzyEnv.py` sets `CMAKE_GENERATOR=Ninja` by default. Explicit `--cmake-args -G Ninja` is still recommended in reproducible command logs.
 
 **If no solution of your problem is present in the section above, please make sure to check out `ROS2 For Unity` [Troubleshooting section](https://github.com/RobotecAI/ros2-for-unity/blob/master/README-WINDOWS.md#build-troubleshooting)**
