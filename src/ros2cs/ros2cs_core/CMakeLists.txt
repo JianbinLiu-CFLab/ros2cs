@@ -359,8 +359,12 @@ if(STANDALONE_BUILD)
 
   set(ros2_standalone_libs
     rcl
+    class_loader
+    libstatistics_collector
     rcl_logging_spdlog
     rcl_yaml_param_parser
+    rclcpp
+    rclcpp_action
     rcpputils
     rcutils
     rmw
