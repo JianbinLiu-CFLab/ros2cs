@@ -25,6 +25,13 @@ https://github.com/JianbinLiu-CFLab/ros2cs.git
 version: main
 ```
 
+The latest public maintenance preview is:
+
+```text
+v0.2.0-jazzy-preview.1
+https://github.com/JianbinLiu-CFLab/ros2cs/releases/tag/v0.2.0-jazzy-preview.1
+```
+
 ### Features
 
 - A set of core abstractions such as Node, Publisher, Subscription, QoS, Clock
