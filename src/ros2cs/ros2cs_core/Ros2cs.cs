@@ -17,6 +17,7 @@
 // - Added coordinated shutdown of nodes, wait set, and rcl context.
 // - Added spin callback tracking to prevent synchronous call reentry.
 // - Serialized wait set access and reduced reconnect/spin noise.
+// - Suppressed the static shutdown finalizer after explicit Shutdown.
 
 using System;
 using System.Linq;
@@ -50,6 +51,7 @@ namespace ROS2
     private static List<INode> nodes = new List<INode>(); // kept to shutdown everything in order
 
     private static WaitSet WaitSet;
+    private static bool destructorFinalizerSuppressed;
 
     /// <summary>Whether the current thread is executing subscription/client/service callbacks.</summary>
     internal static bool IsInSpinCallback
@@ -76,6 +78,11 @@ namespace ROS2
         WaitSet = new WaitSet(ref global_context);
         initialized = true;
         contextFinalized = false;
+        if (destructorFinalizerSuppressed)
+        {
+          GC.ReRegisterForFinalize(destructor);
+          destructorFinalizerSuppressed = false;
+        }
       }
     }
 
@@ -97,6 +104,7 @@ namespace ROS2
         {
           return;
         }
+        SuppressDestructorFinalizer();
         initialized = false;
 
         Ros2csLogger.GetInstance().LogInfo("Ros2cs shutdown");
@@ -182,6 +190,18 @@ namespace ROS2
         {
         }
       }
+    }
+
+    /// <summary>Prevent the static finalizer from re-entering Shutdown after explicit shutdown starts.</summary>
+    private static void SuppressDestructorFinalizer()
+    {
+      if (destructorFinalizerSuppressed)
+      {
+        return;
+      }
+
+      GC.SuppressFinalize(destructor);
+      destructorFinalizerSuppressed = true;
     }
 
     /// <summary> Create a ros2 (rcl) node </summary>
