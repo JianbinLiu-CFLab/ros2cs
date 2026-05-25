@@ -178,6 +178,79 @@ set_property(
   ${_generated_msg_cs_files} ${_generated_msg_c_files} ${_generated_msg_c_ts_files} ${_generated_srv_cs_files} ${_generated_srv_c_files} ${_generated_srv_c_ts_files}
   PROPERTY GENERATED 1)
 
+set(_extension_compile_flags "")
+if(NOT WIN32)
+  set(_extension_compile_flags "-Wall -Wextra")
+endif()
+
+set(_generated_msg_c_structs_target "")
+if(_generated_msg_c_files)
+  set(_generated_msg_c_structs_target "${PROJECT_NAME}__cs_msg_structs")
+  add_library(${_generated_msg_c_structs_target} OBJECT
+    ${_generated_msg_c_files}
+  )
+  set_target_properties(
+    ${_generated_msg_c_structs_target}
+    PROPERTIES
+    COMPILE_FLAGS             "${_extension_compile_flags}"
+    POSITION_INDEPENDENT_CODE ON
+  )
+  target_include_directories(${_generated_msg_c_structs_target}
+    PUBLIC
+    ${CMAKE_CURRENT_BINARY_DIR}/rosidl_generator_c
+    ${CMAKE_CURRENT_BINARY_DIR}/rosidl_generator_cs
+  )
+  ament_target_dependencies(${_generated_msg_c_structs_target}
+    "rosidl_generator_c"
+    "rosidl_typesupport_c"
+    "rosidl_typesupport_interface"
+  )
+  foreach(_pkg_name ${rosidl_generate_interfaces_DEPENDENCY_PACKAGE_NAMES})
+    ament_target_dependencies(${_generated_msg_c_structs_target}
+      ${_pkg_name}
+    )
+  endforeach()
+  if(TARGET ${PROJECT_NAME}__rosidl_generator_c)
+    add_dependencies(${_generated_msg_c_structs_target}
+      ${PROJECT_NAME}__rosidl_generator_c
+    )
+  endif()
+endif()
+
+set(_generated_srv_c_structs_target "")
+if(_generated_srv_c_files)
+  set(_generated_srv_c_structs_target "${PROJECT_NAME}__cs_srv_structs")
+  add_library(${_generated_srv_c_structs_target} OBJECT
+    ${_generated_srv_c_files}
+  )
+  set_target_properties(
+    ${_generated_srv_c_structs_target}
+    PROPERTIES
+    COMPILE_FLAGS             "${_extension_compile_flags}"
+    POSITION_INDEPENDENT_CODE ON
+  )
+  target_include_directories(${_generated_srv_c_structs_target}
+    PUBLIC
+    ${CMAKE_CURRENT_BINARY_DIR}/rosidl_generator_c
+    ${CMAKE_CURRENT_BINARY_DIR}/rosidl_generator_cs
+  )
+  ament_target_dependencies(${_generated_srv_c_structs_target}
+    "rosidl_generator_c"
+    "rosidl_typesupport_c"
+    "rosidl_typesupport_interface"
+  )
+  foreach(_pkg_name ${rosidl_generate_interfaces_DEPENDENCY_PACKAGE_NAMES})
+    ament_target_dependencies(${_generated_srv_c_structs_target}
+      ${_pkg_name}
+    )
+  endforeach()
+  if(TARGET ${PROJECT_NAME}__rosidl_generator_c)
+    add_dependencies(${_generated_srv_c_structs_target}
+      ${PROJECT_NAME}__rosidl_generator_c
+    )
+  endif()
+endif()
+
 foreach(_generated_msg_c_ts_file ${_generated_msg_c_ts_files})
   get_filename_component(_full_folder "${_generated_msg_c_ts_file}" DIRECTORY)
   get_filename_component(_package_folder "${_full_folder}" DIRECTORY)
@@ -199,14 +272,10 @@ foreach(_generated_msg_c_ts_file ${_generated_msg_c_ts_files})
 
   add_library(${_target_name} SHARED
     "${_generated_msg_c_ts_file}"
-    "${_generated_msg_c_files}"
+    $<TARGET_OBJECTS:${_generated_msg_c_structs_target}>
   )
 
   set(_destination_dir "${_output_path}/${_parent_folder}")
-  set(_extension_compile_flags "")
-  if(NOT WIN32)
-    set(_extension_compile_flags "-Wall -Wextra")
-  endif()
 
   set_target_properties(
     ${_target_name}
@@ -306,14 +375,10 @@ foreach(_generated_srv_c_ts_file ${_generated_srv_c_ts_files})
 
   add_library(${_target_name} SHARED
     "${_generated_srv_c_ts_file}"
-    "${_generated_srv_c_files}"
+    $<TARGET_OBJECTS:${_generated_srv_c_structs_target}>
   )
 
   set(_destination_dir "${_output_path}/${_parent_folder}")
-  set(_extension_compile_flags "")
-  if(NOT WIN32)
-    set(_extension_compile_flags "-Wall -Wextra")
-  endif()
 
   set_target_properties(
     ${_target_name}
