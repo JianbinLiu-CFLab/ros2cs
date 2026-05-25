@@ -16,6 +16,8 @@
 // Modifications by Jianbin Liu:
 // - Added allocation failure and null dispose guards for clock wrappers.
 // - Finalizes rcl clock before freeing the wrapper allocation.
+// - Added allocation and null-argument guards for rcl option wrapper helpers.
+// - Finalizes rcl init options when rcl_init fails.
 
 #include <rcl/error_handling.h>
 #include <rcl/node.h>
@@ -25,6 +27,7 @@
 #include <rcutils/strdup.h>
 #include <rcutils/types.h>
 #include <rmw/qos_profiles.h>
+#include <stdlib.h>
 
 ROSIDL_GENERATOR_C_EXPORT
 int rclcs_init(rcl_context_t *context, rcl_allocator_t allocator)
@@ -39,6 +42,7 @@ int rclcs_init(rcl_context_t *context, rcl_allocator_t allocator)
   ret = rcl_init(0, NULL, &init_options, context);
   if (ret != RCL_RET_OK)
   {
+    rcl_init_options_fini(&init_options);
     return (int)ret;
   }
 
@@ -50,6 +54,10 @@ ROSIDL_GENERATOR_C_EXPORT
 rcl_node_options_t * rclcs_node_create_default_options()
 {
   rcl_node_options_t  * default_node_options_handle = (rcl_node_options_t *)malloc(sizeof(rcl_node_options_t));
+  if (default_node_options_handle == NULL)
+  {
+    return NULL;
+  }
   *default_node_options_handle = rcl_node_get_default_options();
   return default_node_options_handle;
 }
@@ -64,6 +72,15 @@ ROSIDL_GENERATOR_C_EXPORT
 rcl_subscription_options_t *rclcs_subscription_create_options(rmw_qos_profile_t * qos)
 {
   rcl_subscription_options_t  * default_subscription_options_handle = (rcl_subscription_options_t *)malloc(sizeof(rcl_subscription_options_t));
+  if (default_subscription_options_handle == NULL)
+  {
+    return NULL;
+  }
+  if (qos == NULL)
+  {
+    free(default_subscription_options_handle);
+    return NULL;
+  }
   *default_subscription_options_handle = rcl_subscription_get_default_options();
   default_subscription_options_handle->qos = *qos;
   return default_subscription_options_handle;
@@ -79,6 +96,15 @@ ROSIDL_GENERATOR_C_EXPORT
 rcl_publisher_options_t *rclcs_publisher_create_options(rmw_qos_profile_t * qos)
 {
   rcl_publisher_options_t *default_publisher_options_handle = (rcl_publisher_options_t *)malloc(sizeof(rcl_publisher_options_t));
+  if (default_publisher_options_handle == NULL)
+  {
+    return NULL;
+  }
+  if (qos == NULL)
+  {
+    free(default_publisher_options_handle);
+    return NULL;
+  }
   *default_publisher_options_handle = rcl_publisher_get_default_options();
   default_publisher_options_handle->qos = *qos;
   return default_publisher_options_handle;
@@ -94,6 +120,15 @@ ROSIDL_GENERATOR_C_EXPORT
 rcl_client_options_t *rclcs_client_create_options(rmw_qos_profile_t * qos)
 {
   rcl_client_options_t *default_client_options_handle = (rcl_client_options_t *)malloc(sizeof(rcl_client_options_t));
+  if (default_client_options_handle == NULL)
+  {
+    return NULL;
+  }
+  if (qos == NULL)
+  {
+    free(default_client_options_handle);
+    return NULL;
+  }
   *default_client_options_handle = rcl_client_get_default_options();
   default_client_options_handle->qos = *qos;
   return default_client_options_handle;
@@ -109,6 +144,15 @@ ROSIDL_GENERATOR_C_EXPORT
 rcl_service_options_t *rclcs_service_create_options(rmw_qos_profile_t * qos)
 {
   rcl_service_options_t *default_service_options_handle = (rcl_service_options_t *)malloc(sizeof(rcl_service_options_t));
+  if (default_service_options_handle == NULL)
+  {
+    return NULL;
+  }
+  if (qos == NULL)
+  {
+    free(default_service_options_handle);
+    return NULL;
+  }
   *default_service_options_handle = rcl_service_get_default_options();
   default_service_options_handle->qos = *qos;
   return default_service_options_handle;

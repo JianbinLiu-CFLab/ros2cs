@@ -1,4 +1,5 @@
 // Copyright 2019-2021 Robotec.ai
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,10 +13,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modifications by Jianbin Liu:
+// - Added allocation and null-argument guards for QoS profile helpers.
+
 #include <rmw/qos_profiles.h>
 #include <rmw/types.h>
 #include <rmw/rmw.h>
 #include <rcl/rcl.h>
+#include <stdlib.h>
 
 ROSIDL_GENERATOR_C_EXPORT
 rmw_qos_profile_t * rmw_native_interface_create_qos_profile(int profile)
@@ -31,6 +36,10 @@ rmw_qos_profile_t * rmw_native_interface_create_qos_profile(int profile)
   };
 
   rmw_qos_profile_t * preset_profile = (rmw_qos_profile_t *)malloc(sizeof(rmw_qos_profile_t));
+  if (preset_profile == NULL)
+  {
+    return NULL;
+  }
 
   switch (profile)
   {
@@ -61,6 +70,10 @@ void rmw_native_interface_delete_qos_profile(rmw_qos_profile_t * profile)
 ROSIDL_GENERATOR_C_EXPORT
 void rmw_native_interface_set_history(rmw_qos_profile_t * profile, int history_mode, int history_depth)
 {
+  if (profile == NULL)
+  {
+    return;
+  }
   profile->history = history_mode;
   profile->depth = (size_t)history_depth;
 }
@@ -68,11 +81,19 @@ void rmw_native_interface_set_history(rmw_qos_profile_t * profile, int history_m
 ROSIDL_GENERATOR_C_EXPORT
 void rmw_native_interface_set_reliability(rmw_qos_profile_t * profile, int reliability_mode)
 {
+  if (profile == NULL)
+  {
+    return;
+  }
   profile->reliability = reliability_mode;
 }
 
 ROSIDL_GENERATOR_C_EXPORT
 void rmw_native_interface_set_durability(rmw_qos_profile_t * profile, int durability_mode)
 {
+  if (profile == NULL)
+  {
+    return;
+  }
   profile->durability = durability_mode;
 }

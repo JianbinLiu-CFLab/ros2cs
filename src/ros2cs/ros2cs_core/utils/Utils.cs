@@ -15,6 +15,7 @@
 
 // Modifications by Jianbin Liu:
 // - Split rcl exception throwing so callers can inspect/filter native error messages.
+// - Ensured native error strings are released even if managed marshaling fails.
 
 using System;
 using System.Runtime.InteropServices;
@@ -57,9 +58,17 @@ namespace ROS2
     internal static string GetRclErrorString()
     {
       IntPtr errorStringPtr = NativeRclInterface.rclcs_get_error_string();
-      string errorString = PtrToString(errorStringPtr);
-      NativeRclInterface.rclcs_dispose_error_string(errorStringPtr);
-      return errorString;
+      try
+      {
+        return PtrToString(errorStringPtr);
+      }
+      finally
+      {
+        if (errorStringPtr != IntPtr.Zero)
+        {
+          NativeRclInterface.rclcs_dispose_error_string(errorStringPtr);
+        }
+      }
     }
 
     /// <summary> Get and clean last rcl error </summary>

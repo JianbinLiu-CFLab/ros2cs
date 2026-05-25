@@ -16,6 +16,7 @@
 // Modifications by Jianbin Liu:
 // - Retained ros2cs native library handle while wrapper delegates are in use.
 // - Added calling convention metadata for rclcs init delegate.
+// - Corrected internal default-node-options delegate spelling.
 
 using System;
 using System.Runtime.InteropServices;
@@ -63,13 +64,13 @@ namespace ROS2
         typeof(DisposeErrorStringType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    internal delegate IntPtr NodeCreateDefaltOptionsType();
-    internal static NodeCreateDefaltOptionsType
+    internal delegate IntPtr NodeCreateDefaultOptionsType();
+    internal static NodeCreateDefaultOptionsType
         rclcs_node_create_default_options =
-        (NodeCreateDefaltOptionsType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
+        (NodeCreateDefaultOptionsType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
         nativeROS2CS,
         "rclcs_node_create_default_options"),
-        typeof(NodeCreateDefaltOptionsType));
+        typeof(NodeCreateDefaultOptionsType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate void NodeDisposeOptionsType(IntPtr options);

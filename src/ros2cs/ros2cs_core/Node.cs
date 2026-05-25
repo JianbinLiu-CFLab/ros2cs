@@ -17,6 +17,7 @@
 // - Added child entity disposal contract for node-owned resources.
 // - Disposes child entities before node shutdown and aggregates errors.
 // - Removes entities even when disposal throws.
+// - Added default node option allocation failure handling.
 
 using System;
 using System.Linq;
@@ -98,7 +99,20 @@ namespace ROS2
 
       nodeHandle = NativeRcl.rcl_get_zero_initialized_node();
       defaultNodeOptions = NativeRclInterface.rclcs_node_create_default_options();
-      Utils.CheckReturnEnum(NativeRcl.rcl_node_init(ref nodeHandle, nodeName, nodeNamespace, ref context, defaultNodeOptions));
+      if (defaultNodeOptions == IntPtr.Zero)
+      {
+        throw new RuntimeError("Failed to create node options");
+      }
+      try
+      {
+        Utils.CheckReturnEnum(NativeRcl.rcl_node_init(ref nodeHandle, nodeName, nodeNamespace, ref context, defaultNodeOptions));
+      }
+      catch
+      {
+        NativeRclInterface.rclcs_node_dispose_options(defaultNodeOptions);
+        defaultNodeOptions = IntPtr.Zero;
+        throw;
+      }
       logger.LogInfo("Node initialized");
     }
 
