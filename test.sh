@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# Modifications Copyright (c) 2026 Jianbin Liu.
+#
+# Modifications by Jianbin Liu:
+# - Added ROS environment checks and preserved failing test-result exit codes.
+
 set -u
 
 if [ -z "${ROS_DISTRO:-}" ]; then

@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# Modifications Copyright (c) 2026 Jianbin Liu.
+#
+# Modifications by Jianbin Liu:
+# - Added fail-fast validation for ROS_DISTRO, repository files, and custom message imports.
+
 set -euo pipefail
 
 if [ -z "${ROS_DISTRO:-}" ]; then
