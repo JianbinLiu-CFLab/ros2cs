@@ -8,6 +8,13 @@
     build with tests
 .PARAMETER standalone
     standalone build
+
+Modifications Copyright (c) 2026 Jianbin Liu.
+
+Modifications by Jianbin Liu:
+- Defaulted Windows builds to Ninja for ROS 2 Jazzy/MSVC stability and speed.
+- Added explicit parallel worker selection with ROS2CS_PARALLEL_WORKERS override.
+- Added optional compiler launcher support through ROS2CS_COMPILER_LAUNCHER or sccache auto-detection.
 #>
 Param (
     [Parameter(Mandatory=$false)][switch]$with_tests=$false,
@@ -18,6 +25,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 function Get-ParallelWorkers {
+    # Worker count is a throughput policy; build correctness must not depend on a specific value.
     if (-not [string]::IsNullOrWhiteSpace($Env:ROS2CS_PARALLEL_WORKERS)) {
         $workers = 0
         if ([int]::TryParse($Env:ROS2CS_PARALLEL_WORKERS, [ref]$workers) -and $workers -gt 0) {
@@ -30,6 +38,7 @@ function Get-ParallelWorkers {
 }
 
 function Get-CompilerLauncher {
+    # Compiler launcher use is best-effort acceleration and must not be required for a correct build.
     if (-not [string]::IsNullOrWhiteSpace($Env:ROS2CS_COMPILER_LAUNCHER)) {
         return $Env:ROS2CS_COMPILER_LAUNCHER
     }

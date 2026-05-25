@@ -11,6 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# Modifications Copyright (c) 2026 Jianbin Liu.
+#
+# Modifications by Jianbin Liu:
+# - Reused generated message/service struct C objects through package-local OBJECT libraries.
+# - Preserved per-message/per-service native shared libraries for compatibility while removing repeated struct compilation.
 
 find_package(rosidl_generator_c REQUIRED)
 find_package(rosidl_typesupport_c REQUIRED)
@@ -186,6 +192,8 @@ endif()
 set(_generated_msg_c_structs_target "")
 if(_generated_msg_c_files)
   set(_generated_msg_c_structs_target "${PROJECT_NAME}__cs_msg_structs")
+  # Generated C struct sources are shared by all per-message targets in this package,
+  # so compile them once as an OBJECT library and reuse the objects below.
   add_library(${_generated_msg_c_structs_target} OBJECT
     ${_generated_msg_c_files}
   )
@@ -220,6 +228,8 @@ endif()
 set(_generated_srv_c_structs_target "")
 if(_generated_srv_c_files)
   set(_generated_srv_c_structs_target "${PROJECT_NAME}__cs_srv_structs")
+  # Generated C struct sources are shared by all per-service targets in this package,
+  # so compile them once as an OBJECT library and reuse the objects below.
   add_library(${_generated_srv_c_structs_target} OBJECT
     ${_generated_srv_c_files}
   )
@@ -272,6 +282,7 @@ foreach(_generated_msg_c_ts_file ${_generated_msg_c_ts_files})
 
   add_library(${_target_name} SHARED
     "${_generated_msg_c_ts_file}"
+    # Keep one shared library per message/typesupport for compatibility; only repeated struct compilation is removed.
     $<TARGET_OBJECTS:${_generated_msg_c_structs_target}>
   )
 
@@ -375,6 +386,7 @@ foreach(_generated_srv_c_ts_file ${_generated_srv_c_ts_files})
 
   add_library(${_target_name} SHARED
     "${_generated_srv_c_ts_file}"
+    # Keep one shared library per service/typesupport for compatibility; only repeated struct compilation is removed.
     $<TARGET_OBJECTS:${_generated_srv_c_structs_target}>
   )
 
