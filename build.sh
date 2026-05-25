@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# Modifications Copyright (c) 2026 Jianbin Liu.
+#
+# Modifications by Jianbin Liu:
+# - Added explicit parallel worker selection with ROS2CS_PARALLEL_WORKERS override.
+# - Added optional compiler launcher support through ROS2CS_COMPILER_LAUNCHER or ccache auto-detection.
+
 set -euo pipefail
 
 display_usage() {
@@ -20,6 +26,7 @@ MSG="Build started."
 STANDALONE=OFF
 PARALLEL_WORKERS="${ROS2CS_PARALLEL_WORKERS:-}"
 
+# Worker count is a throughput policy; build correctness must not depend on a specific value.
 if [ -z "$PARALLEL_WORKERS" ]; then
   if command -v nproc >/dev/null 2>&1; then
     PARALLEL_WORKERS="$(nproc)"
@@ -43,6 +50,7 @@ if [ "$PARALLEL_WORKERS" -lt 1 ]; then
 fi
 
 COMPILER_LAUNCHER="${ROS2CS_COMPILER_LAUNCHER:-}"
+# Compiler launcher use is best-effort acceleration and must not be required for a correct build.
 if [ -z "$COMPILER_LAUNCHER" ] && command -v ccache >/dev/null 2>&1; then
   COMPILER_LAUNCHER="ccache"
 fi
