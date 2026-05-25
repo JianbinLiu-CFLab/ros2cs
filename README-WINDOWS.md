@@ -20,7 +20,7 @@ Current GREEN evidence for this maintenance branch is:
 - `ros2cs` source workspace build/test.
 - `ros2cs_common`, `ros2cs_core`, and generated message assemblies on `netstandard2.0`.
 - `ros2cs_tests` and `ros2cs_examples` on `net8.0`.
-- Latest public maintenance preview: [`v0.2.0-jazzy-preview.1`](https://github.com/JianbinLiu-CFLab/ros2cs/releases/tag/v0.2.0-jazzy-preview.1).
+- Latest public maintenance preview: [`v0.3.0-jazzy-preview.1`](https://github.com/JianbinLiu-CFLab/ros2cs/releases/tag/v0.3.0-jazzy-preview.1).
 
 Windows 11 is an expected target but was not the OS used for the current local validation. Older ROS 2 distributions in this README are legacy context unless fresh evidence is added.
 
