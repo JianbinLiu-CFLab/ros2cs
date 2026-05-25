@@ -17,6 +17,7 @@
 # Modifications by Jianbin Liu:
 # - Reused generated message/service struct C objects through package-local OBJECT libraries.
 # - Preserved per-message/per-service native shared libraries for compatibility while removing repeated struct compilation.
+# - Shortened generated CMake logical target names while preserving runtime native library names.
 
 find_package(rosidl_generator_c REQUIRED)
 find_package(rosidl_typesupport_c REQUIRED)
@@ -276,7 +277,10 @@ foreach(_generated_msg_c_ts_file ${_generated_msg_c_ts_files})
 
   find_package(${_typesupport_impl} REQUIRED)
 
-  set(_target_name "${_package_name}_${_base_msg_name}__${_typesupport_impl}")
+  set(_runtime_name "${_package_name}_${_base_msg_name}__${_typesupport_impl}")
+  # Keep the runtime DLL name stable for generated C# LoadLibrary calls, but use
+  # a short logical CMake target name so MSVC object paths stay below CMake limits.
+  set(_target_name "${PROJECT_NAME}__cs_msg_ts_${_file_index}")
 
   string_camel_case_to_lower_case_underscore("${_module_name}" _header_name)
 
@@ -292,7 +296,7 @@ foreach(_generated_msg_c_ts_file ${_generated_msg_c_ts_files})
     ${_target_name}
     PROPERTIES
     COMPILE_FLAGS                           "${_extension_compile_flags}"
-    OUTPUT_NAME                             "${_target_name}_native"
+    OUTPUT_NAME                             "${_runtime_name}_native"
     RUNTIME_OUTPUT_DIRECTORY                ${_destination_dir}
     RUNTIME_OUTPUT_DIRECTORY_DEBUG          ${_destination_dir}
     RUNTIME_OUTPUT_DIRECTORY_RELEASE        ${_destination_dir}
@@ -380,7 +384,10 @@ foreach(_generated_srv_c_ts_file ${_generated_srv_c_ts_files})
 
   find_package(${_typesupport_impl} REQUIRED)
 
-  set(_target_name "${_package_name}_srv_${_base_srv_name}__${_typesupport_impl}")
+  set(_runtime_name "${_package_name}_srv_${_base_srv_name}__${_typesupport_impl}")
+  # Keep the runtime DLL name stable for generated C# LoadLibrary calls, but use
+  # a short logical CMake target name so MSVC object paths stay below CMake limits.
+  set(_target_name "${PROJECT_NAME}__cs_srv_ts_${_file_index}")
 
   string_camel_case_to_lower_case_underscore("${_module_name}" _header_name)
 
@@ -396,7 +403,7 @@ foreach(_generated_srv_c_ts_file ${_generated_srv_c_ts_files})
     ${_target_name}
     PROPERTIES
     COMPILE_FLAGS                           "${_extension_compile_flags}"
-    OUTPUT_NAME                             "${_target_name}_native"
+    OUTPUT_NAME                             "${_runtime_name}_native"
     RUNTIME_OUTPUT_DIRECTORY                ${_destination_dir}
     RUNTIME_OUTPUT_DIRECTORY_DEBUG          ${_destination_dir}
     RUNTIME_OUTPUT_DIRECTORY_RELEASE        ${_destination_dir}
