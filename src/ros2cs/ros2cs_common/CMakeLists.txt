@@ -51,3 +51,7 @@ if(BUILD_TESTING)
 endif()
 
 ament_package()
+# Modifications Copyright (c) 2026 Jianbin Liu.
+#
+# Modifications by Jianbin Liu:
+# - Audited common library build metadata during Jazzy/.NET maintenance.

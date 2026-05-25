@@ -1,3 +1,8 @@
+// Modifications Copyright (c) 2026 Jianbin Liu.
+//
+// Modifications by Jianbin Liu:
+// - Kept benchmark disposal behavior explicit while auditing ros2cs common helpers.
+
 using System;
 using System.Diagnostics;
 

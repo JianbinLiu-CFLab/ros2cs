@@ -1,6 +1,11 @@
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+# Modifications Copyright (c) 2026 Jianbin Liu.
+#
+# Modifications by Jianbin Liu:
+# - Added ROS environment checks and preserved failing test-result exit codes.
+
 if ([string]::IsNullOrEmpty($Env:ROS_DISTRO)) {
     Write-Host "Source your ros2 distro first." -ForegroundColor Red
     exit 1

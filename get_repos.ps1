@@ -1,6 +1,11 @@
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+# Modifications Copyright (c) 2026 Jianbin Liu.
+#
+# Modifications by Jianbin Liu:
+# - Added fail-fast validation for ROS_DISTRO, repository files, and custom message imports.
+
 $scriptPath = split-path -parent $MyInvocation.MyCommand.Definition
 
 if (([string]::IsNullOrEmpty($Env:ROS_DISTRO)))

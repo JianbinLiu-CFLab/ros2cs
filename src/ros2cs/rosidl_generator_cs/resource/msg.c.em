@@ -1,4 +1,10 @@
 @#######################################################################
+@# Modifications Copyright (c) 2026 Jianbin Liu.
+@#
+@# Modifications by Jianbin Liu:
+@#  - Audited generated message struct C template metadata for Jazzy generator maintenance.
+@#######################################################################
+@#######################################################################
 @# EmPy template for generating <msg>_s.c files
 @#
 @# Context:

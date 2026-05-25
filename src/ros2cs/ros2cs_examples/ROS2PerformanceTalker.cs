@@ -1,4 +1,8 @@
 // Copyright 2019-2021 Robotec.ai
+// Modifications Copyright (c) 2026 Jianbin Liu.
+//
+// Modifications by Jianbin Liu:
+// - Audited performance talker example metadata during Jazzy/.NET maintenance.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.

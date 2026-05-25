@@ -1,4 +1,8 @@
 # Copyright 2019-2021 Robotec.ai
+# Modifications Copyright (c) 2026 Jianbin Liu.
+#
+# Modifications by Jianbin Liu:
+# - Updated standalone dependency closure and Jazzy runtime build metadata.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.

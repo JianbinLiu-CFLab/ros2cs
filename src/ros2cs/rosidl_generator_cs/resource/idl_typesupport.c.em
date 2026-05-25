@@ -1,3 +1,9 @@
+@#######################################################################
+@# Modifications Copyright (c) 2026 Jianbin Liu.
+@#
+@# Modifications by Jianbin Liu:
+@#  - Audited generated IDL typesupport template metadata for Jazzy generator maintenance.
+@#######################################################################
 // generated from rosidl_generator_cs/resource/idl_typesupport.c.em
 // with input from @(package_name):@(interface_path)
 // generated code does not contain a copyright notice
