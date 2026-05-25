@@ -2,6 +2,7 @@
 #
 # Modifications by Jianbin Liu:
 # - Point dotnet_cmake_module to the JianbinLiu-CFLab mainline with the Jazzy .NET test registration fix.
+# - Point rosidl_python to the JianbinLiu-CFLab Jazzy fork with shortened Python extension CMake targets.
 
 repositories:
   ros2/rosidl_defaults:
@@ -16,6 +17,10 @@ repositories:
     type: git
     url: https://github.com/ros2/rosidl_dynamic_typesupport_fastrtps.git
     version: jazzy
+  ros2/rosidl_python:
+    type: git
+    url: https://github.com/JianbinLiu-CFLab/rosidl_python.git
+    version: d10c7d9ab585c66090bbc6a401f9d490ce78fdc4
   ros2/common_interfaces:
     type: git
     url: https://github.com/ros2/common_interfaces.git
