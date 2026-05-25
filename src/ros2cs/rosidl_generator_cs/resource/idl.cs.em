@@ -14,12 +14,9 @@
 from rosidl_cmake import convert_camel_case_to_lower_case_underscore
 include_parts = [package_name] + list(interface_path.parents[0].parts) + \
     [convert_camel_case_to_lower_case_underscore(interface_path.stem)]
-include_directives = set()
 }@
 
-//TODO (adamdbrw): include depending on what is needed
 using System;
-using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using ROS2;
 using ROS2.Internal;
@@ -35,7 +32,7 @@ from rosidl_parser.definition import Message
 TEMPLATE(
     'msg.cs.em',
     package_name=package_name, interface_path=interface_path,
-    message=message, include_directives=include_directives,
+    message=message,
     get_dotnet_type=get_dotnet_type, get_field_name=get_field_name,
     constant_value_to_dotnet=constant_value_to_dotnet,
     get_c_type=get_c_type, get_marshal_type=get_marshal_type,
@@ -45,7 +42,7 @@ TEMPLATE(
 }@
 
 @[end for]@
-@# TODO (adamdbrw): Add services and actions
+@# TODO (adamdbrw): Add actions
 
 @#######################################################################
 @# Handle service
@@ -59,7 +56,7 @@ from rosidl_parser.definition import Service
 TEMPLATE(
     'srv.cs.em',
     package_name=package_name, interface_path=interface_path,service=service,
-    message=service.request_message, include_directives=include_directives,
+    message=service.request_message,
     get_dotnet_type=get_dotnet_type, get_field_name=get_field_name,
     constant_value_to_dotnet=constant_value_to_dotnet,
     get_c_type=get_c_type, get_marshal_type=get_marshal_type,
@@ -72,7 +69,7 @@ TEMPLATE(
 TEMPLATE(
     'srv.cs.em',
     package_name=package_name, interface_path=interface_path,service=service,
-    message=service.response_message, include_directives=include_directives,
+    message=service.response_message,
     get_dotnet_type=get_dotnet_type, get_field_name=get_field_name,
     constant_value_to_dotnet=constant_value_to_dotnet,
     get_c_type=get_c_type, get_marshal_type=get_marshal_type,

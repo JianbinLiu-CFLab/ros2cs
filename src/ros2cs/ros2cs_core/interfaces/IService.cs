@@ -16,7 +16,7 @@ using System;
 
 namespace ROS2
 {
-  /// <summary> Non-generic base interface for all subscriptions </summary>
+  /// <summary> Non-generic base interface for all services </summary>
   /// <seealso cref="INode.CreateService"/>
   public interface IServiceBase : IExtendedDisposable
   {
@@ -24,7 +24,7 @@ namespace ROS2
     /// Tries to get a request message from rcl/rmw layers
     /// </summary>
     /// <remarks>Invokes the callback if successful</remarks>
-    // TODO(adamdbrw) this should not be public - add an internal interface
+    // Internal spin entry point; kept on the public interface for compatibility.
     void TakeMessage();
 
     /// <summary>
@@ -32,7 +32,7 @@ namespace ROS2
     /// </summary>
     string Topic {get;}
 
-    // TODO(adamdbrw) this should not be public - add an internal interface
+    // Internal wait-set handle; kept on the public interface for compatibility.
     rcl_service_t Handle {get;}
 
     /// <summary> service mutex for internal use </summary>

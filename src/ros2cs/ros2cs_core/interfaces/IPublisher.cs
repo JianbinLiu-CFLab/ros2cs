@@ -16,7 +16,7 @@ using System;
 
 namespace ROS2
 {
-  /// <summary> Non-generic base interface for all subscriptions </summary>
+  /// <summary> Non-generic base interface for all publishers </summary>
   /// <description> Use Ros2cs.CreatePublisher to construct.
   /// This interface is useful for managing publisher collections and disposal </description>
   public interface IPublisherBase: IExtendedDisposable
@@ -24,7 +24,7 @@ namespace ROS2
     string Topic {get;}
   }
 
-  /// <summary> Generic base interface for all subscriptions </summary>
+  /// <summary> Generic base interface for all publishers </summary>
   public interface IPublisher<T>: IPublisherBase
       where T: Message
   {

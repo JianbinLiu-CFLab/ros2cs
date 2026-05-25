@@ -18,6 +18,7 @@
 // - Ensured native error strings are released even if managed marshaling fails.
 
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 namespace ROS2
@@ -49,8 +50,32 @@ namespace ROS2
         case RCLReturnEnum.RCL_RET_WAIT_SET_EMPTY:
           throw new WaitSetEmptyException(errorMessage);
         default:
-          throw new RuntimeError(errorMessage);
+          throw new RuntimeError(errorMessage, ret);
       }
+    }
+
+    /// <summary>Add an exception to a lazily-created collection.</summary>
+    internal static void AddException(ref List<Exception> exceptions, Exception exception)
+    {
+      if (exceptions == null)
+      {
+        exceptions = new List<Exception>();
+      }
+      exceptions.Add(exception);
+    }
+
+    /// <summary>Throw one collected exception directly or aggregate multiple failures.</summary>
+    internal static void ThrowCollectedExceptions(List<Exception> exceptions)
+    {
+      if (exceptions == null || exceptions.Count == 0)
+      {
+        return;
+      }
+      if (exceptions.Count == 1)
+      {
+        throw exceptions[0];
+      }
+      throw new AggregateException(exceptions);
     }
 
     /// <summary> Get last rcl error </summary>

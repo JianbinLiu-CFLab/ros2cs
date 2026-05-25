@@ -38,8 +38,9 @@ namespace ROS2.Test
         [TearDown]
         public void TearDown()
         {
-            publisher.Dispose();
-            subscriptionNode.Dispose();
+            publisher?.Dispose();
+            publisherNode?.Dispose();
+            subscriptionNode?.Dispose();
             Ros2cs.Shutdown();
         }
 
@@ -50,7 +51,7 @@ namespace ROS2.Test
             subscriptionNode.CreateSubscription<std_msgs.msg.Float64MultiArray>(
                 "subscription_test_topic", (msg) => { callbackTriggered = true; });
 
-            std_msgs.msg.Float64MultiArray largeMsg = new std_msgs.msg.Float64MultiArray();
+            using var largeMsg = new std_msgs.msg.Float64MultiArray();
             largeMsg.Data = new double[1024];
 
             publisher.Publish(largeMsg);

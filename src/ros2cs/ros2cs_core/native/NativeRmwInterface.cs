@@ -15,6 +15,7 @@
 
 // Modifications by Jianbin Liu:
 // - Retained ros2cs native library handle while rmw delegates are in use.
+// - Shared the ros2cs native wrapper handle with rcl wrapper bindings.
 
 using System;
 using System.Runtime.InteropServices;
@@ -26,10 +27,8 @@ namespace ROS2
   /// </summary>
   internal static class NativeRmwInterface
   {
-    private static readonly DllLoadUtils dllLoadUtils = DllLoadUtilsFactory.GetDllLoadUtils();
-    // Keep ros2cs native wrapper loaded while managed rmw delegates point into it.
-    private static readonly NativeLibraryHandle nativeRMWHandle = NativeLibraryHandle.LoadLibrary(dllLoadUtils, "ros2cs");
-    private static readonly IntPtr nativeRMW = nativeRMWHandle.Handle;
+    private static readonly DllLoadUtils dllLoadUtils = NativeRos2csLibrary.DllLoadUtils;
+    private static readonly IntPtr nativeRMW = NativeRos2csLibrary.Ptr;
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate IntPtr RMWImplementationIdentifier();

@@ -234,14 +234,14 @@ namespace ROS2.TestNativeMethods
         }
 
         [Test]
-        public void NodeGetNamespace()
+        public void NodeGetName()
         {
             string nodeNameFromRcl = Utils.PtrToString(NativeRcl.rcl_node_get_name(ref node));
             Assert.That("node_test", Is.EqualTo(nodeNameFromRcl));
         }
 
         [Test]
-        public void NodeGetName()
+        public void NodeGetNamespace()
         {
             string nodeNamespaceFromRcl = Utils.PtrToString(NativeRcl.rcl_node_get_namespace(ref node));
             Assert.That("/ns", Is.EqualTo(nodeNamespaceFromRcl));
@@ -295,8 +295,9 @@ namespace ROS2.TestNativeMethods
                 publisherOptions = NativeRclInterface.rclcs_publisher_create_options(qos.handle);
             }
             Assert.That(publisherOptions, Is.Not.EqualTo(IntPtr.Zero));
-            MessageInternals msg = new std_msgs.msg.Bool();
-            IntPtr typeSupportHandle = msg.TypeSupportHandle;
+            using var msg = new std_msgs.msg.Bool();
+            MessageInternals msgInternals = msg;
+            IntPtr typeSupportHandle = msgInternals.TypeSupportHandle;
             var ret = (RCLReturnEnum)NativeRcl.rcl_publisher_init(
                 ref publisher, ref node, typeSupportHandle, "publisher_test_topic", publisherOptions);
             Assert.That(ret, Is.EqualTo(RCLReturnEnum.RCL_RET_OK), Utils.PopRclErrorString());
@@ -350,7 +351,7 @@ namespace ROS2.TestNativeMethods
             rcl_publisher_t publisher = new rcl_publisher_t();
             IntPtr publisherOptions = new IntPtr();
             PublisherInitialize.InitPublisher(ref publisher, ref node, ref publisherOptions);
-            MessageInternals msg = new std_msgs.msg.Bool();
+            using var msg = new std_msgs.msg.Bool();
             rcl_allocator_t allocator = NativeRcl.rcutils_get_default_allocator();
 
             var ret = (RCLReturnEnum)NativeRcl.rcl_publish(ref publisher, msg.Handle, allocator.allocate);
@@ -388,8 +389,9 @@ namespace ROS2.TestNativeMethods
                 subscriptionOptions = NativeRclInterface.rclcs_subscription_create_options(qos.handle);
             }
             Assert.That(subscriptionOptions, Is.Not.EqualTo(IntPtr.Zero));
-            MessageInternals msg = new std_msgs.msg.Bool();
-            IntPtr typeSupportHandle = msg.TypeSupportHandle;
+            using var msg = new std_msgs.msg.Bool();
+            MessageInternals msgInternals = msg;
+            IntPtr typeSupportHandle = msgInternals.TypeSupportHandle;
             var ret = (RCLReturnEnum)NativeRcl.rcl_subscription_init(
                 ref subscription, ref node, typeSupportHandle, "/subscriber_test_topic", subscriptionOptions);
             Assert.That(ret, Is.EqualTo(RCLReturnEnum.RCL_RET_OK), Utils.PopRclErrorString());
@@ -590,8 +592,9 @@ namespace ROS2.TestNativeMethods
                 IntPtr subscriptionOptions = NativeRclInterface.rclcs_subscription_create_options(qos.handle);
                 Assert.That(subscriptionOptions, Is.Not.EqualTo(IntPtr.Zero));
 
-                MessageInternals msg = new std_msgs.msg.Bool();
-                IntPtr typeSupportHandle = msg.TypeSupportHandle;
+                using var msg = new std_msgs.msg.Bool();
+                MessageInternals msgInternals = msg;
+                IntPtr typeSupportHandle = msgInternals.TypeSupportHandle;
                 NativeRcl.rcl_subscription_init(
                     ref subscription, ref node, typeSupportHandle, "/subscriber_test_topic", subscriptionOptions);
 

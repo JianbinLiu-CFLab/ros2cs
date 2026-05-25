@@ -18,6 +18,7 @@
 // - Added disposable ownership for native library handles.
 // - Hardened platform detection and native unload guards.
 // - Reworked Linux preload tracking to avoid stale handles.
+// - Serialized native library handle disposal and symbol lookup diagnostics.
 
 // Based on http://dimitry-i.blogspot.com.es/2013/01/mononet-how-to-dynamically-load-native.html
 
@@ -71,26 +72,6 @@ namespace ROS2
     [DllImport ("api-ms-win-core-libraryloader-l1-2-0.dll", EntryPoint = "FreeLibrary", SetLastError = true, ExactSpelling = true)]
     private static extern int FreeLibraryUWP (IntPtr handle);
 
-    [DllImport ("kernel32.dll", SetLastError = true)]
-    private static extern IntPtr LoadLibrary (string fileName);
-
-    [DllImport ("kernel32.dll", EntryPoint = "FreeLibrary", SetLastError = true)]
-    private static extern int FreeLibraryDesktop (IntPtr handle);
-
-    [DllImport ("libdl.so.2", EntryPoint = "dlopen")]
-    private static extern IntPtr dlopen_unix (String fileName, int flags);
-
-    [DllImport ("libdl.so.2", EntryPoint = "dlclose")]
-    private static extern int dlclose_unix (IntPtr handle);
-
-    [DllImport ("libdl.dylib", EntryPoint = "dlopen")]
-    private static extern IntPtr dlopen_macosx (String fileName, int flags);
-
-    [DllImport ("libdl.dylib", EntryPoint = "dlclose")]
-    private static extern int dlclose_macosx (IntPtr handle);
-
-    const int RTLD_NOW = 2;
-
     public static DllLoadUtils GetDllLoadUtils () {
       switch (CheckPlatform ()) {
         case Platform.Unix:
@@ -125,36 +106,6 @@ namespace ROS2
       }
     }
 
-    private static bool IsWindowsDesktop () {
-      try {
-        IntPtr ptr = LoadLibrary ("kernel32.dll");
-        FreeLibraryDesktop (ptr);
-        return true;
-      } catch (TypeLoadException) {
-        return false;
-      }
-    }
-
-    private static bool IsUnix () {
-      try {
-        IntPtr ptr = dlopen_unix ("libdl.so.2", RTLD_NOW);
-        dlclose_unix (ptr);
-        return true;
-      } catch (TypeLoadException) {
-        return false;
-      }
-    }
-
-    private static bool IsMacOSX () {
-      try {
-        IntPtr ptr = dlopen_macosx ("libdl.dylib", RTLD_NOW);
-        dlclose_macosx (ptr);
-        return true;
-      } catch (TypeLoadException) {
-        return false;
-      }
-    }
-
     private static Platform CheckPlatform () {
       // Prefer RuntimeInformation for coarse OS detection before probing platform-specific loaders.
       if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -185,6 +136,7 @@ namespace ROS2
   public sealed class NativeLibraryHandle : IDisposable
   {
     private readonly DllLoadUtils dllLoadUtils;
+    private readonly object mutex = new object();
     private IntPtr handle;
     private bool disposed;
 
@@ -199,11 +151,14 @@ namespace ROS2
     {
       get
       {
-        if (disposed)
+        lock (mutex)
         {
-          throw new ObjectDisposedException(nameof(NativeLibraryHandle));
+          if (disposed)
+          {
+            throw new ObjectDisposedException(nameof(NativeLibraryHandle));
+          }
+          return handle;
         }
-        return handle;
       }
     }
 
@@ -244,25 +199,28 @@ namespace ROS2
     /// <summary>Shared dispose path used by explicit disposal and the finalizer.</summary>
     private void Dispose(bool disposing)
     {
-      if (disposed)
+      lock (mutex)
       {
-        return;
-      }
-
-      try
-      {
-        if (handle != IntPtr.Zero)
+        if (disposed)
         {
-          dllLoadUtils.FreeLibrary(handle);
+          return;
         }
-      }
-      catch
-      {
-      }
-      finally
-      {
-        handle = IntPtr.Zero;
-        disposed = true;
+
+        try
+        {
+          if (handle != IntPtr.Zero)
+          {
+            dllLoadUtils.FreeLibrary(handle);
+          }
+        }
+        catch
+        {
+        }
+        finally
+        {
+          handle = IntPtr.Zero;
+          disposed = true;
+        }
       }
     }
   }
@@ -285,7 +243,11 @@ namespace ROS2
     }
 
     IntPtr DllLoadUtils.GetProcAddress (IntPtr dllHandle, string name) {
-      return GetProcAddress (dllHandle, name);
+      IntPtr ptr = GetProcAddress (dllHandle, name);
+      if (ptr == IntPtr.Zero) {
+        throw new EntryPointNotFoundException(name);
+      }
+      return ptr;
     }
 
     IntPtr DllLoadUtils.LoadLibrary (string fileName) {
@@ -325,7 +287,11 @@ namespace ROS2
     }
 
     IntPtr DllLoadUtils.GetProcAddress (IntPtr dllHandle, string name) {
-      return GetProcAddress (dllHandle, name);
+      IntPtr ptr = GetProcAddress (dllHandle, name);
+      if (ptr == IntPtr.Zero) {
+        throw new EntryPointNotFoundException(name);
+      }
+      return ptr;
     }
 
     IntPtr DllLoadUtils.LoadLibrary (string fileName) {
@@ -362,7 +328,6 @@ namespace ROS2
     private static extern IntPtr dlerror ();
 
     const int RTLD_NOW = 0x00002;
-    const int RTLD_DEEPBIND = 0x00008;
 
     //TODO (adamdbrw) Somewhat hacky solution to open (and dereference) the problematic library
     //that otherwise causes crashes in Unity Editor.
@@ -413,7 +378,7 @@ namespace ROS2
       var res = dlsym (dllHandle, name);
       var errPtr = dlerror ();
       if (errPtr != IntPtr.Zero) {
-        throw new Exception ("dlsym: " + Marshal.PtrToStringAnsi (errPtr));
+        throw new EntryPointNotFoundException (name + ": " + Marshal.PtrToStringAnsi (errPtr));
       }
       return res;
     }
@@ -433,6 +398,11 @@ namespace ROS2
         }
       }      
       if (ptr == IntPtr.Zero) {
+        var errPtr = dlerror ();
+        string detail = Marshal.PtrToStringAnsi (errPtr);
+        if (!String.IsNullOrEmpty(detail)) {
+          throw new UnsatisfiedLinkError(dlopenSearchString + ": " + detail);
+        }
         throw new UnsatisfiedLinkError(dlopenSearchString);
       }
       Ros2csLogger.GetInstance().LogDebug("Loaded library: " + dlopenSearchString);
@@ -485,7 +455,7 @@ namespace ROS2
       var res = dlsym (dllHandle, name);
       var errPtr = dlerror ();
       if (errPtr != IntPtr.Zero) {
-        throw new Exception ("dlsym: " + Marshal.PtrToStringAnsi (errPtr));
+        throw new EntryPointNotFoundException (name + ": " + Marshal.PtrToStringAnsi (errPtr));
       }
       return res;
     }

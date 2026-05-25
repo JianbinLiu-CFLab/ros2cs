@@ -21,8 +21,6 @@ namespace Examples
   /// <summary> A talker class meant to gauge performance of Ros2cs </summary>
   public class ROS2PerformanceTalker
   {
-    private static Clock clock = new Clock();
-
     private static void AssignField(ref sensor_msgs.msg.PointField pf, string n, uint off, byte dt, uint count)
     {
       pf.Name = n;
@@ -75,14 +73,15 @@ namespace Examples
 
     public static void Main(string[] args)
     {
-      Ros2cs.Init();
+      using var runtime = new ROS2ExampleRuntime();
+      using var clock = new Clock();
       INode node = Ros2cs.CreateNode("perf_talker");
-      QualityOfServiceProfile qos = new QualityOfServiceProfile(QosPresetProfile.SENSOR_DATA);
-      IPublisher<sensor_msgs.msg.PointCloud2> pc_pub = node.CreatePublisher<sensor_msgs.msg.PointCloud2>("perf_chatter", qos);
+      using var qos = new QualityOfServiceProfile(QosPresetProfile.SENSOR_DATA);
+      using IPublisher<sensor_msgs.msg.PointCloud2> pc_pub = node.CreatePublisher<sensor_msgs.msg.PointCloud2>("perf_chatter", qos);
 
       Console.WriteLine("Enter PC2 data size: ");
       int messageSize = Convert.ToInt32(Console.ReadLine());
-      sensor_msgs.msg.PointCloud2 msg = PrepMessage(messageSize);
+      using sensor_msgs.msg.PointCloud2 msg = PrepMessage(messageSize);
       // System.Random rand = new System.Random();
 
       while (Ros2cs.Ok())
@@ -98,7 +97,6 @@ namespace Examples
           pc_pub.Publish(msg);
         }
       }
-      Ros2cs.Shutdown();
     }
   }
 }

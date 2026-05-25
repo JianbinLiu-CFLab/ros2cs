@@ -19,6 +19,7 @@
 // - Added safe request message disposal.
 
 using System;
+using System.Collections.Generic;
 using ROS2.Internal;
 
 namespace ROS2
@@ -139,7 +140,7 @@ namespace ROS2
     }
 
     /// <inheritdoc/>
-    // TODO(adamdbrw) this should not be public - add an internal interface
+    // Internal spin entry point; kept public through IServiceBase for compatibility.
     public void TakeMessage()
     {
       RCLReturnEnum ret;
@@ -205,7 +206,17 @@ namespace ROS2
     {
       message.ReadNativeMessage();
       O response = callback((I)message);
-      SendResp(header, response);
+      try
+      {
+        SendResp(header, response);
+      }
+      finally
+      {
+        if (!object.ReferenceEquals(response, message))
+        {
+          response?.Dispose();
+        }
+      }
     }
 
     ~Service()
@@ -233,7 +244,7 @@ namespace ROS2
     /// <summary>Shared service disposal path used by explicit disposal, node disposal, and finalization.</summary>
     private void Dispose(bool disposing)
     {
-      Exception disposeException = null;
+      List<Exception> disposeExceptions = null;
       lock (mutex)
       {
         if (disposed)
@@ -256,7 +267,7 @@ namespace ROS2
         {
           if (disposing)
           {
-            disposeException = e;
+            Utils.AddException(ref disposeExceptions, e);
           }
         }
         finally
@@ -270,9 +281,9 @@ namespace ROS2
           }
           catch (Exception e)
           {
-            if (disposing && disposeException == null)
+            if (disposing)
             {
-              disposeException = e;
+              Utils.AddException(ref disposeExceptions, e);
             }
           }
           finally
@@ -286,10 +297,7 @@ namespace ROS2
       if (disposing)
       {
         Ros2csLogger.GetInstance().LogInfo("Service destroyed");
-        if (disposeException != null)
-        {
-          throw disposeException;
-        }
+        Utils.ThrowCollectedExceptions(disposeExceptions);
       }
     }
   }

@@ -16,6 +16,7 @@
 // Modifications by Jianbin Liu:
 // - Made singleton initialization and logger callbacks thread-safe.
 // - Serialized console formatting to reduce interleaved log noise.
+// - Added PascalCase callback registration while retaining the legacy method.
 
 using System;
 using System.Collections.Generic;
@@ -38,7 +39,7 @@ namespace ROS2
     private static readonly Lazy<Ros2csLogger> Instance = new Lazy<Ros2csLogger>(() => new Ros2csLogger());
     // Protects mutable log level, callbacks, and console color writes.
     private static readonly object LoggerMutex = new object();
-    private static LogLevel logLevel;
+    private static LogLevel _logLevel;
 
     public delegate void Callback(object message);
 
@@ -57,14 +58,14 @@ namespace ROS2
       {
         lock (LoggerMutex)
         {
-          return logLevel;
+          return _logLevel;
         }
       }
       set
       {
         lock (LoggerMutex)
         {
-          logLevel = value;
+          _logLevel = value;
         }
       }
     }
@@ -90,12 +91,19 @@ namespace ROS2
     /// an application (e. g. in Unity3D) which is using it </description>
     /// <param name="level"> Log level as in LogLevel enum </param>
     /// <param name="cb"> Callback (logging mechanism) to execute when logging </param>
-    public static void setCallback(LogLevel level, Callback cb)
+    public static void SetCallback(LogLevel level, Callback cb)
     {
       lock (LoggerMutex)
       {
         LevelCallbacks[level] = cb;
       }
+    }
+
+    /// <summary>Legacy callback registration name retained for compatibility.</summary>
+    [Obsolete("Use SetCallback.")]
+    public static void setCallback(LogLevel level, Callback cb)
+    {
+      SetCallback(level, cb);
     }
 
     /// <summary> Acquire the singleton </summary>
@@ -113,10 +121,11 @@ namespace ROS2
       Callback callback;
       lock (LoggerMutex)
       {
-        if (logLevel > level) return;
+        if (_logLevel > level) return;
         callback = Ros2csLogger.LevelCallbacks[level];
       }
 
+      // Threshold and callback are a snapshot: later LogLevel changes do not cancel a message already accepted.
       // Invoke application callbacks outside the console lock so custom loggers cannot block formatting.
       callback?.Invoke("[ROS2CS] " + message);
 

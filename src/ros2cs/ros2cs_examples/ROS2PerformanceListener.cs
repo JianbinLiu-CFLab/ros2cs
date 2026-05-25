@@ -87,8 +87,8 @@ namespace Examples
   {
     public static void Main(string[] args)
     {
-      Ros2cs.Init();
-      Clock clock = new Clock();
+      using var runtime = new ROS2ExampleRuntime();
+      using var clock = new Clock();
       INode node = Ros2cs.CreateNode("perf_listener");
       Console.WriteLine("Enter sample size: ");
       int sampleSize = Convert.ToInt32(Console.ReadLine());
@@ -102,7 +102,7 @@ namespace Examples
 
       using (QualityOfServiceProfile qos = new QualityOfServiceProfile(QosPresetProfile.SENSOR_DATA))
       {
-        ISubscription<sensor_msgs.msg.PointCloud2> chatter_sub = node.CreateSubscription<sensor_msgs.msg.PointCloud2>(
+        using ISubscription<sensor_msgs.msg.PointCloud2> chatter_sub = node.CreateSubscription<sensor_msgs.msg.PointCloud2>(
           "perf_chatter",
           msg =>
           {
@@ -130,7 +130,6 @@ namespace Examples
           Ros2cs.SpinOnce(node, 0.1);
         }
       }
-      Ros2cs.Shutdown();
     }
   }
 }

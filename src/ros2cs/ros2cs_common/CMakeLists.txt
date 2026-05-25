@@ -39,8 +39,6 @@ set(CS_INTERFACES
 add_dotnet_library(${PROJECT_NAME}
 SOURCES
   ${CS_INTERFACES}
-  INCLUDE_DLLS
-  ${_assembly_deps_dll}
 )
 
 install_dotnet(${PROJECT_NAME} DESTINATION lib/dotnet)

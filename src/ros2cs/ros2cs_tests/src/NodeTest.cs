@@ -65,7 +65,8 @@ namespace ROS2.Test
         {
             using (Publisher<std_msgs.msg.Bool> publisher = node.CreatePublisher<std_msgs.msg.Bool>("test_topic"))
             {
-                publisher.Publish(new std_msgs.msg.Bool());
+                using var msg = new std_msgs.msg.Bool();
+                publisher.Publish(msg);
             }
         }
 
@@ -88,7 +89,7 @@ namespace ROS2.Test
               "Second string to send, has to be a bit longer for the test"
             };
 
-            test_msgs.msg.UnboundedSequences msg3 = new test_msgs.msg.UnboundedSequences();
+            using var msg3 = new test_msgs.msg.UnboundedSequences();
             msg3.String_values = setStringSequence;
             publisher.Publish(msg3);
 

@@ -12,6 +12,7 @@ Current maintenance branch note: `ros2cs_examples` targets `net8.0`. Core/common
 
 *  `ROS2Listener` / `ROS2Talker` - simple string subscriber/publisher test.
 *  `ROS2PerformanceListener` / `ROS2PerformanceTalker` - performance test using PointCloud2 data.
+*  `ROS2Service` / `ROS2Client` - simple `AddTwoInts` service/client test.
 
 ## Simple subscriber/listener
 
@@ -41,6 +42,35 @@ Current maintenance branch note: `ros2cs_examples` targets `net8.0`. Core/common
     ```
 
 Listener will print out `"I heard: [Hello World: X]` messages sent by a talker.
+
+## Simple service/client
+
+1. Build project:
+
+    ```bash
+    ./build.sh
+    ```
+
+2. Run service:
+
+    ```bash
+    ros2 run ros2cs_examples ros2cs_service
+    ```
+
+3. Run client:
+
+    ```bash
+    ros2 run ros2cs_examples ros2cs_client
+    ```
+
+    On Windows, use the `.exe` entry points:
+
+    ```powershell
+    ros2 run ros2cs_examples ros2cs_service.exe
+    ros2 run ros2cs_examples ros2cs_client.exe
+    ```
+
+The service prints the incoming `A` and `B` values. The client sends `7 + 2` and prints `Sum = 9`.
 
 ## Performance test
 

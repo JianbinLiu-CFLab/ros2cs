@@ -17,12 +17,21 @@
 // - Retained ros2cs native library handle while wrapper delegates are in use.
 // - Added calling convention metadata for rclcs init delegate.
 // - Corrected internal default-node-options delegate spelling.
+// - Shared the ros2cs native wrapper handle with rmw wrapper bindings.
 
 using System;
 using System.Runtime.InteropServices;
 
 namespace ROS2
 {
+  /// <summary>Shared owner for the ros2cs native wrapper library.</summary>
+  internal static class NativeRos2csLibrary
+  {
+    internal static readonly DllLoadUtils DllLoadUtils = DllLoadUtilsFactory.GetDllLoadUtils();
+    internal static readonly NativeLibraryHandle Handle = NativeLibraryHandle.LoadLibrary(DllLoadUtils, "ros2cs");
+    internal static readonly IntPtr Ptr = Handle.Handle;
+  }
+
   /// <summary>
   /// An internal class to manage all wrapped native calls to rcl and rcutils.
   /// These are wrapped usually for one of two reasons:
@@ -31,10 +40,8 @@ namespace ROS2
   /// </summary>
   internal static class NativeRclInterface
   {
-    private static readonly DllLoadUtils dllLoadUtils = DllLoadUtilsFactory.GetDllLoadUtils();
-    // Keep ros2cs native wrapper loaded while managed delegates point into it.
-    private static readonly NativeLibraryHandle nativeROS2CSHandle = NativeLibraryHandle.LoadLibrary(dllLoadUtils, "ros2cs");
-    private static readonly IntPtr nativeROS2CS = nativeROS2CSHandle.Handle;
+    private static readonly DllLoadUtils dllLoadUtils = NativeRos2csLibrary.DllLoadUtils;
+    private static readonly IntPtr nativeROS2CS = NativeRos2csLibrary.Ptr;
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate int RCLCSInitType(ref rcl_context_t context, rcl_allocator_t allocator);

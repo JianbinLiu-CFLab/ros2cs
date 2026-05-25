@@ -40,6 +40,7 @@ namespace ROS2
     internal ulong ServiceCount {get { return Handle.size_of_services.ToUInt64(); }}
 
     private rcl_wait_set_t Handle;
+    private readonly object mutex = new object();
     private bool disposed;
 
     internal WaitSet(ref rcl_context_t context)
@@ -72,165 +73,179 @@ namespace ROS2
     /// <summary>Shared wait set disposal path used by explicit disposal and the finalizer.</summary>
     private void Dispose(bool disposing)
     {
-      // Explicit shutdown disposes this internal type under Ros2cs waitSetMutex; finalizer cleanup is best-effort.
-      if (disposed)
+      lock (mutex)
       {
-        return;
-      }
+        // Explicit shutdown disposes this internal type under Ros2cs waitSetMutex; finalizer cleanup is best-effort.
+        if (disposed)
+        {
+          return;
+        }
 
-      try
-      {
-        int ret = NativeRcl.rcl_wait_set_fini(ref Handle);
-        if (disposing)
+        try
         {
-          Utils.CheckReturnEnum(ret);
+          int ret = NativeRcl.rcl_wait_set_fini(ref Handle);
+          if (disposing)
+          {
+            Utils.CheckReturnEnum(ret);
+          }
         }
-      }
-      catch
-      {
-        if (disposing)
+        catch
         {
-          throw;
+          if (disposing)
+          {
+            throw;
+          }
         }
-      }
-      finally
-      {
-        disposed = true;
+        finally
+        {
+          disposed = true;
+        }
       }
     }
 
     internal void Resize(ulong subscriptionCount, ulong clientCount, ulong serviceCount)
     {
-      ThrowIfDisposed();
-      Utils.CheckReturnEnum(NativeRcl.rcl_wait_set_resize(
-      ref Handle,
-      (UIntPtr)subscriptionCount,
-      (UIntPtr)0,
-      (UIntPtr)0,
-      (UIntPtr)clientCount,
-      (UIntPtr)serviceCount,
-      (UIntPtr)0));
+      lock (mutex)
+      {
+        ThrowIfDisposed();
+        Utils.CheckReturnEnum(NativeRcl.rcl_wait_set_resize(
+        ref Handle,
+        (UIntPtr)subscriptionCount,
+        (UIntPtr)0,
+        (UIntPtr)0,
+        (UIntPtr)clientCount,
+        (UIntPtr)serviceCount,
+        (UIntPtr)0));
+      }
     }
 
     internal AddResult TryAddSubscription(ISubscriptionBase subscription, out ulong index)
     {
-      if (disposed)
+      lock (mutex)
       {
-        index = default(ulong);
-        return AddResult.DISPOSED;
-      }
-
-      UIntPtr native_index = default(UIntPtr);
-      int ret;
-      // Entity locks prevent Dispose from finalizing handles while they are being registered.
-      lock (subscription.Mutex)
-      {
-        if (subscription.IsDisposed)
+        if (disposed)
         {
           index = default(ulong);
           return AddResult.DISPOSED;
         }
 
-        rcl_subscription_t subscription_handle = subscription.Handle;
-        ret = NativeRcl.rcl_wait_set_add_subscription(
-          ref Handle,
-          ref subscription_handle,
-          ref native_index
-        );
-      }
+        UIntPtr native_index = default(UIntPtr);
+        int ret;
+        // Entity locks prevent Dispose from finalizing handles while they are being registered.
+        lock (subscription.Mutex)
+        {
+          if (subscription.IsDisposed)
+          {
+            index = default(ulong);
+            return AddResult.DISPOSED;
+          }
 
-      if ((RCLReturnEnum)ret == RCLReturnEnum.RCL_RET_WAIT_SET_FULL)
-      {
-        index = default(ulong);
-        return AddResult.FULL;
-      }
-      else
-      {
-        Utils.CheckReturnEnum(ret);
-        index = native_index.ToUInt64();
-        return AddResult.SUCCESS;
+          rcl_subscription_t subscription_handle = subscription.Handle;
+          ret = NativeRcl.rcl_wait_set_add_subscription(
+            ref Handle,
+            ref subscription_handle,
+            ref native_index
+          );
+        }
+
+        if ((RCLReturnEnum)ret == RCLReturnEnum.RCL_RET_WAIT_SET_FULL)
+        {
+          index = default(ulong);
+          return AddResult.FULL;
+        }
+        else
+        {
+          Utils.CheckReturnEnum(ret);
+          index = native_index.ToUInt64();
+          return AddResult.SUCCESS;
+        }
       }
     }
 
     internal AddResult TryAddClient(IClientBase client, out ulong index)
     {
-      if (disposed)
+      lock (mutex)
       {
-        index = default(ulong);
-        return AddResult.DISPOSED;
-      }
-
-      UIntPtr native_index = default(UIntPtr);
-      int ret;
-      // Entity locks prevent Dispose from finalizing handles while they are being registered.
-      lock (client.Mutex)
-      {
-        if (client.IsDisposed)
+        if (disposed)
         {
           index = default(ulong);
           return AddResult.DISPOSED;
         }
 
-        rcl_client_t client_handle = client.Handle;
-        ret = NativeRcl.rcl_wait_set_add_client(
-          ref Handle,
-          ref client_handle,
-          ref native_index
-        );
-      }
-      
-      if ((RCLReturnEnum)ret == RCLReturnEnum.RCL_RET_WAIT_SET_FULL)
-      {
-        index = default(ulong);
-        return AddResult.FULL;
-      }
-      else
-      {
-        Utils.CheckReturnEnum(ret);
-        index = native_index.ToUInt64();
-        return AddResult.SUCCESS;
+        UIntPtr native_index = default(UIntPtr);
+        int ret;
+        // Entity locks prevent Dispose from finalizing handles while they are being registered.
+        lock (client.Mutex)
+        {
+          if (client.IsDisposed)
+          {
+            index = default(ulong);
+            return AddResult.DISPOSED;
+          }
+
+          rcl_client_t client_handle = client.Handle;
+          ret = NativeRcl.rcl_wait_set_add_client(
+            ref Handle,
+            ref client_handle,
+            ref native_index
+          );
+        }
+
+        if ((RCLReturnEnum)ret == RCLReturnEnum.RCL_RET_WAIT_SET_FULL)
+        {
+          index = default(ulong);
+          return AddResult.FULL;
+        }
+        else
+        {
+          Utils.CheckReturnEnum(ret);
+          index = native_index.ToUInt64();
+          return AddResult.SUCCESS;
+        }
       }
     }
 
     internal AddResult TryAddService(IServiceBase service, out ulong index)
     {
-      if (disposed)
+      lock (mutex)
       {
-        index = default(ulong);
-        return AddResult.DISPOSED;
-      }
-
-      UIntPtr native_index = default(UIntPtr);
-      int ret;
-
-      // Entity locks prevent Dispose from finalizing handles while they are being registered.
-      lock (service.Mutex)
-      {
-        if (service.IsDisposed)
+        if (disposed)
         {
           index = default(ulong);
           return AddResult.DISPOSED;
         }
 
-        rcl_service_t service_handle = service.Handle;
-        ret = NativeRcl.rcl_wait_set_add_service(
-          ref Handle,
-          ref service_handle,
-          ref native_index
-        );
-      }
+        UIntPtr native_index = default(UIntPtr);
+        int ret;
 
+        // Entity locks prevent Dispose from finalizing handles while they are being registered.
+        lock (service.Mutex)
+        {
+          if (service.IsDisposed)
+          {
+            index = default(ulong);
+            return AddResult.DISPOSED;
+          }
 
-      if ((RCLReturnEnum)ret == RCLReturnEnum.RCL_RET_WAIT_SET_FULL)
-      {
-        index = default(ulong);
-        return AddResult.FULL;
-      }
-      else
-      {
-        Utils.CheckReturnEnum(ret);
-        index = native_index.ToUInt64();
-        return AddResult.SUCCESS;
+          rcl_service_t service_handle = service.Handle;
+          ret = NativeRcl.rcl_wait_set_add_service(
+            ref Handle,
+            ref service_handle,
+            ref native_index
+          );
+        }
+
+        if ((RCLReturnEnum)ret == RCLReturnEnum.RCL_RET_WAIT_SET_FULL)
+        {
+          index = default(ulong);
+          return AddResult.FULL;
+        }
+        else
+        {
+          Utils.CheckReturnEnum(ret);
+          index = native_index.ToUInt64();
+          return AddResult.SUCCESS;
+        }
       }
     }
 
@@ -241,16 +256,19 @@ namespace ROS2
 
     internal bool Wait(TimeSpan timeout)
     {
-      ThrowIfDisposed();
-      int ret = NativeRcl.rcl_wait(ref Handle, timeout.Ticks * 100);
-      if ((RCLReturnEnum)ret == RCLReturnEnum.RCL_RET_TIMEOUT)
+      lock (mutex)
       {
-        return false;
-      }
-      else
-      {
-        Utils.CheckReturnEnum(ret);
-        return true;
+        ThrowIfDisposed();
+        int ret = NativeRcl.rcl_wait(ref Handle, timeout.Ticks * 100);
+        if ((RCLReturnEnum)ret == RCLReturnEnum.RCL_RET_TIMEOUT)
+        {
+          return false;
+        }
+        else
+        {
+          Utils.CheckReturnEnum(ret);
+          return true;
+        }
       }
     }
 

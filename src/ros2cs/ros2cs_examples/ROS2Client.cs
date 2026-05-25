@@ -16,9 +16,6 @@
 using System;
 using System.Threading;
 using ROS2;
-using std_msgs;
-using sensor_msgs;
-using example_interfaces;
 
 namespace Examples
 {
@@ -28,24 +25,28 @@ namespace Examples
     public static void Main(string[] args)
     {
       Console.WriteLine("Client start");
-      Ros2cs.Init();
-      INode node = Ros2cs.CreateNode("talker");
-      Client<example_interfaces.srv.AddTwoInts_Request, example_interfaces.srv.AddTwoInts_Response> my_client = node.CreateClient<example_interfaces.srv.AddTwoInts_Request, example_interfaces.srv.AddTwoInts_Response>("add_two_ints");
+      using var runtime = new ROS2ExampleRuntime();
+      INode node = Ros2cs.CreateNode("client");
+      using Client<example_interfaces.srv.AddTwoInts_Request, example_interfaces.srv.AddTwoInts_Response> my_client = node.CreateClient<example_interfaces.srv.AddTwoInts_Request, example_interfaces.srv.AddTwoInts_Response>("add_two_ints");
 
-      example_interfaces.srv.AddTwoInts_Request msg = new example_interfaces.srv.AddTwoInts_Request();
+      using var msg = new example_interfaces.srv.AddTwoInts_Request();
       msg.A = 7;
       msg.B = 2;
 
+      DateTime waitDeadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
       while (!my_client.IsServiceAvailable())
       {
+        if (DateTime.UtcNow >= waitDeadline)
+        {
+          throw new TimeoutException("Timed out waiting for add_two_ints service.");
+        }
         Thread.Sleep(TimeSpan.FromSeconds(0.25));
       }
 
-      example_interfaces.srv.AddTwoInts_Response rsp = my_client.Call(msg);
+      using example_interfaces.srv.AddTwoInts_Response rsp = my_client.Call(msg);
       Console.WriteLine("Sum = " + rsp.Sum);
 
       Console.WriteLine("Client shutdown");
-      Ros2cs.Shutdown();
     }
   }
 }

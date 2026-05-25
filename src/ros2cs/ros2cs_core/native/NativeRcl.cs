@@ -152,15 +152,7 @@ namespace ROS2
         typeof(NodeGetNamespaceType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    internal delegate IntPtr ClientGetDefaultOptionsType();
-    internal static ClientGetDefaultOptionsType
-        rcl_client_get_default_options =
-        (ClientGetDefaultOptionsType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
-        nativeRCL,
-        "rcl_client_get_default_options"),
-        typeof(ClientGetDefaultOptionsType));
-
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Keep the historical misspelled delegate type names: friend test assemblies bind field signatures to these types.
     internal delegate rcl_client_t GetZeroInitiazizedClientType();
     internal static GetZeroInitiazizedClientType
         rcl_get_zero_initialized_client =
@@ -215,15 +207,6 @@ namespace ROS2
         typeof(ServiceIsAvailableType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    internal delegate IntPtr ServiceGetDefaultOptionsType();
-    internal static ServiceGetDefaultOptionsType
-        rcl_service_get_default_options =
-        (ServiceGetDefaultOptionsType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
-        nativeRCL,
-        "rcl_service_get_default_options"),
-        typeof(ServiceGetDefaultOptionsType));
-
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate rcl_service_t GetZeroInitiazizedServiceType();
     internal static GetZeroInitiazizedServiceType
         rcl_get_zero_initialized_service =
@@ -260,23 +243,13 @@ namespace ROS2
         typeof(TakeRequestType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    internal delegate int SendResponceType( ref rcl_service_t service, ref rcl_rmw_request_id_t request_header, IntPtr responce_info);
-    ///internal delegate int SendResponceType( ref rcl_service_t service, ref rcl_rmw_request_id_t request_header, ref IntPtr responce_info);
+    internal delegate int SendResponceType(ref rcl_service_t service, ref rcl_rmw_request_id_t request_header, IntPtr response_info);
     internal static SendResponceType
         rcl_send_response =
         (SendResponceType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
         nativeRCL,
         "rcl_send_response"),
         typeof(SendResponceType));
-
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    internal delegate IntPtr PublisherGetDefaultOptionsType();
-    internal static PublisherGetDefaultOptionsType
-        rcl_publisher_get_default_options =
-        (PublisherGetDefaultOptionsType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
-        nativeRCL,
-        "rcl_publisher_get_default_options"),
-        typeof(PublisherGetDefaultOptionsType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate rcl_publisher_t GetZeroInitiazizedPublisherType();

@@ -15,8 +15,8 @@
 // limitations under the License.
 
 // Modifications by Jianbin Liu:
-// - Added setup/teardown guard for tests that do not require ROS initialization.
 // - Added negative nanosecond normalization and overflow coverage.
+// - Split pure RosTime conversion tests away from ROS-initialized Clock tests.
 
 using System;
 using NUnit.Framework;
@@ -26,52 +26,43 @@ namespace ROS2.Test
     [TestFixture]
     public class ClockTest
     {
-        // Tracks whether the current test initialized ROS so teardown can skip utility-only tests.
-        private bool rosInitialized;
-
         [SetUp]
         public void SetUp()
         {
-            string testName = TestContext.CurrentContext.Test.Name;
-            if (testName == nameof(RosTimeFromNegativeNanosecondsIsNormalized) ||
-                testName == nameof(RosTimeOverflowThrows))
-            {
-                return;
-            }
-
             Ros2cs.Init();
-            rosInitialized = true;
         }
 
         [TearDown]
         public void TearDown()
         {
-            if (rosInitialized)
+            if (Ros2cs.Ok())
             {
                 Ros2cs.Shutdown();
-                rosInitialized = false;
             }
         }
 
         [Test]
         public void CreateClock()
         {
-            Clock clock = new Clock();
+            using var clock = new Clock();
+            Assert.That(clock.IsDisposed, Is.False);
         }
 
         [Test]
         public void ClockGetNow()
         {
-            Clock clock = new Clock();
+            using var clock = new Clock();
             RosTime timeNow = clock.Now;
-            Assert.That(timeNow.sec, Is.Not.EqualTo(0));
+            Assert.That(timeNow.sec, Is.GreaterThan(0));
         }
+    }
 
+    [TestFixture]
+    public class RosTimeTest
+    {
         [Test]
         public void RosTimeSeconds()
         {
-            Clock clock = new Clock();
-
             RosTime oneSecond = new RosTime { sec = 1, nanosec = 0 };
             Assert.That(oneSecond.Seconds, Is.EqualTo(1.0d));
 

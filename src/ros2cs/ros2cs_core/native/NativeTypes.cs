@@ -15,6 +15,7 @@
 
 // Modifications by Jianbin Liu:
 // - Added explicit sequential layout annotations for native interop structs.
+// - Fixed rcl_context_t instance id storage to stay 8 bytes on 32-bit runtimes.
 
 using System;
 using System.Runtime.InteropServices;
@@ -56,7 +57,8 @@ namespace ROS2
 {
     private IntPtr global_arguments;
     private IntPtr impl;
-    private IntPtr instance_id_storage;
+    // Native rcl stores this as fixed 8-byte instance id storage, not a pointer.
+    private ulong instance_id_storage;
   }
 
   /// <summary>Managed mirror of rcl_error_string_t with explicit native field order.</summary>

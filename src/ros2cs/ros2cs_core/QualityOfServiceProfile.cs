@@ -66,6 +66,7 @@ namespace ROS2
   {
     // Native rmw_qos_profile_t wrapper owned by this managed object.
     internal IntPtr handle;
+    private readonly object mutex = new object();
     private bool disposed;
 
     /// <summary>Native QoS profile handle, guarded against use after disposal.</summary>
@@ -73,8 +74,11 @@ namespace ROS2
     {
       get
       {
-        ThrowIfDisposed();
-        return handle;
+        lock (mutex)
+        {
+          ThrowIfDisposed();
+          return handle;
+        }
       }
     }
 
@@ -90,20 +94,29 @@ namespace ROS2
 
     public void SetHistory(HistoryPolicy policy, int depth)
     {
-      ThrowIfDisposed();
-      NativeRmwInterface.rmw_native_interface_set_history(handle, (int)policy, depth);
+      lock (mutex)
+      {
+        ThrowIfDisposed();
+        NativeRmwInterface.rmw_native_interface_set_history(handle, (int)policy, depth);
+      }
     }
 
     public void SetReliability(ReliabilityPolicy policy)
     {
-      ThrowIfDisposed();
-      NativeRmwInterface.rmw_native_interface_set_reliability(handle, (int)policy);
+      lock (mutex)
+      {
+        ThrowIfDisposed();
+        NativeRmwInterface.rmw_native_interface_set_reliability(handle, (int)policy);
+      }
     }
 
     public void SetDurability(DurabilityPolicy policy)
     {
-      ThrowIfDisposed();
-      NativeRmwInterface.rmw_native_interface_set_durability(handle, (int)policy);
+      lock (mutex)
+      {
+        ThrowIfDisposed();
+        NativeRmwInterface.rmw_native_interface_set_durability(handle, (int)policy);
+      }
     }
 
     /// <summary>Release the native QoS profile wrapper.</summary>
@@ -121,35 +134,38 @@ namespace ROS2
     /// <summary>Shared QoS disposal path used by explicit disposal and the finalizer.</summary>
     private void Dispose(bool disposing)
     {
-      Exception disposeException = null;
-      if (disposed)
+      lock (mutex)
       {
-        return;
-      }
-
-      try
-      {
-        if (handle != IntPtr.Zero)
+        Exception disposeException = null;
+        if (disposed)
         {
-          NativeRmwInterface.rmw_native_interface_delete_qos_profile(handle);
+          return;
         }
-      }
-      catch (Exception e)
-      {
-        if (disposing)
-        {
-          disposeException = e;
-        }
-      }
-      finally
-      {
-        handle = IntPtr.Zero;
-        disposed = true;
-      }
 
-      if (disposeException != null)
-      {
-        throw disposeException;
+        try
+        {
+          if (handle != IntPtr.Zero)
+          {
+            NativeRmwInterface.rmw_native_interface_delete_qos_profile(handle);
+          }
+        }
+        catch (Exception e)
+        {
+          if (disposing)
+          {
+            disposeException = e;
+          }
+        }
+        finally
+        {
+          handle = IntPtr.Zero;
+          disposed = true;
+        }
+
+        if (disposeException != null)
+        {
+          throw disposeException;
+        }
       }
     }
 

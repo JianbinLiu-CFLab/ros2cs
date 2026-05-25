@@ -18,7 +18,7 @@ using System.Threading.Tasks;
 
 namespace ROS2
 {
-  /// <summary> Non-generic base interface for all subscriptions </summary>
+  /// <summary> Non-generic base interface for all clients </summary>
   /// <seealso cref="INode.CreateClient"/>
   public interface IClientBase: IExtendedDisposable
   {
@@ -28,7 +28,7 @@ namespace ROS2
     /// <remarks>
     /// Marks the corresponding <see cref="Task"/> as finished if successful
     /// </remarks>
-    // TODO this should not be public - add an internal interface
+    // Internal spin entry point; kept on the public interface for compatibility.
     void TakeMessage();
 
     /// <summary>
@@ -51,13 +51,14 @@ namespace ROS2
     /// <returns>Whether the Task was removed successfully.</returns>
     bool Cancel(Task task);
 
+    // Internal wait-set handle; kept on the public interface for compatibility.
     rcl_client_t Handle {get;}
 
-    /// <summary> service mutex for internal use </summary>
+    /// <summary> client mutex for internal use </summary>
     object Mutex { get; }
   }
 
-  /// <summary> Generic base interface for all subscriptions </summary>
+  /// <summary> Generic base interface for all clients </summary>
   /// <typeparam name="I">Message Type to be send</typeparam>
   /// <typeparam name="O">Message Type to be received</typeparam>
   /// <seealso cref="INode.CreateClient"/>
@@ -73,7 +74,7 @@ namespace ROS2
     /// <summary>
     /// Check if the service to be called is available
     /// </summary>
-    /// <returns><see cref="true"/> if the service is avilable</returns>
+    /// <returns><see cref="true"/> if the service is available</returns>
     bool IsServiceAvailable();
 
     /// <summary>

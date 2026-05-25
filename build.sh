@@ -15,7 +15,7 @@ if [ -z "${ROS_DISTRO:-}" ]; then
     exit 1
 fi
 
-TESTS=0
+TESTS=OFF
 MSG="Build started."
 STANDALONE=OFF
 
@@ -23,7 +23,7 @@ while [[ $# -gt 0 ]]; do
   key="$1"
   case $key in
     -t|--with-tests)
-      TESTS=1
+      TESTS=ON
       MSG="$MSG (with tests)"
       shift # past argument
       ;;
@@ -52,5 +52,4 @@ colcon build \
 -DCMAKE_BUILD_TYPE=Release \
 -DSTANDALONE_BUILD=$STANDALONE \
 -DBUILD_TESTING=$TESTS \
--DCMAKE_SHARED_LINKER_FLAGS="-Wl,-rpath,'\$ORIGIN',-rpath=.,--disable-new-dtags" \
---no-warn-unused-cli
+-DCMAKE_SHARED_LINKER_FLAGS="-Wl,-rpath,'\$ORIGIN',-rpath=.,--disable-new-dtags"

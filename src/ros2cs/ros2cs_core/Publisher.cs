@@ -19,6 +19,7 @@
 // - Restricted construction to node factory methods.
 
 using System;
+using System.Collections.Generic;
 using ROS2.Internal;
 
 namespace ROS2
@@ -117,7 +118,7 @@ namespace ROS2
     /// <summary>Shared publisher disposal path used by explicit disposal, node disposal, and finalization.</summary>
     private void Dispose(bool disposing)
     {
-      Exception disposeException = null;
+      List<Exception> disposeExceptions = null;
       lock (mutex)
       {
         if (disposed)
@@ -140,7 +141,7 @@ namespace ROS2
         {
           if (disposing)
           {
-            disposeException = e;
+            Utils.AddException(ref disposeExceptions, e);
           }
         }
         finally
@@ -154,9 +155,9 @@ namespace ROS2
           }
           catch (Exception e)
           {
-            if (disposing && disposeException == null)
+            if (disposing)
             {
-              disposeException = e;
+              Utils.AddException(ref disposeExceptions, e);
             }
           }
           finally
@@ -170,10 +171,7 @@ namespace ROS2
       if (disposing)
       {
         logger.LogInfo("Publisher destroyed");
-        if (disposeException != null)
-        {
-          throw disposeException;
-        }
+        Utils.ThrowCollectedExceptions(disposeExceptions);
       }
     }
 

@@ -160,7 +160,7 @@ namespace ROS2
     /// <summary>Shared client disposal path used by explicit disposal, node disposal, and finalization.</summary>
     private void Dispose(bool disposing)
     {
-      Exception disposeException = null;
+      List<Exception> disposeExceptions = null;
       lock (mutex)
       {
         if (disposed)
@@ -193,7 +193,7 @@ namespace ROS2
         {
           if (disposing)
           {
-            disposeException = e;
+            Utils.AddException(ref disposeExceptions, e);
           }
         }
         finally
@@ -207,9 +207,9 @@ namespace ROS2
           }
           catch (Exception e)
           {
-            if (disposing && disposeException == null)
+            if (disposing)
             {
-              disposeException = e;
+              Utils.AddException(ref disposeExceptions, e);
             }
           }
           finally
@@ -223,10 +223,7 @@ namespace ROS2
       if (disposing)
       {
         logger.LogInfo("Client destroyed");
-        if (disposeException != null)
-        {
-          throw disposeException;
-        }
+        Utils.ThrowCollectedExceptions(disposeExceptions);
       }
     }
 
@@ -383,8 +380,7 @@ namespace ROS2
       }
 
       var task = CallAsync(msg);
-      task.Wait();
-      return task.Result;
+      return task.GetAwaiter().GetResult();
     }
 
     /// <inheritdoc/>
@@ -397,12 +393,13 @@ namespace ROS2
       }
 
       var task = CallAsync(msg);
-      if (!task.Wait(timeout))
+      var completedTask = Task.WhenAny(task, Task.Delay(timeout)).GetAwaiter().GetResult();
+      if (!ReferenceEquals(completedTask, task))
       {
         Cancel(task);
         throw new TimeoutException("Timed out waiting for service response on topic '" + topic + "'");
       }
-      return task.Result;
+      return task.GetAwaiter().GetResult();
     }
 
     /// <inheritdoc/>

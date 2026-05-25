@@ -26,10 +26,10 @@ namespace Examples
     public static void Main(string[] args)
     {
       Console.WriteLine("Talker starting");
-      Ros2cs.Init();
+      using var runtime = new ROS2ExampleRuntime();
       INode node = Ros2cs.CreateNode("talker");
-      Publisher<std_msgs.msg.String> chatter_pub = node.CreatePublisher<std_msgs.msg.String>("chatter");
-      std_msgs.msg.String msg = new std_msgs.msg.String();
+      using Publisher<std_msgs.msg.String> chatter_pub = node.CreatePublisher<std_msgs.msg.String>("chatter");
+      using var msg = new std_msgs.msg.String();
 
       int i = 1;
 
@@ -41,7 +41,6 @@ namespace Examples
         Console.WriteLine(msg.Data);
         chatter_pub.Publish(msg);
       }
-      Ros2cs.Shutdown();
     }
   }
 }

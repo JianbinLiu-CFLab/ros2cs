@@ -19,6 +19,7 @@
 using System;
 using System.Linq;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using NUnit.Framework;
 using example_interfaces.srv;
@@ -29,6 +30,7 @@ namespace ROS2.Test
     public class ClientTest
     {
         private static readonly string SERVICE_NAME = "test_service";
+        private static readonly TimeSpan SpinTimeout = TimeSpan.FromSeconds(5);
 
         private INode Node;
 
@@ -45,8 +47,10 @@ namespace ROS2.Test
         [TearDown]
         public void TearDown()
         {
-            Node.Dispose();
-            Ros2cs.Shutdown();
+            if (Ros2cs.Ok())
+            {
+                Ros2cs.Shutdown();
+            }
         }
 
         private AddTwoInts_Request CreateRequest(int a, int b)
@@ -64,6 +68,48 @@ namespace ROS2.Test
             return response;
         }
 
+        private void SpinUntil(Func<bool> condition, string timeoutMessage)
+        {
+            DateTime deadline = DateTime.UtcNow + SpinTimeout;
+            while (!condition())
+            {
+                if (DateTime.UtcNow >= deadline)
+                {
+                    Assert.Fail(timeoutMessage);
+                }
+                Ros2cs.SpinOnce(Node, 0.1);
+            }
+        }
+
+        [Test]
+        public void ClientCall()
+        {
+            using var service = Node.CreateService<AddTwoInts_Request, AddTwoInts_Response>(
+                SERVICE_NAME,
+                HandleRequest
+            );
+
+            bool spinDone = false;
+            Task spinTask = Task.Run(() =>
+            {
+                while (!Volatile.Read(ref spinDone))
+                {
+                    Ros2cs.SpinOnce(Node, 0.1);
+                }
+            });
+
+            try
+            {
+                using AddTwoInts_Response response = Client.Call(CreateRequest(8, 13), SpinTimeout);
+                Assert.That(response.Sum, Is.EqualTo(21));
+            }
+            finally
+            {
+                Volatile.Write(ref spinDone, true);
+                Assert.That(spinTask.Wait(TimeSpan.FromSeconds(1)), Is.True);
+            }
+        }
+
         [Test]
         public void ClientCallAsync()
         {
@@ -72,10 +118,7 @@ namespace ROS2.Test
                 HandleRequest
             );
             var task = Client.CallAsync(CreateRequest(42, 3));
-            while (!task.IsCompleted)
-            {
-                Ros2cs.SpinOnce(Node, 0.1);
-            }
+            SpinUntil(() => task.IsCompleted, "Timed out waiting for service response.");
             Assert.That(task.Result.Sum, Is.EqualTo(45));
         }
 
@@ -90,25 +133,22 @@ namespace ROS2.Test
                 .Range(0, 10)
                 .Select(i => Client.CallAsync(CreateRequest(i, 100 - i)))
                 .ToArray();
-            while (!tasks.All(task => task.IsCompleted))
-            {
-                Ros2cs.SpinOnce(Node, 0.1);
-            }
+            SpinUntil(() => tasks.All(task => task.IsCompleted), "Timed out waiting for concurrent service responses.");
             Assert.That(tasks.Select(task => task.Result.Sum), Is.All.EqualTo(100));
         }
 
         [Test]
         public void ClientWaitForService()
         {
-            Assert.That(!Client.IsServiceAvailable());
+            Assert.That(Client.IsServiceAvailable(), Is.False);
             {
                 using var service = Node.CreateService<AddTwoInts_Request, AddTwoInts_Response>(
                     SERVICE_NAME,
                     HandleRequest
                 );
-                Assert.That(Client.IsServiceAvailable());
+                Assert.That(Client.IsServiceAvailable(), Is.True);
             }
-            Assert.That(!Client.IsServiceAvailable());
+            Assert.That(Client.IsServiceAvailable(), Is.False);
         }
 
         [Test]
@@ -122,7 +162,7 @@ namespace ROS2.Test
         [Test]
         public void DisposedClientHandling()
         {
-            Assert.That(!Client.IsDisposed);
+            Assert.That(Client.IsDisposed, Is.False);
             Client.Dispose();
             Assert.That(Client.IsDisposed);
             Assert.DoesNotThrow(() => { Ros2cs.SpinOnce(Node, 0.1); });
@@ -168,10 +208,7 @@ namespace ROS2.Test
 
             Assert.That(this.Client.PendingRequests.Count, Is.EqualTo(3));
 
-            while (!tasks.Any(task => task.IsCompleted))
-            {
-                Ros2cs.SpinOnce(Node, 0.1);
-            }
+            SpinUntil(() => tasks.Any(task => task.IsCompleted), "Timed out waiting for any pending request to complete.");
 
             int completed = tasks.Where(task => task.IsCompletedSuccessfully).Count();
 
@@ -186,6 +223,7 @@ namespace ROS2.Test
             Task pendingTask = this.Client.CallAsync(this.CreateRequest(3, 4));
 
             Assert.That(requests.Keys, Is.EquivalentTo(this.Client.PendingRequests.Keys));
+            Assert.That(this.Client.Cancel(pendingTask), Is.True);
         }
 
         [Test]
@@ -199,10 +237,7 @@ namespace ROS2.Test
             );
             Task finishedTask = this.Client.CallAsync(this.CreateRequest(3, 4));
 
-            while (!finishedTask.IsCompleted)
-            {
-                Ros2cs.SpinOnce(Node, 0.1);
-            }
+            SpinUntil(() => finishedTask.IsCompleted, "Timed out waiting for finished request before cancel check.");
 
             Assert.That(this.Client.Cancel(finishedTask), Is.False);
 

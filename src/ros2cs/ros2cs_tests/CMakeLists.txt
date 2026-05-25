@@ -10,6 +10,7 @@ cmake_minimum_required(VERSION 3.6)
 project(ros2cs_tests)
 
 if(BUILD_TESTING)
+  find_package(ros2cs_common REQUIRED)
   find_package(ros2cs_core REQUIRED)
   find_package(ament_cmake REQUIRED)
   find_package(dotnet_cmake_module REQUIRED)
@@ -43,7 +44,7 @@ if(BUILD_TESTING)
     src/LargeMessageTest.cs
     src/MessagesTest.cs
     src/NodeTest.cs
-    src/NativeMetodsTest.cs
+    src/NativeMethodsTest.cs
     src/ClientTest.cs
     src/ServiceTest.cs
     src/SubscriptionTest.cs

@@ -23,19 +23,19 @@ if ([string]::IsNullOrEmpty($Env:ROS_DISTRO)) {
 }
 
 $msg="Build started."
-$tests_switch=0
+$tests_switch="OFF"
 if($with_tests) {
     $msg+=" (with tests)"
-    $tests_switch=1
+    $tests_switch="ON"
 }
-$standalone_switch=0
+$standalone_switch="OFF"
 if($standalone) {
     $msg+=" (standalone)"
-    $standalone_switch=1
+    $standalone_switch="ON"
 }
 
 Write-Host $msg -ForegroundColor Green
-colcon build --merge-install --event-handlers console_direct+ --cmake-args -DSTANDALONE_BUILD:int=$standalone_switch -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING:int=$tests_switch --no-warn-unused-cli
+colcon build --merge-install --event-handlers console_direct+ --cmake-args -DSTANDALONE_BUILD=$standalone_switch -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=$tests_switch
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }

@@ -15,6 +15,7 @@
 
 // Modifications by Jianbin Liu:
 // - Added corrected return-code aliases for take-failed values.
+// - Marked legacy misspelled aliases obsolete while preserving compatibility.
 
 namespace ROS2
 {
@@ -54,6 +55,7 @@ namespace ROS2
     RCL_RET_SERVICE_INVALID = 600,
     // Correct spelling retained beside the legacy misspelled alias for compatibility.
     RCL_RET_SERVICE_TAKE_FAILED = 601,
+    [System.Obsolete("Use RCL_RET_SERVICE_TAKE_FAILED.")]
     RCL_RET_SERIVCE_TAKE_FAILD = 601,
     // rcl guard condition specific ret codes in 7XX
     // rcl timer specific ret codes in 8XX
@@ -66,6 +68,8 @@ namespace ROS2
 
     // rcl params, logs and events
     RCL_RET_INVALID_REMAP_RULE = 1001,
+    RCL_RET_WRONG_LEXEME = 1002,
+    [System.Obsolete("Use RCL_RET_WRONG_LEXEME.")]
     RCL_RET_WRONG_LEXME = 1002,
     RCL_RET_INVALID_ROS_ARGS = 1003,
     RCL_RET_INVALID_PARAM_RULE = 1010,
@@ -74,6 +78,7 @@ namespace ROS2
     RCL_RET_INVALID_EVENT_ID = 2000,
     // Correct spelling retained beside the legacy misspelled alias for compatibility.
     RCL_RET_EVENT_TAKE_FAILED = 2001,
+    [System.Obsolete("Use RCL_RET_EVENT_TAKE_FAILED.")]
     RCL_RET_EVENT_TAKE_FAILER = 2001
 	}
 }

@@ -27,13 +27,14 @@ namespace ROS2.Test
         [Test]
         public void CreateMessage()
         {
-            std_msgs.msg.Bool msg = new std_msgs.msg.Bool();
+            using var msg = new std_msgs.msg.Bool();
+            Assert.That(msg.IsDisposed, Is.False);
         }
 
         [Test]
         public void SetBoolData()
         {
-            std_msgs.msg.Bool msg = new std_msgs.msg.Bool();
+            using var msg = new std_msgs.msg.Bool();
             Assert.That(msg.Data, Is.False);
             msg.Data = true;
             Assert.That(msg.Data, Is.True);
@@ -44,7 +45,7 @@ namespace ROS2.Test
         [Test]
         public void SetInt64Data()
         {
-            std_msgs.msg.Int64 msg = new std_msgs.msg.Int64();
+            using var msg = new std_msgs.msg.Int64();
             Assert.That(msg.Data, Is.EqualTo(0));
             msg.Data = 12345;
             Assert.That(msg.Data, Is.EqualTo(12345));
@@ -53,7 +54,7 @@ namespace ROS2.Test
         [Test]
         public void SetStringData()
         {
-            std_msgs.msg.String msg = new std_msgs.msg.String();
+            using var msg = new std_msgs.msg.String();
             Assert.That(msg.Data, Is.EqualTo(""));
             msg.Data = "Show me what you got!";
             Assert.That(msg.Data, Is.EqualTo("Show me what you got!"));
@@ -62,7 +63,7 @@ namespace ROS2.Test
         [Test]
         public void SetDefaults()
         {
-            test_msgs.msg.Defaults msg = new test_msgs.msg.Defaults();
+            using var msg = new test_msgs.msg.Defaults();
             msg.Int32_value = 24;
             Assert.That(msg.Int32_value, Is.EqualTo(24));
             msg.Float32_value = 3.14F;
@@ -72,14 +73,15 @@ namespace ROS2.Test
         [Test]
         public void SetStrings()
         {
-            test_msgs.msg.Strings msg = new test_msgs.msg.Strings();
+            using var msg = new test_msgs.msg.Strings();
             msg.String_value = "Turtles all the way down";
             Assert.That(msg.String_value, Is.EqualTo("Turtles all the way down"));
         }
+
         [Test]
-        public void SetUnboundedSequenses()
+        public void SetUnboundedSequences()
         {
-            test_msgs.msg.UnboundedSequences msg = new test_msgs.msg.UnboundedSequences();
+            using var msg = new test_msgs.msg.UnboundedSequences();
             bool[] setBoolSequence = new bool[2];
             setBoolSequence[0] = true;
             setBoolSequence[1] = false;
@@ -93,7 +95,7 @@ namespace ROS2.Test
             int[] setIntSequence = new int[2];
             setIntSequence[0] = 123;
             setIntSequence[1] = 456;
-            test_msgs.msg.UnboundedSequences msg2 = new test_msgs.msg.UnboundedSequences();
+            using var msg2 = new test_msgs.msg.UnboundedSequences();
             msg2.Int32_values = setIntSequence;
             int[] getIntList = msg2.Int32_values;
             Assert.That(getIntList.Length, Is.EqualTo(2));
@@ -103,7 +105,7 @@ namespace ROS2.Test
             string[] setStringSequence = new string[2];
             setStringSequence[0] = "Hello";
             setStringSequence[1] = "world";
-            test_msgs.msg.UnboundedSequences msg3 = new test_msgs.msg.UnboundedSequences();
+            using var msg3 = new test_msgs.msg.UnboundedSequences();
             msg3.String_values = setStringSequence;
             string[] getStringSequence = msg3.String_values;
             Assert.That(getStringSequence.Length, Is.EqualTo(2));
@@ -116,7 +118,7 @@ namespace ROS2.Test
         public void NativeRoundtripPreservesInt8Sequence()
         {
             sbyte[] expected = new sbyte[] { -128, -1, 0, 1, 127 };
-            test_msgs.msg.UnboundedSequences msg = new test_msgs.msg.UnboundedSequences();
+            using var msg = new test_msgs.msg.UnboundedSequences();
             msg.Int8_values = expected;
 
             msg.WriteNativeMessage();
@@ -127,9 +129,9 @@ namespace ROS2.Test
         }
 
         [Test]
-        public void SetBoundedSequenses()
+        public void SetBoundedSequences()
         {
-            test_msgs.msg.BoundedSequences msg = new test_msgs.msg.BoundedSequences();
+            using var msg = new test_msgs.msg.BoundedSequences();
             bool[] setBoolSequence = new bool[2];
             setBoolSequence[0] = true;
             setBoolSequence[1] = false;
@@ -143,7 +145,7 @@ namespace ROS2.Test
             int[] setIntSequence = new int[2];
             setIntSequence[0] = 123;
             setIntSequence[1] = 456;
-            test_msgs.msg.BoundedSequences msg2 = new test_msgs.msg.BoundedSequences();
+            using var msg2 = new test_msgs.msg.BoundedSequences();
             msg2.Int32_values = setIntSequence;
             int[] getIntList = msg2.Int32_values;
             Assert.That(getIntList.Length, Is.EqualTo(2));
@@ -153,7 +155,7 @@ namespace ROS2.Test
             string[] setStringSequence = new string[2];
             setStringSequence[0] = "Hello";
             setStringSequence[1] = "world";
-            test_msgs.msg.BoundedSequences msg3 = new test_msgs.msg.BoundedSequences();
+            using var msg3 = new test_msgs.msg.BoundedSequences();
             msg3.String_values = setStringSequence;
             string[] getStringSequence = msg3.String_values;
             Assert.That(getStringSequence.Length, Is.EqualTo(2));
@@ -164,7 +166,7 @@ namespace ROS2.Test
         [Test]
         public void SetNested()
         {
-            test_msgs.msg.Nested msg = new test_msgs.msg.Nested();
+            using var msg = new test_msgs.msg.Nested();
             test_msgs.msg.BasicTypes basic_types_msg = msg.Basic_types_value;
             Assert.That(basic_types_msg.Int32_value, Is.EqualTo(0));
             basic_types_msg.Int32_value = 25;
@@ -176,10 +178,10 @@ namespace ROS2.Test
         [Test]
         public void SetMultiNested()
         {
-            test_msgs.msg.MultiNested msg = new test_msgs.msg.MultiNested();
+            using var msg = new test_msgs.msg.MultiNested();
 
             msg.Unbounded_sequence_of_unbounded_sequences = new test_msgs.msg.UnboundedSequences[3];
-            var setUnboundedSequences = new test_msgs.msg.UnboundedSequences();
+            using var setUnboundedSequences = new test_msgs.msg.UnboundedSequences();
             string[] string_array = new string[2];
             setUnboundedSequences.String_values = string_array;
             setUnboundedSequences.String_values[0] = "hello";

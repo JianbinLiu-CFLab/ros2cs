@@ -28,7 +28,6 @@ find_package(sensor_msgs REQUIRED)
 find_package(example_interfaces REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(dotnet_cmake_module REQUIRED)
-find_package(rosidl_generator_cs REQUIRED)
 
 # Build examples on .NET 8 while core/common remain netstandard2.0.
 set(CSHARP_TARGET_FRAMEWORK "net8.0")
@@ -47,36 +46,42 @@ set(_assemblies_dep_dlls
 
 add_dotnet_executable(ros2cs_talker
   ROS2Talker.cs
+  ROS2ExampleRuntime.cs
   INCLUDE_DLLS
   ${_assemblies_dep_dlls}
 )
 
 add_dotnet_executable(ros2cs_listener
   ROS2Listener.cs
+  ROS2ExampleRuntime.cs
   INCLUDE_DLLS
   ${_assemblies_dep_dlls}
 )
 
 add_dotnet_executable(ros2cs_performance_talker
   ROS2PerformanceTalker.cs
+  ROS2ExampleRuntime.cs
   INCLUDE_DLLS
   ${_assemblies_dep_dlls}
 )
 
 add_dotnet_executable(ros2cs_performance_listener
   ROS2PerformanceListener.cs
+  ROS2ExampleRuntime.cs
   INCLUDE_DLLS
   ${_assemblies_dep_dlls}
 )
 
 add_dotnet_executable(ros2cs_client
   ROS2Client.cs
+  ROS2ExampleRuntime.cs
   INCLUDE_DLLS
   ${_assemblies_dep_dlls}
 )
 
 add_dotnet_executable(ros2cs_service
   ROS2Service.cs
+  ROS2ExampleRuntime.cs
   INCLUDE_DLLS
   ${_assemblies_dep_dlls}
 )

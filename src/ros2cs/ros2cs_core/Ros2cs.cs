@@ -21,7 +21,6 @@
 
 using System;
 using System.Linq;
-using System.Diagnostics;
 using System.Collections.Generic;
 using System.Threading;
 
@@ -197,7 +196,6 @@ namespace ROS2
         try
         {
           Ros2cs.Shutdown();
-          FiniContext(false);
         }
         catch
         {
@@ -363,17 +361,17 @@ namespace ROS2
         foreach(var subscription in allSubscriptions)
         {
           AddResult result = WaitSet.TryAddSubscription(subscription, out ulong _);
-          Debug.Assert(result != AddResult.FULL, "no space for subscription in WaitSet");
+          ThrowIfWaitSetFull(result, "subscription");
         }
         foreach(var client in allClients)
         {
           AddResult result = WaitSet.TryAddClient(client, out ulong _);
-          Debug.Assert(result != AddResult.FULL, "no space for client in WaitSet");
+          ThrowIfWaitSetFull(result, "client");
         }
         foreach(var service in allServices)
         {
           AddResult result = WaitSet.TryAddService(service, out ulong _);
-          Debug.Assert(result != AddResult.FULL, "no space for Service in WaitSet");
+          ThrowIfWaitSetFull(result, "service");
         }
         try
         {
@@ -443,6 +441,15 @@ namespace ROS2
       {
         Ros2csLogger.GetInstance().LogError(
           "Unhandled exception while processing " + entityKind + " '" + topic + "': " + e);
+      }
+    }
+
+    /// <summary>Fail explicitly when a resized wait set cannot accept all collected entities.</summary>
+    private static void ThrowIfWaitSetFull(AddResult result, string entityType)
+    {
+      if (result == AddResult.FULL)
+      {
+        throw new InvalidOperationException("No space for " + entityType + " in WaitSet");
       }
     }
 

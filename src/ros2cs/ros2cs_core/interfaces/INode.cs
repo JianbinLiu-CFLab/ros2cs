@@ -34,7 +34,7 @@ namespace ROS2
     /// <description> Can only be called in an initialized Ros2cs state. </description>
     /// <param name="topic"> Topic for the client. Naming restrictions of ros2 apply and violation results in an exception </param>
     /// <param name="qos"> Quality of Client settings. Not passing this parameter will result in default settings </param>
-    /// <returns> Client for the topic, which can be used to client messages </returns>
+    /// <returns> Client for the topic, which can be used to send service requests </returns>
     Client<I, O> CreateClient<I, O>(string topic, QualityOfServiceProfile qos = null) where I : Message, new() where O : Message, new();
 
     /// <summary> Remove a client </summary>

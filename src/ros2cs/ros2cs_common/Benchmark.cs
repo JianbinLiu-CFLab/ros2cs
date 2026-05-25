@@ -30,7 +30,7 @@ namespace ROS2
       if (!disposed)
       {
         timer.Stop();
-        Console.WriteLine($"{benchmarkName} {timer.ElapsedTicks} ticks ({timer.ElapsedMilliseconds} ms)");
+        Ros2csLogger.GetInstance().LogDebug($"{benchmarkName} {timer.ElapsedTicks} ticks ({timer.ElapsedMilliseconds} ms)");
         disposed = true;
       }
     }

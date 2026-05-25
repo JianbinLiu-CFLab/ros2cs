@@ -50,7 +50,8 @@ namespace ROS2.Test
         {
             bool callbackTriggered = false;
             node.CreateSubscription<std_msgs.msg.Int32>("subscription_test_topic", (msg) => { callbackTriggered = true; });
-            publisher.Publish(new std_msgs.msg.Int32());
+            using var publishedMsg = new std_msgs.msg.Int32();
+            publisher.Publish(publishedMsg);
             Ros2cs.SpinOnce(node, 0.1);
 
             Assert.That(callbackTriggered, Is.True);
@@ -61,7 +62,7 @@ namespace ROS2.Test
         {
             int messageData = 12345;
             node.CreateSubscription<std_msgs.msg.Int32>("subscription_test_topic", (msg) => { messageData = msg.Data; });
-            std_msgs.msg.Int32 published_msg = new std_msgs.msg.Int32();
+            using var published_msg = new std_msgs.msg.Int32();
             published_msg.Data = 42;
             publisher.Publish(published_msg);
             Ros2cs.SpinOnce(node, 0.1);
@@ -80,7 +81,7 @@ namespace ROS2.Test
                 "subscription_test_topic",
                 msg => { secondCallbackTriggered = true; });
 
-            std_msgs.msg.Int32 publishedMsg = new std_msgs.msg.Int32();
+            using var publishedMsg = new std_msgs.msg.Int32();
             publishedMsg.Data = 42;
             publisher.Publish(publishedMsg);
 
@@ -137,7 +138,7 @@ namespace ROS2.Test
             node.CreateSubscription<std_msgs.msg.Int32>("subscription_test_topic",
                                                         (msg) => { count += 1; });
 
-            std_msgs.msg.Int32 published_msg = new std_msgs.msg.Int32();
+            using var published_msg = new std_msgs.msg.Int32();
             published_msg.Data = 42;
 
             for (int i = 0; i < 10; i++)
@@ -157,14 +158,13 @@ namespace ROS2.Test
         public void SubscriptionQosSensorDataDepth()
         {
             int count = 0;
-            QualityOfServiceProfile qosProfile = 
-                    new QualityOfServiceProfile(QosPresetProfile.SENSOR_DATA);
+            using var qosProfile = new QualityOfServiceProfile(QosPresetProfile.SENSOR_DATA);
 
             node.CreateSubscription<std_msgs.msg.Int32>("subscription_test_topic",
                                                         (msg) => { count += 1; },
                                                         qosProfile);
 
-            std_msgs.msg.Int32 published_msg = new std_msgs.msg.Int32();
+            using var published_msg = new std_msgs.msg.Int32();
             published_msg.Data = 42;
 
             for (int i = 0; i < 6; i++)

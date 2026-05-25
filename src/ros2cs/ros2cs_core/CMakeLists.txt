@@ -71,7 +71,9 @@ ament_export_libraries(ros2cs_native)
 ament_export_targets(ros2cs_native)
 configure_csharp_c_extension_library(ros2cs_native)
 
-set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--no-undefined")
+if(UNIX AND NOT APPLE)
+  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--no-undefined")
+endif()
 
 set(CS_INTERFACES
   interfaces/INode.cs

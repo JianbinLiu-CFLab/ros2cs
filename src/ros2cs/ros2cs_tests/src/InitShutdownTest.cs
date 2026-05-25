@@ -21,33 +21,47 @@ namespace ROS2.Test
     [TestFixture]
     public class InitShutdownTest
     {
+        [TearDown]
+        public void TearDown()
+        {
+            if (Ros2cs.Ok())
+            {
+                Ros2cs.Shutdown();
+            }
+        }
+
         [Test]
         public void Init()
         {
             Ros2cs.Init();
-            try
-            {
-                Ros2cs.Shutdown();
-            }
-            catch (RuntimeError)
-            {
-            }
+            Assert.That(Ros2cs.Ok(), Is.True);
+
+            Assert.DoesNotThrow(() => Ros2cs.Shutdown());
+            Assert.That(Ros2cs.Ok(), Is.False);
         }
 
         [Test]
         public void InitShutdown()
         {
             Ros2cs.Init();
+            Assert.That(Ros2cs.Ok(), Is.True);
+
             Ros2cs.Shutdown();
+            Assert.That(Ros2cs.Ok(), Is.False);
         }
 
         [Test]
         public void InitShutdownSequence()
         {
             Ros2cs.Init();
+            Assert.That(Ros2cs.Ok(), Is.True);
             Ros2cs.Shutdown();
+            Assert.That(Ros2cs.Ok(), Is.False);
+
             Ros2cs.Init();
+            Assert.That(Ros2cs.Ok(), Is.True);
             Ros2cs.Shutdown();
+            Assert.That(Ros2cs.Ok(), Is.False);
         }
 
         [Test]
@@ -55,15 +69,22 @@ namespace ROS2.Test
         {
             Ros2cs.Init();
             Ros2cs.Init();
+            Assert.That(Ros2cs.Ok(), Is.True);
+
             Ros2cs.Shutdown();
+            Assert.That(Ros2cs.Ok(), Is.False);
         }
 
         [Test]
         public void DoubleShutdown()
         {
             Ros2cs.Init();
+            Assert.That(Ros2cs.Ok(), Is.True);
+
             Ros2cs.Shutdown();
+            Assert.That(Ros2cs.Ok(), Is.False);
             Ros2cs.Shutdown();
+            Assert.That(Ros2cs.Ok(), Is.False);
         }
 
         [Test]

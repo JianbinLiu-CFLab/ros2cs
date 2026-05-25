@@ -20,13 +20,13 @@ namespace ROS2
   /// <description> Use Ros2cs.CreateSubscription to construct </description>
   public interface ISubscriptionBase : IExtendedDisposable
   {
-    // TODO(adamdbrw) this should not be public - add an internal interface
+    // Internal spin entry point; kept on the public interface for compatibility.
     void TakeMessage();
 
     /// <summary> topic name which was used when calling Ros2cs.CreateSubscription </summary>
     string Topic {get;}
 
-    // TODO(adamdbrw) this should not be public - add an internal interface
+    // Internal wait-set handle; kept on the public interface for compatibility.
     rcl_subscription_t Handle {get;}
 
     /// <summary> subscription mutex for internal use </summary>

@@ -392,14 +392,6 @@ foreach(_generated_srv_c_ts_file ${_generated_srv_c_ts_files})
 
 endforeach()
 
-message("Install targets")
-if(NOT rosidl_generate_interfaces_SKIP_INSTALL)
-  install(TARGETS ${_target_name_lib} EXPORT ${_target_name}
-    ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib
-    RUNTIME DESTINATION bin)
-endif()
-
 set(_assembly_deps_dll "")
 
 foreach(_assembly_dep ${ros2cs_common_ASSEMBLIES_DLL})
@@ -425,19 +417,7 @@ add_dependencies(${PROJECT_NAME}_assembly
 )
 
 if(NOT rosidl_generate_interfaces_SKIP_INSTALL)
-  set(_install_assembly_dir "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}")
-  if(NOT _generated_msg_cs_files STREQUAL "")
-    list(GET _generated_msg_cs_files 0 _msg_file)
-    get_filename_component(_msg_package_dir "${_msg_file}" DIRECTORY)
-    get_filename_component(_msg_package_dir "${_msg_package_dir}" DIRECTORY)
-    install_dotnet(${PROJECT_NAME}_assembly DESTINATION "lib/dotnet")
-    ament_export_assemblies_dll("lib/dotnet/${PROJECT_NAME}_assembly.dll")
-  endif()
-
-  if(NOT _generated_srv_cs_files STREQUAL "")
-    list(GET _generated_srv_cs_files 0 _msg_file)
-    get_filename_component(_msg_package_dir "${_msg_file}" DIRECTORY)
-    get_filename_component(_msg_package_dir "${_msg_package_dir}" DIRECTORY)
+  if(_generated_msg_cs_files OR _generated_srv_cs_files)
     install_dotnet(${PROJECT_NAME}_assembly DESTINATION "lib/dotnet")
     ament_export_assemblies_dll("lib/dotnet/${PROJECT_NAME}_assembly.dll")
   endif()
