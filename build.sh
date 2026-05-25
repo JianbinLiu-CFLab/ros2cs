@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
 display_usage() {
     echo "Usage: "
@@ -9,7 +10,7 @@ display_usage() {
     echo "--standalone - standalone version"
 }
 
-if [ -z "${ROS_DISTRO}" ]; then
+if [ -z "${ROS_DISTRO:-}" ]; then
     echo "Source your ros2 distro first (foxy, galactic, humble, jazzy or rolling are supported)"
     exit 1
 fi
@@ -34,15 +35,16 @@ while [[ $# -gt 0 ]]; do
     -h|--help)
       display_usage
       exit 0
-      shift # past argument
       ;;
     *)    # unknown option
-      shift # past argument
+      echo "Unknown option: $1"
+      display_usage
+      exit 1
       ;;
   esac
 done
 
-echo $MSG
+echo "$MSG"
 colcon build \
 --merge-install \
 --event-handlers console_direct+ \
