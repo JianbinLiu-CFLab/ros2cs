@@ -80,6 +80,11 @@ namespace ROS2
         nanoseconds += NanosecondsPerSecond;
       }
 
+      if (seconds < int.MinValue || seconds > int.MaxValue)
+      {
+        throw new OverflowException("ROS time seconds exceed the int32 range of builtin_interfaces/msg/Time");
+      }
+
       RosTime time = new RosTime();
       time.sec = (int)seconds;
       time.nanosec = (uint)nanoseconds;
@@ -111,6 +116,7 @@ namespace ROS2
     /// <summary>Shared clock disposal path used by explicit disposal and the finalizer.</summary>
     private void Dispose(bool disposing)
     {
+      Exception disposeException = null;
       lock (mutex)
       {
         if (disposed)
@@ -125,14 +131,23 @@ namespace ROS2
             NativeRclInterface.rclcs_ros_clock_dispose(handle);
           }
         }
-        catch
+        catch (Exception e)
         {
+          if (disposing)
+          {
+            disposeException = e;
+          }
         }
         finally
         {
           handle = IntPtr.Zero;
           disposed = true;
         }
+      }
+
+      if (disposeException != null)
+      {
+        throw disposeException;
       }
     }
   }

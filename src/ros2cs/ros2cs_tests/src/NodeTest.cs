@@ -1,5 +1,6 @@
 ﻿// Copyright 2019 Dyno Robotics (by Samuel Lindgren samuel@dynorobotics.se)
 // Copyright 2019-2021 Robotec.ai
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,6 +13,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// Modifications by Jianbin Liu:
+// - Added coverage for disposed node create-entity behavior.
 
 using System;
 using NUnit.Framework;
@@ -63,6 +67,14 @@ namespace ROS2.Test
             {
                 publisher.Publish(new std_msgs.msg.Bool());
             }
+        }
+
+        [Test]
+        public void CreatePublisherAfterDisposeThrows()
+        {
+            node.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => node.CreatePublisher<std_msgs.msg.Bool>("test_topic"));
         }
 
         [Test]

@@ -232,13 +232,21 @@ namespace ROS2
     /// <inheritdoc/>
     public bool IsServiceAvailable()
     {
-      bool available = false;
-      Utils.CheckReturnEnum(NativeRcl.rcl_service_server_is_available(
-        ref node.nodeHandle,
-        ref clientHandle,
-        ref available
-      ));
-      return available;
+      lock (mutex)
+      {
+        if (disposed || node.IsDisposed || !Ros2cs.Ok())
+        {
+          return false;
+        }
+
+        bool available = false;
+        Utils.CheckReturnEnum(NativeRcl.rcl_service_server_is_available(
+          ref node.nodeHandle,
+          ref clientHandle,
+          ref available
+        ));
+        return available;
+      }
     }
 
     /// <inheritdoc/>

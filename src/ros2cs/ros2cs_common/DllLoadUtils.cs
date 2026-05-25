@@ -24,6 +24,7 @@
 using System;
 using System.Runtime;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace ROS2
 {
@@ -31,6 +32,28 @@ namespace ROS2
     public static bool preloadLibrary = false;
     public static string preloadLibraryName = "";
     public static string absolutePath = "";
+
+    internal struct Snapshot
+    {
+      internal bool PreloadLibrary;
+      internal string PreloadLibraryName;
+      internal string AbsolutePath;
+
+      internal Snapshot(bool preloadLibrary, string preloadLibraryName, string absolutePath)
+      {
+        PreloadLibrary = preloadLibrary;
+        PreloadLibraryName = preloadLibraryName ?? "";
+        AbsolutePath = absolutePath ?? "";
+      }
+    }
+
+    internal static Snapshot GetSnapshot()
+    {
+      return new Snapshot(
+        Volatile.Read(ref preloadLibrary),
+        Volatile.Read(ref preloadLibraryName),
+        Volatile.Read(ref absolutePath));
+    }
   }
 
   public enum Platform {
@@ -347,23 +370,35 @@ namespace ROS2
     private static string preloadedLibraryKey = "";
     // Retains ownership of the preloaded dependency for the lifetime of the Unix loader.
     private static NativeLibraryHandle preloadedLibraryHandle = null;
+    private static readonly object preloadMutex = new object();
     /// <summary>Preload a configured dependency once per absolute path/name pair.</summary>
-    void CheckPreloadLibraries()
+    void CheckPreloadLibraries(GlobalVariables.Snapshot settings)
     {
-        string preloadKey = GlobalVariables.absolutePath + "|" + GlobalVariables.preloadLibraryName;
-        if (preloadedLibraryKey == preloadKey || GlobalVariables.preloadLibraryName == "")
+      string preloadKey = settings.AbsolutePath + "|" + settings.PreloadLibraryName;
+      if (settings.PreloadLibraryName == "")
+      {
+        return;
+      }
+
+      lock (preloadMutex)
+      {
+        if (preloadedLibraryKey == preloadKey)
+        {
             return;
-        Ros2csLogger.GetInstance().LogDebug("Preloading " + GlobalVariables.preloadLibraryName);
-        IntPtr libPtr = Load(GlobalVariables.preloadLibraryName);
+        }
+
+        Ros2csLogger.GetInstance().LogDebug("Preloading " + settings.PreloadLibraryName);
+        IntPtr libPtr = Load(settings.PreloadLibraryName, settings.AbsolutePath);
         if (preloadedLibraryHandle != null)
         {
           preloadedLibraryHandle.Dispose();
         }
         preloadedLibraryHandle = NativeLibraryHandle.FromHandle(this, libPtr);
 
-        Ros2csLogger.GetInstance().LogDebug("Preloading " + GlobalVariables.preloadLibraryName + " successful.");
+        Ros2csLogger.GetInstance().LogDebug("Preloading " + settings.PreloadLibraryName + " successful.");
 
         preloadedLibraryKey = preloadKey;
+      }
     }
 
     public void FreeLibrary (IntPtr handle) {
@@ -383,13 +418,13 @@ namespace ROS2
       return res;
     }
 
-    private IntPtr Load(string libraryFileName) {
-      string libraryPath = GlobalVariables.absolutePath + libraryFileName;
+    private IntPtr Load(string libraryFileName, string absolutePath) {
+      string libraryPath = absolutePath + libraryFileName;
       string dlopenSearchString = libraryPath;
       Ros2csLogger.GetInstance().LogDebug("Loading lib: " + dlopenSearchString);
       IntPtr ptr = dlopen(dlopenSearchString, RTLD_NOW);
       if (ptr == IntPtr.Zero) {
-        if (!String.IsNullOrEmpty(GlobalVariables.absolutePath)) {
+        if (!String.IsNullOrEmpty(absolutePath)) {
           // Fallback - look for library in default paths
           var errPtr = dlerror ();
           Ros2csLogger.GetInstance().LogDebug("Could not find " + dlopenSearchString + ": " + Marshal.PtrToStringAnsi (errPtr) + ". Fallback to " + libraryFileName);
@@ -405,9 +440,10 @@ namespace ROS2
     }
 
     private IntPtr LoadLibraryByName(string libraryFileName) {
-      if (GlobalVariables.preloadLibrary)
-        CheckPreloadLibraries();
-      return Load(libraryFileName);
+      GlobalVariables.Snapshot settings = GlobalVariables.GetSnapshot();
+      if (settings.PreloadLibrary)
+        CheckPreloadLibraries(settings);
+      return Load(libraryFileName, settings.AbsolutePath);
     }
 
     public IntPtr LoadLibrary(string fileName) {

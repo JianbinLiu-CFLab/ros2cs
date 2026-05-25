@@ -247,17 +247,27 @@ namespace ROS2
       exceptions.Add(exception);
     }
 
+    /// <summary>Reject entity creation when the owning node or global context is no longer live.</summary>
+    private void ThrowIfCannotCreateEntity(string entityKind)
+    {
+      if (disposed)
+      {
+        throw new ObjectDisposedException(nameof(Node), "Cannot create " + entityKind + " as the node is already disposed");
+      }
+      if (!Ros2cs.Ok())
+      {
+        logger.LogWarning("Cannot create " + entityKind + " as shutdown was called");
+        throw new NotInitializedException();
+      }
+    }
+
     /// <summary> Create a client for this node for a given topic, qos and message type </summary>
     /// <see cref="INode.CreateClient"/>
     public Client<I, O> CreateClient<I, O>(string topic, QualityOfServiceProfile qos = null) where I : Message, new() where O : Message, new()
     {
       lock (mutex)
       {
-        if (disposed || !Ros2cs.Ok())
-        {
-          logger.LogWarning("Cannot create client as the class is already disposed or shutdown was called");
-          return null;
-        }
+        ThrowIfCannotCreateEntity("client");
 
         Client<I, O> client = new Client<I, O>(topic, this, qos);
         clients.Add(client);
@@ -294,13 +304,9 @@ namespace ROS2
     {
       lock (mutex)
       {
-        if (disposed || !Ros2cs.Ok())
-        {
-          logger.LogWarning("Cannot create service as the class is already disposed or shutdown was called");
-          return null;
-        }
+        ThrowIfCannotCreateEntity("service");
 
-	Service<I, O> service = new Service<I, O>(topic, this, callback, qos);
+        Service<I, O> service = new Service<I, O>(topic, this, callback, qos);
         services.Add(service);
         logger.LogInfo("Created service for topic " + topic);
         return service;
@@ -336,11 +342,7 @@ namespace ROS2
     {
       lock (mutex)
       {
-        if (disposed || !Ros2cs.Ok())
-        {
-          logger.LogWarning("Cannot create publisher as the class is already disposed or shutdown was called");
-          return null;
-        }
+        ThrowIfCannotCreateEntity("publisher");
 
         Publisher<T> publisher = new Publisher<T>(topic, this, qos);
         publishers.Add(publisher);
@@ -355,11 +357,7 @@ namespace ROS2
     {
       lock (mutex)
       {
-        if (disposed || !Ros2cs.Ok())
-        {
-          logger.LogWarning("Cannot create subscription as the class is already disposed or shutdown was called");
-          return null;
-        }
+        ThrowIfCannotCreateEntity("subscription");
 
         Subscription<T> subscription = new Subscription<T>(topic, this, callback, qos);
         subscriptions.Add(subscription);

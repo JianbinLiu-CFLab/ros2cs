@@ -16,8 +16,9 @@
 
 // Modifications by Jianbin Liu:
 // - Added setup/teardown guard for tests that do not require ROS initialization.
-// - Added negative nanosecond normalization coverage.
+// - Added negative nanosecond normalization and overflow coverage.
 
+using System;
 using NUnit.Framework;
 
 namespace ROS2.Test
@@ -31,7 +32,9 @@ namespace ROS2.Test
         [SetUp]
         public void SetUp()
         {
-            if (TestContext.CurrentContext.Test.Name == nameof(RosTimeFromNegativeNanosecondsIsNormalized))
+            string testName = TestContext.CurrentContext.Test.Name;
+            if (testName == nameof(RosTimeFromNegativeNanosecondsIsNormalized) ||
+                testName == nameof(RosTimeOverflowThrows))
             {
                 return;
             }
@@ -84,6 +87,15 @@ namespace ROS2.Test
 
             Assert.That(time.sec, Is.EqualTo(-1));
             Assert.That(time.nanosec, Is.EqualTo(999999999));
+        }
+
+        /// <summary>builtin_interfaces/msg/Time stores seconds as int32, so overflow must fail explicitly.</summary>
+        [Test]
+        public void RosTimeOverflowThrows()
+        {
+            long overflowingNanoseconds = ((long)int.MaxValue + 1L) * 1000000000L;
+
+            Assert.Throws<OverflowException>(() => Clock.FromNanoseconds(overflowingNanoseconds));
         }
     }
 }

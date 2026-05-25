@@ -1,4 +1,5 @@
 // Copyright 2019-2021 Robotec.ai
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +12,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// Modifications by Jianbin Liu:
+// - Corrected Remove* documentation to match the implementation's disposal behavior.
 
 using System;
 using System.Collections.Generic;
@@ -34,7 +38,7 @@ namespace ROS2
     Client<I, O> CreateClient<I, O>(string topic, QualityOfServiceProfile qos = null) where I : Message, new() where O : Message, new();
 
     /// <summary> Remove a client </summary>
-    /// <remarks> Note that this does not call Dispose on Client </remarks>
+    /// <remarks> Removes the client from the node and calls Dispose on it. </remarks>
     /// <param name="client"> Client created with earlier CreateClient call </param>
     /// <returns> Whether removal actually took place. Safe to ignore </returns>
     bool RemoveClient(IClientBase client);
@@ -48,7 +52,7 @@ namespace ROS2
     Service<I, O> CreateService<I, O>(string topic, Func<I, O> callback, QualityOfServiceProfile qos = null) where I : Message, new() where O : Message, new();
 
     /// <summary> Remove a service </summary>
-    /// <remarks> Note that this does not call Dispose on Service </remarks>
+    /// <remarks> Removes the service from the node and calls Dispose on it. </remarks>
     /// <param name="service"> Service created with earlier CreateService call </param>
     /// <returns> Whether removal actually took place. Safe to ignore </returns>
     bool RemoveService(IServiceBase service);
@@ -69,14 +73,13 @@ namespace ROS2
     Subscription<T> CreateSubscription<T>(string topic, Action<T> callback, QualityOfServiceProfile qos = null) where T : Message, new();
 
     /// <summary> Remove a publisher </summary>
-    /// <remarks> Note that this does not call Dispose on Publisher </remarks>
+    /// <remarks> Removes the publisher from the node and calls Dispose on it. </remarks>
     /// <param name="publisher"> Publisher created with earlier CreatePublisher call </param>
     /// <returns> Whether removal actually took place. Safe to ignore </returns>
     bool RemovePublisher(IPublisherBase publisher);
 
     /// <summary> Remove a subscription </summary>
-    /// <remarks> Note that this does not call Dispose on Subscription. If the caller also does not own
-    /// the subscription, it can be garbage collected. You can also call Dispose after calling this </remarks>
+    /// <remarks> Removes the subscription from the node and calls Dispose on it. </remarks>
     /// <param name="subscription"> Subscription created with earlier CreateSubscription call </param>
     /// <returns> Whether removal actually took place. Safe to ignore </returns>
     bool RemoveSubscription(ISubscriptionBase subscription);

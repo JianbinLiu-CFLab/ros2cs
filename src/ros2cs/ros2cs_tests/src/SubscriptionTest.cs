@@ -1,5 +1,6 @@
 ﻿// Copyright 2019 Dyno Robotics (by Samuel Lindgren samuel@dynorobotics.se)
 // Copyright 2019-2021 Robotec.ai
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,7 +14,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modifications by Jianbin Liu:
+// - Added coverage that spin processing continues after one subscription callback throws.
+
 using NUnit.Framework;
+using System;
 using System.Collections.Generic;
 
 namespace ROS2.Test
@@ -62,6 +67,29 @@ namespace ROS2.Test
             Ros2cs.SpinOnce(node, 0.1);
 
             Assert.That(messageData, Is.EqualTo(42));
+        }
+
+        [Test]
+        public void SpinOnceContinuesAfterSubscriptionCallbackException()
+        {
+            bool secondCallbackTriggered = false;
+            node.CreateSubscription<std_msgs.msg.Int32>(
+                "subscription_test_topic",
+                msg => { throw new InvalidOperationException("expected test callback failure"); });
+            node.CreateSubscription<std_msgs.msg.Int32>(
+                "subscription_test_topic",
+                msg => { secondCallbackTriggered = true; });
+
+            std_msgs.msg.Int32 publishedMsg = new std_msgs.msg.Int32();
+            publishedMsg.Data = 42;
+            publisher.Publish(publishedMsg);
+
+            for (int i = 0; i < 10 && !secondCallbackTriggered; i++)
+            {
+                Assert.DoesNotThrow(() => { Ros2cs.SpinOnce(node, 0.1); });
+            }
+
+            Assert.That(secondCallbackTriggered, Is.True);
         }
 
         [Test]

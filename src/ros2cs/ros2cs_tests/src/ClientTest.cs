@@ -1,4 +1,5 @@
 // Copyright 2019-2021 Robotec.ai
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +12,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// Modifications by Jianbin Liu:
+// - Added disposed client availability coverage.
 
 using System;
 using System.Linq;
@@ -105,6 +109,14 @@ namespace ROS2.Test
                 Assert.That(Client.IsServiceAvailable());
             }
             Assert.That(!Client.IsServiceAvailable());
+        }
+
+        [Test]
+        public void ClientWaitForServiceAfterDisposeReturnsFalse()
+        {
+            Client.Dispose();
+
+            Assert.That(Client.IsServiceAvailable(), Is.False);
         }
 
         [Test]

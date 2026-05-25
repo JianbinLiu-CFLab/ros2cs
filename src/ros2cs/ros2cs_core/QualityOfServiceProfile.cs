@@ -121,6 +121,7 @@ namespace ROS2
     /// <summary>Shared QoS disposal path used by explicit disposal and the finalizer.</summary>
     private void Dispose(bool disposing)
     {
+      Exception disposeException = null;
       if (disposed)
       {
         return;
@@ -133,13 +134,22 @@ namespace ROS2
           NativeRmwInterface.rmw_native_interface_delete_qos_profile(handle);
         }
       }
-      catch
+      catch (Exception e)
       {
+        if (disposing)
+        {
+          disposeException = e;
+        }
       }
       finally
       {
         handle = IntPtr.Zero;
         disposed = true;
+      }
+
+      if (disposeException != null)
+      {
+        throw disposeException;
       }
     }
 

@@ -38,12 +38,14 @@ namespace ROS2
   {
     private static readonly Destructor destructor = new Destructor();
     private static readonly object mutex = new object();
+    // Guards native context validation/finalization without participating in node lock ordering.
+    private static readonly object contextMutex = new object();
     // Wait set access is serialized separately so shutdown cannot race a spin wait.
     private static readonly object waitSetMutex = new object();
     [ThreadStatic]
     // Tracks callback execution per spinning thread to reject deadlock-prone synchronous client calls.
     private static int spinCallbackDepth;
-    private static bool initialized = false;  // for most part equivalent to rcl::ok()
+    private static volatile bool initialized = false;  // for most part equivalent to rcl::ok()
     // Prevents rcl_context_fini from running twice across explicit shutdown and finalization.
     private static bool contextFinalized = true;
     private static rcl_context_t global_context;  // a simplification, we only use global default context
@@ -72,12 +74,15 @@ namespace ROS2
           return;
         }
 
-        default_allocator = NativeRcl.rcutils_get_default_allocator();
-        global_context = NativeRcl.rcl_get_zero_initialized_context();
-        Utils.CheckReturnEnum(NativeRclInterface.rclcs_init(ref global_context, default_allocator));
-        WaitSet = new WaitSet(ref global_context);
-        initialized = true;
-        contextFinalized = false;
+        lock (contextMutex)
+        {
+          default_allocator = NativeRcl.rcutils_get_default_allocator();
+          global_context = NativeRcl.rcl_get_zero_initialized_context();
+          Utils.CheckReturnEnum(NativeRclInterface.rclcs_init(ref global_context, default_allocator));
+          WaitSet = new WaitSet(ref global_context);
+          initialized = true;
+          contextFinalized = false;
+        }
         if (destructorFinalizerSuppressed)
         {
           GC.ReRegisterForFinalize(destructor);
@@ -171,7 +176,15 @@ namespace ROS2
     /// </description>
     public static bool Ok()
     {
-      return initialized && NativeRcl.rcl_context_is_valid(ref global_context);
+      if (!initialized)
+      {
+        return false;
+      }
+
+      lock (contextMutex)
+      {
+        return initialized && !contextFinalized && NativeRcl.rcl_context_is_valid(ref global_context);
+      }
     }
 
     /// <summary> Helper class to handle Ros2cs finalization </summary>
@@ -378,10 +391,19 @@ namespace ROS2
         spinCallbackDepth++;
         try
         {
-          // Sequential processing
-          allSubscriptions.ForEach(subscription => subscription.TakeMessage());
-          allClients.ForEach(client => client.TakeMessage());
-          allServices.ForEach(service => service.TakeMessage());
+          // Sequential processing. Isolate each entity so one user callback cannot stop the whole batch.
+          foreach (ISubscriptionBase subscription in allSubscriptions)
+          {
+            TryTakeMessage(subscription.TakeMessage, "subscription", subscription.Topic);
+          }
+          foreach (IClientBase client in allClients)
+          {
+            TryTakeMessage(client.TakeMessage, "client", client.Topic);
+          }
+          foreach (IServiceBase service in allServices)
+          {
+            TryTakeMessage(service.TakeMessage, "service", service.Topic);
+          }
         }
         finally
         {
@@ -394,16 +416,33 @@ namespace ROS2
     /// <summary>Finalize the global rcl context exactly once.</summary>
     private static void FiniContext(bool throwing)
     {
-      if (contextFinalized)
+      lock (contextMutex)
       {
-        return;
-      }
+        if (contextFinalized)
+        {
+          return;
+        }
 
-      int ret = NativeRcl.rcl_context_fini(ref global_context);
-      contextFinalized = true;
-      if (throwing)
+        int ret = NativeRcl.rcl_context_fini(ref global_context);
+        contextFinalized = true;
+        if (throwing)
+        {
+          Utils.CheckReturnEnum(ret);
+        }
+      }
+    }
+
+    /// <summary>Run one waitable callback path without letting user exceptions abort the spin batch.</summary>
+    private static void TryTakeMessage(Action action, string entityKind, string topic)
+    {
+      try
       {
-        Utils.CheckReturnEnum(ret);
+        action();
+      }
+      catch (Exception e)
+      {
+        Ros2csLogger.GetInstance().LogError(
+          "Unhandled exception while processing " + entityKind + " '" + topic + "': " + e);
       }
     }
 
