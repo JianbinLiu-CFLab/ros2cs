@@ -16,6 +16,7 @@
 // Modifications by Jianbin Liu:
 // - Added node-owned disposal path.
 // - Added QoS/options cleanup and owning-node shutdown guards.
+// - Restricted construction to node factory methods.
 
 using System;
 using ROS2.Internal;
@@ -42,7 +43,7 @@ namespace ROS2
 
     /// <summary> Internal constructor for Publsher. Use INode.CreatePublisher to construct </summary>
     /// <see cref="INode.CreatePublisher"/>
-    public Publisher(string pubTopic, Node node, QualityOfServiceProfile qos = null)
+    internal Publisher(string pubTopic, Node node, QualityOfServiceProfile qos = null)
     {
       topic = pubTopic;
       this.node = node;

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -82,6 +83,15 @@ namespace ROS2
     /// <param name="msg">Message to be send</param>
     /// <returns>Response of the Service</returns>
     O Call(I msg);
+
+    /// <summary>
+    /// Send a Request to a Service and wait up to the given timeout for a Response
+    /// </summary>
+    /// <remarks>The pending request is canceled when the timeout elapses</remarks>
+    /// <param name="msg">Message to be send</param>
+    /// <param name="timeout">Maximum time to wait for a response</param>
+    /// <returns>Response of the Service</returns>
+    O Call(I msg, TimeSpan timeout);
 
     /// <summary>
     /// Send a Request to a Service and wait for a Response asynchronously

@@ -16,6 +16,7 @@
 // Modifications by Jianbin Liu:
 // - Made wait set lifetime disposable.
 // - Added disposed-state checks for spin and entity registration.
+// - Removed the unused wrapper Clear method; resizing is the active spin path.
 
 using System;
 
@@ -96,12 +97,6 @@ namespace ROS2
       {
         disposed = true;
       }
-    }
-
-    internal void Clear()
-    {
-      ThrowIfDisposed();
-      Utils.CheckReturnEnum(NativeRcl.rcl_wait_set_clear(ref Handle));
     }
 
     internal void Resize(ulong subscriptionCount, ulong clientCount, ulong serviceCount)

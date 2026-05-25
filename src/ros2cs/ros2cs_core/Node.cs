@@ -18,6 +18,7 @@
 // - Disposes child entities before node shutdown and aggregates errors.
 // - Removes entities even when disposal throws.
 // - Added default node option allocation failure handling.
+// - Removed redundant DestroyNode alias in favor of Dispose.
 
 using System;
 using System.Linq;
@@ -127,13 +128,6 @@ namespace ROS2
     {
       Dispose(true);
       GC.SuppressFinalize(this);
-    }
-
-    /// <summary> "Destructor" supporting IDisposable model </summary>
-    /// <description> Disposes all subscriptions and publishers and clients before finilizing node </description>
-    internal void DestroyNode()
-    {
-      Dispose();
     }
 
     /// <summary>Shared node disposal path used by explicit disposal and the finalizer.</summary>

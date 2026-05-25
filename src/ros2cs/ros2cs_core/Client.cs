@@ -17,6 +17,7 @@
 // - Added node-owned disposal path and graceful request cancellation.
 // - Reworked client handle and options ownership.
 // - Added response cleanup and spin callback reentry guard.
+// - Added timeout-capable synchronous calls and removed exception-driven cancellation lookup.
 
 using System;
 using System.Collections;
@@ -82,7 +83,7 @@ namespace ROS2
     /// Internal constructor for Client
     /// </summary>
     /// <remarks>Use <see cref="INode.CreateClient"/> to construct new Instances</remarks>
-    public Client(string pubTopic, Node node, QualityOfServiceProfile qos = null)
+    internal Client(string pubTopic, Node node, QualityOfServiceProfile qos = null)
     {
       topic = pubTopic;
       this.node = node;
@@ -387,6 +388,24 @@ namespace ROS2
     }
 
     /// <inheritdoc/>
+    public O Call(I msg, TimeSpan timeout)
+    {
+      if (Ros2cs.IsInSpinCallback)
+      {
+        // A blocking call from a spin callback would wait for the same spin loop that is currently busy.
+        throw new InvalidOperationException("Synchronous Client.Call cannot be used from a spin callback; use CallAsync instead.");
+      }
+
+      var task = CallAsync(msg);
+      if (!task.Wait(timeout))
+      {
+        Cancel(task);
+        throw new TimeoutException("Timed out waiting for service response on topic '" + topic + "'");
+      }
+      return task.Result;
+    }
+
+    /// <inheritdoc/>
     public Task<O> CallAsync(I msg)
     {
       return CallAsync(msg, TaskCreationOptions.None);
@@ -415,20 +434,34 @@ namespace ROS2
     /// <inheritdoc/>
     public bool Cancel(Task task)
     {
-      var pair = default(KeyValuePair<long, (TaskCompletionSource<O>, Task<O>)>);
-      try
+      (TaskCompletionSource<O>, Task<O>) source = default((TaskCompletionSource<O>, Task<O>));
+      bool found = false;
+      long sequenceNumber = default(long);
+
+      lock(this.Requests)
       {
-        lock(this.Requests)
+        foreach (var entry in this.Requests)
         {
-          pair = this.Requests.First(entry => entry.Value.Item2 == task);
-          this.Requests.Remove(pair.Key);
+          if (entry.Value.Item2 == task)
+          {
+            sequenceNumber = entry.Key;
+            source = entry.Value;
+            found = true;
+            break;
+          }
+        }
+
+        if (found)
+        {
+          this.Requests.Remove(sequenceNumber);
         }
       }
-      catch (InvalidOperationException)
+
+      if (!found)
       {
         return false;
       }
-      return pair.Value.Item1.TrySetCanceled();
+      return source.Item1.TrySetCanceled();
     }
 
     /// <summary>
