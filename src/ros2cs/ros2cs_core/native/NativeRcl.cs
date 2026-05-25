@@ -15,6 +15,7 @@
 
 // Modifications by Jianbin Liu:
 // - Retained native library handles while rcl delegates are in use.
+// - Exposed rcl_init_options_fini for native lifecycle tests.
 
 using System;
 using System.Runtime.InteropServices;
@@ -59,6 +60,15 @@ namespace ROS2
     nativeRCL,
     "rcl_init_options_init"),
     typeof(InitOptionsInitType));
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate int InitOptionsFiniType(ref rcl_init_options_t init_options);
+    internal static InitOptionsFiniType
+    rcl_init_options_fini =
+    (InitOptionsFiniType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
+    nativeRCL,
+    "rcl_init_options_fini"),
+    typeof(InitOptionsFiniType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate int ShutdownType(ref rcl_context_t context);

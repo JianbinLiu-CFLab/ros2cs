@@ -1,4 +1,5 @@
 // Copyright 2019-2021 Robotec.ai
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +12,10 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// Modifications by Jianbin Liu:
+// - Fixed average/stddev calculations before the sample queue reaches capacity.
+// - Replaced callback-side process exit with a normal spin loop shutdown path.
 
 using System;
 using ROS2;
@@ -44,7 +49,7 @@ namespace Examples
       {
         sum += diff;
       }
-      return (double)(sum/this.Size);
+      return this.Count == 0 ? 0.0 : (double)(sum/this.Count);
     }
 
     public InfoStruct MeanAndStdDev()
@@ -58,7 +63,7 @@ namespace Examples
           variance += (diff - mean) * (diff - mean);
         }
         result.mean = mean;
-        result.stdDev = Math.Sqrt((double)(1.0/(this.Size-1)) * variance);
+        result.stdDev = this.Count <= 1 ? 0.0 : Math.Sqrt((double)(1.0/(this.Count-1)) * variance);
         return result;
       }
     }
@@ -93,32 +98,38 @@ namespace Examples
 
       RosTime timeStamp = new RosTime();
       int counter = 0;
+      bool done = false;
 
-      QualityOfServiceProfile qos = new QualityOfServiceProfile(QosPresetProfile.SENSOR_DATA);
-      ISubscription<sensor_msgs.msg.PointCloud2> chatter_sub = node.CreateSubscription<sensor_msgs.msg.PointCloud2>(
-        "perf_chatter",
-        msg =>
-        {
-          RosTime timeNow = clock.Now;
-          timeStamp.nanosec = msg.Header.Stamp.Nanosec;
-          timeStamp.sec = msg.Header.Stamp.Sec;
-          var diff = timeNow.Seconds - timeStamp.Seconds;
-
-          queue.Enqueue(diff);
-          counter++;
-
-          if (counter == queue.Size)
+      using (QualityOfServiceProfile qos = new QualityOfServiceProfile(QosPresetProfile.SENSOR_DATA))
+      {
+        ISubscription<sensor_msgs.msg.PointCloud2> chatter_sub = node.CreateSubscription<sensor_msgs.msg.PointCloud2>(
+          "perf_chatter",
+          msg =>
           {
-            counter = 0;
-            Console.Clear();
-            var result = queue.MeanAndStdDev();
-            Console.WriteLine("Latency of sample size {0} - avg: {1:F6}s, std dev: {2:F10}s", sampleSize, result.mean, result.stdDev);
-            Environment.Exit(0);
-          }
-        },
-        qos);
+            RosTime timeNow = clock.Now;
+            timeStamp.nanosec = msg.Header.Stamp.Nanosec;
+            timeStamp.sec = msg.Header.Stamp.Sec;
+            var diff = timeNow.Seconds - timeStamp.Seconds;
 
-      Ros2cs.Spin(node);
+            queue.Enqueue(diff);
+            counter++;
+
+            if (counter == queue.Size)
+            {
+              counter = 0;
+              Console.Clear();
+              var result = queue.MeanAndStdDev();
+              Console.WriteLine("Latency of sample size {0} - avg: {1:F6}s, std dev: {2:F10}s", sampleSize, result.mean, result.stdDev);
+              done = true;
+            }
+          },
+          qos);
+
+        while (!done && Ros2cs.Ok())
+        {
+          Ros2cs.SpinOnce(node, 0.1);
+        }
+      }
       Ros2cs.Shutdown();
     }
   }

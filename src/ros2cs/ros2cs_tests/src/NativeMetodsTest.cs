@@ -1,5 +1,6 @@
 ﻿// Copyright 2019 Dyno Robotics (by Samuel Lindgren samuel@dynorobotics.se)
 // Copyright 2019-2021 Robotec.ai
+// Modifications Copyright (c) 2026 Jianbin Liu.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,6 +13,10 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// Modifications by Jianbin Liu:
+// - Fixed native test helper option ownership so allocated options are released by teardown.
+// - Added missing native subscription cleanup in the subscription fixture.
 
 using NUnit.Framework;
 using System;
@@ -34,6 +39,8 @@ namespace ROS2.TestNativeMethods
             context = NativeRcl.rcl_get_zero_initialized_context();
 
             ret = (RCLReturnEnum)NativeRcl.rcl_init(0, null, ref init_options, ref context);
+            Assert.That(ret, Is.EqualTo(RCLReturnEnum.RCL_RET_OK), Utils.PopRclErrorString());
+            ret = (RCLReturnEnum)NativeRcl.rcl_init_options_fini(ref init_options);
             Assert.That(ret, Is.EqualTo(RCLReturnEnum.RCL_RET_OK), Utils.PopRclErrorString());
             Assert.That(NativeRcl.rcl_context_is_valid(ref context), Is.True);
         }
@@ -98,6 +105,8 @@ namespace ROS2.TestNativeMethods
             rcl_allocator_t allocator = NativeRcl.rcutils_get_default_allocator();
             int ret = NativeRcl.rcl_init_options_init(ref init_options, allocator);
             Assert.That((RCLReturnEnum)ret, Is.EqualTo(RCLReturnEnum.RCL_RET_OK));
+            ret = NativeRcl.rcl_init_options_fini(ref init_options);
+            Assert.That((RCLReturnEnum)ret, Is.EqualTo(RCLReturnEnum.RCL_RET_OK));
         }
 
         [Test]
@@ -119,7 +128,8 @@ namespace ROS2.TestNativeMethods
         {
             rcl_init_options_t init_options = NativeRcl.rcl_get_zero_initialized_init_options();
             rcl_allocator_t allocator = NativeRcl.rcutils_get_default_allocator();
-            NativeRcl.rcl_init_options_init(ref init_options, allocator);
+            int initRet = NativeRcl.rcl_init_options_init(ref init_options, allocator);
+            Assert.That((RCLReturnEnum)initRet, Is.EqualTo(RCLReturnEnum.RCL_RET_OK));
             rcl_context_t context = NativeRcl.rcl_get_zero_initialized_context();
 
             var ret = (RCLReturnEnum)NativeRcl.rcl_init(
@@ -129,6 +139,8 @@ namespace ROS2.TestNativeMethods
             Assert.That(NativeRcl.rcl_context_is_valid(ref context), Is.True);
             ret = (RCLReturnEnum)NativeRcl.rcl_shutdown(ref context);
             Assert.That(ret, Is.EqualTo(RCLReturnEnum.RCL_RET_OK));
+            ret = (RCLReturnEnum)NativeRcl.rcl_init_options_fini(ref init_options);
+            Assert.That(ret, Is.EqualTo(RCLReturnEnum.RCL_RET_OK), Utils.PopRclErrorString());
 
             ret = (RCLReturnEnum)NativeRcl.rcl_context_fini(ref context);
             Assert.That(ret, Is.EqualTo(RCLReturnEnum.RCL_RET_OK));
@@ -162,14 +174,16 @@ namespace ROS2.TestNativeMethods
         public void NodeGetDefaultOptions()
         {
             IntPtr defaultNodeOptions = NativeRclInterface.rclcs_node_create_default_options();
+            Assert.That(defaultNodeOptions, Is.Not.EqualTo(IntPtr.Zero));
             NativeRclInterface.rclcs_node_dispose_options(defaultNodeOptions);
         }
 
-        public static void InitNode(ref rcl_node_t node, IntPtr nodeOptions, ref rcl_context_t context)
+        public static void InitNode(ref rcl_node_t node, ref IntPtr nodeOptions, ref rcl_context_t context)
         {
             node = NativeRcl.rcl_get_zero_initialized_node();
 
             nodeOptions = NativeRclInterface.rclcs_node_create_default_options();
+            Assert.That(nodeOptions, Is.Not.EqualTo(IntPtr.Zero));
             string name = "node_test";
             string nodeNamespace = "/ns";
 
@@ -181,7 +195,10 @@ namespace ROS2.TestNativeMethods
         public static void ShutdownNode(ref rcl_node_t node, IntPtr nodeOptions)
         {
             NativeRcl.rcl_node_fini(ref node);
-            NativeRclInterface.rclcs_node_dispose_options(nodeOptions);
+            if (nodeOptions != IntPtr.Zero)
+            {
+                NativeRclInterface.rclcs_node_dispose_options(nodeOptions);
+            }
         }
 
         [Test]
@@ -190,7 +207,7 @@ namespace ROS2.TestNativeMethods
             rcl_node_t node = new rcl_node_t();
             IntPtr nodeOptions = new IntPtr();
 
-            InitNode(ref node, nodeOptions, ref context);
+            InitNode(ref node, ref nodeOptions, ref context);
             ShutdownNode(ref node, nodeOptions);
         }
     }
@@ -206,7 +223,7 @@ namespace ROS2.TestNativeMethods
         public void SetUp()
         {
             RCLInitialize.InitRcl(ref context);
-            NodeInitialize.InitNode(ref node, nodeOptions, ref context);
+            NodeInitialize.InitNode(ref node, ref nodeOptions, ref context);
         }
 
         [TearDown]
@@ -242,7 +259,7 @@ namespace ROS2.TestNativeMethods
         public void SetUp()
         {
             RCLInitialize.InitRcl(ref context);
-            NodeInitialize.InitNode(ref node, nodeOptions, ref context);
+            NodeInitialize.InitNode(ref node, ref nodeOptions, ref context);
         }
 
         [TearDown]
@@ -255,8 +272,12 @@ namespace ROS2.TestNativeMethods
         [Test]
         public void PublisherCreateOptions()
         {
-            QualityOfServiceProfile qos = new QualityOfServiceProfile();
-            IntPtr publisherOptions = NativeRclInterface.rclcs_publisher_create_options(qos.handle);
+            using (QualityOfServiceProfile qos = new QualityOfServiceProfile())
+            {
+                IntPtr publisherOptions = NativeRclInterface.rclcs_publisher_create_options(qos.handle);
+                Assert.That(publisherOptions, Is.Not.EqualTo(IntPtr.Zero));
+                NativeRclInterface.rclcs_publisher_dispose_options(publisherOptions);
+            }
         }
 
         [Test]
@@ -266,15 +287,19 @@ namespace ROS2.TestNativeMethods
         }
 
         public static void InitPublisher(
-            ref rcl_publisher_t publisher, ref rcl_node_t node, IntPtr publisherOptions)
+            ref rcl_publisher_t publisher, ref rcl_node_t node, ref IntPtr publisherOptions)
         {
             publisher = NativeRcl.rcl_get_zero_initialized_publisher();
-            QualityOfServiceProfile qos = new QualityOfServiceProfile();
-            publisherOptions = NativeRclInterface.rclcs_publisher_create_options(qos.handle);
+            using (QualityOfServiceProfile qos = new QualityOfServiceProfile())
+            {
+                publisherOptions = NativeRclInterface.rclcs_publisher_create_options(qos.handle);
+            }
+            Assert.That(publisherOptions, Is.Not.EqualTo(IntPtr.Zero));
             MessageInternals msg = new std_msgs.msg.Bool();
             IntPtr typeSupportHandle = msg.TypeSupportHandle;
             var ret = (RCLReturnEnum)NativeRcl.rcl_publisher_init(
                 ref publisher, ref node, typeSupportHandle, "publisher_test_topic", publisherOptions);
+            Assert.That(ret, Is.EqualTo(RCLReturnEnum.RCL_RET_OK), Utils.PopRclErrorString());
         }
 
         public static void ShutdownPublisher(
@@ -282,7 +307,10 @@ namespace ROS2.TestNativeMethods
         {
             var ret = (RCLReturnEnum)NativeRcl.rcl_publisher_fini(ref publisher, ref node);
             Assert.That(ret, Is.EqualTo(RCLReturnEnum.RCL_RET_OK), Utils.PopRclErrorString());
-            NativeRclInterface.rclcs_publisher_dispose_options(publisherOptions);
+            if (publisherOptions != IntPtr.Zero)
+            {
+                NativeRclInterface.rclcs_publisher_dispose_options(publisherOptions);
+            }
         }
 
         [Test]
@@ -290,7 +318,7 @@ namespace ROS2.TestNativeMethods
         {
             rcl_publisher_t publisher = new rcl_publisher_t();
             IntPtr publisherOptions = new IntPtr();
-            InitPublisher(ref publisher, ref node, publisherOptions);
+            InitPublisher(ref publisher, ref node, ref publisherOptions);
             ShutdownPublisher(ref publisher, ref node, publisherOptions);
         }
     }
@@ -306,7 +334,7 @@ namespace ROS2.TestNativeMethods
         public void SetUp()
         {
             RCLInitialize.InitRcl(ref context);
-            NodeInitialize.InitNode(ref node, nodeOptions, ref context);
+            NodeInitialize.InitNode(ref node, ref nodeOptions, ref context);
         }
 
         [TearDown]
@@ -321,7 +349,7 @@ namespace ROS2.TestNativeMethods
         {
             rcl_publisher_t publisher = new rcl_publisher_t();
             IntPtr publisherOptions = new IntPtr();
-            PublisherInitialize.InitPublisher(ref publisher, ref node, publisherOptions);
+            PublisherInitialize.InitPublisher(ref publisher, ref node, ref publisherOptions);
             MessageInternals msg = new std_msgs.msg.Bool();
             rcl_allocator_t allocator = NativeRcl.rcutils_get_default_allocator();
 
@@ -343,17 +371,23 @@ namespace ROS2.TestNativeMethods
         [Test]
         public void SubscriptionCreateOptions()
         {
-            QualityOfServiceProfile qos = new QualityOfServiceProfile();
-            IntPtr subscriptionOptions = NativeRclInterface.rclcs_subscription_create_options(qos.handle);
-            NativeRclInterface.rclcs_subscription_dispose_options(subscriptionOptions);
+            using (QualityOfServiceProfile qos = new QualityOfServiceProfile())
+            {
+                IntPtr subscriptionOptions = NativeRclInterface.rclcs_subscription_create_options(qos.handle);
+                Assert.That(subscriptionOptions, Is.Not.EqualTo(IntPtr.Zero));
+                NativeRclInterface.rclcs_subscription_dispose_options(subscriptionOptions);
+            }
         }
 
         public static void InitSubscription(
-            ref rcl_subscription_t subscription, IntPtr subscriptionOptions, ref rcl_node_t node)
+            ref rcl_subscription_t subscription, ref IntPtr subscriptionOptions, ref rcl_node_t node)
         {
             subscription = NativeRcl.rcl_get_zero_initialized_subscription();
-            QualityOfServiceProfile qos = new QualityOfServiceProfile();
-            subscriptionOptions = NativeRclInterface.rclcs_subscription_create_options(qos.handle);            
+            using (QualityOfServiceProfile qos = new QualityOfServiceProfile())
+            {
+                subscriptionOptions = NativeRclInterface.rclcs_subscription_create_options(qos.handle);
+            }
+            Assert.That(subscriptionOptions, Is.Not.EqualTo(IntPtr.Zero));
             MessageInternals msg = new std_msgs.msg.Bool();
             IntPtr typeSupportHandle = msg.TypeSupportHandle;
             var ret = (RCLReturnEnum)NativeRcl.rcl_subscription_init(
@@ -365,7 +399,10 @@ namespace ROS2.TestNativeMethods
             ref rcl_subscription_t subscription, IntPtr subscriptionOptions, ref rcl_node_t node)
         {
             var ret = (RCLReturnEnum)NativeRcl.rcl_subscription_fini(ref subscription, ref node);
-            NativeRclInterface.rclcs_subscription_dispose_options(subscriptionOptions);
+            if (subscriptionOptions != IntPtr.Zero)
+            {
+                NativeRclInterface.rclcs_subscription_dispose_options(subscriptionOptions);
+            }
             Assert.That(ret, Is.EqualTo(RCLReturnEnum.RCL_RET_OK), Utils.PopRclErrorString());
         }
 
@@ -377,12 +414,12 @@ namespace ROS2.TestNativeMethods
             IntPtr nodeOptions = new IntPtr();
 
             RCLInitialize.InitRcl(ref context);
-            NodeInitialize.InitNode(ref node, nodeOptions, ref context);
+            NodeInitialize.InitNode(ref node, ref nodeOptions, ref context);
 
             rcl_subscription_t subscription = new rcl_subscription_t();
             IntPtr subscriptionOptions = new IntPtr();
 
-            InitSubscription(ref subscription, subscriptionOptions, ref node);
+            InitSubscription(ref subscription, ref subscriptionOptions, ref node);
             ShutdownSubscription(ref subscription, subscriptionOptions, ref node);
 
             NodeInitialize.ShutdownNode(ref node, nodeOptions);
@@ -403,13 +440,14 @@ namespace ROS2.TestNativeMethods
         public void SetUp()
         {
             RCLInitialize.InitRcl(ref context);
-            NodeInitialize.InitNode(ref node, nodeOptions, ref context);
-            SubscriptionInitialize.InitSubscription(ref subscription, subscriptionOptions, ref node);
+            NodeInitialize.InitNode(ref node, ref nodeOptions, ref context);
+            SubscriptionInitialize.InitSubscription(ref subscription, ref subscriptionOptions, ref node);
         }
 
         [TearDown]
         public void TearDown()
         {
+            SubscriptionInitialize.ShutdownSubscription(ref subscription, subscriptionOptions, ref node);
             NodeInitialize.ShutdownNode(ref node, nodeOptions);
             RCLInitialize.ShutdownRcl(ref context);
         }
@@ -462,7 +500,7 @@ namespace ROS2.TestNativeMethods
         public void SetUp()
         {
             RCLInitialize.InitRcl(ref context);
-            NodeInitialize.InitNode(ref node, nodeOptions, ref context);
+            NodeInitialize.InitNode(ref node, ref nodeOptions, ref context);
         }
 
         [TearDown]
@@ -532,7 +570,7 @@ namespace ROS2.TestNativeMethods
         public void SetUp()
         {
             RCLInitialize.InitRcl(ref context);
-            NodeInitialize.InitNode(ref node, nodeOptions, ref context);
+            NodeInitialize.InitNode(ref node, ref nodeOptions, ref context);
         }
 
         [TearDown]
@@ -547,18 +585,21 @@ namespace ROS2.TestNativeMethods
         {
             rcl_subscription_t subscription = NativeRcl.rcl_get_zero_initialized_subscription();
 
-            QualityOfServiceProfile qos = new QualityOfServiceProfile();
-            IntPtr subscriptionOptions = NativeRclInterface.rclcs_subscription_create_options(qos.handle);
+            using (QualityOfServiceProfile qos = new QualityOfServiceProfile())
+            {
+                IntPtr subscriptionOptions = NativeRclInterface.rclcs_subscription_create_options(qos.handle);
+                Assert.That(subscriptionOptions, Is.Not.EqualTo(IntPtr.Zero));
 
-            MessageInternals msg = new std_msgs.msg.Bool();
-            IntPtr typeSupportHandle = msg.TypeSupportHandle;
-            NativeRcl.rcl_subscription_init(
-                ref subscription, ref node, typeSupportHandle, "/subscriber_test_topic", subscriptionOptions);
+                MessageInternals msg = new std_msgs.msg.Bool();
+                IntPtr typeSupportHandle = msg.TypeSupportHandle;
+                NativeRcl.rcl_subscription_init(
+                    ref subscription, ref node, typeSupportHandle, "/subscriber_test_topic", subscriptionOptions);
 
-            Assert.That(NativeRcl.rcl_subscription_is_valid(ref subscription), Is.True);
+                Assert.That(NativeRcl.rcl_subscription_is_valid(ref subscription), Is.True);
 
-            NativeRcl.rcl_subscription_fini(ref subscription, ref node);
-            NativeRclInterface.rclcs_subscription_dispose_options(subscriptionOptions);
+                NativeRcl.rcl_subscription_fini(ref subscription, ref node);
+                NativeRclInterface.rclcs_subscription_dispose_options(subscriptionOptions);
+            }
         }
     }
 
@@ -573,7 +614,7 @@ namespace ROS2.TestNativeMethods
         public void SetUp()
         {
             RCLInitialize.InitRcl(ref context);
-            NodeInitialize.InitNode(ref node, nodeOptions, ref context);
+            NodeInitialize.InitNode(ref node, ref nodeOptions, ref context);
         }
 
         [TearDown]
