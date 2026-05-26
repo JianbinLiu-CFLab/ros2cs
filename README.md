@@ -28,8 +28,8 @@ version: main
 The latest public maintenance preview is:
 
 ```text
-v0.4.0-jazzy-preview.1
-https://github.com/JianbinLiu-CFLab/ros2cs/releases/tag/v0.4.0-jazzy-preview.1
+v0.5.0-jazzy-preview.1
+https://github.com/JianbinLiu-CFLab/ros2cs/releases/tag/v0.5.0-jazzy-preview.1
 ```
 
 ### Features
