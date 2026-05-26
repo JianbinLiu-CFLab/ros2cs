@@ -16,7 +16,9 @@
 
 // Modifications by Jianbin Liu:
 // - Added native roundtrip coverage for int8 sequences.
+// - Added generated message finalizer policy coverage.
 
+using System.Reflection;
 using NUnit.Framework;
 
 namespace ROS2.Test
@@ -58,6 +60,17 @@ namespace ROS2.Test
             Assert.That(msg.Data, Is.EqualTo(""));
             msg.Data = "Show me what you got!";
             Assert.That(msg.Data, Is.EqualTo("Show me what you got!"));
+        }
+
+        /// <summary>Generated messages must not call native destroy functions from finalizers.</summary>
+        [Test]
+        public void GeneratedMessagesDoNotDeclareFinalizer()
+        {
+            var finalizeMethod = typeof(std_msgs.msg.String).GetMethod(
+                "Finalize",
+                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+
+            Assert.That(finalizeMethod, Is.Null);
         }
 
         [Test]

@@ -4,6 +4,7 @@
 @# Modifications by Jianbin Liu:
 @#  - Added unmanaged function pointer annotations for generated delegates.
 @#  - Retained generated native library handles to keep delegates valid.
+@#  - Removed generated finalizers that called native message destroy functions during runtime teardown.
 @#
 @# Included from rosidl_generator_cs/resource/idl.cs.em
 @#
@@ -480,13 +481,10 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
 @[end for]@
   }
 
+  // Generated service messages intentionally do not use a finalizer. Unity/Mono can
+  // run finalizers during domain teardown after native plugin state is unsafe; callers
+  // must dispose owned messages explicitly.
   public void Dispose()
-  {
-    Dispose(true);
-    GC.SuppressFinalize(this);
-  }
-
-  private void Dispose(bool disposing)
   {
     lock (mutex)
     {
@@ -502,11 +500,6 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
       }
       disposed = true;
     }
-  }
-
-  ~@(message_class)()
-  {
-    Dispose(false);
   }
 
 };  // class @(message_class)
