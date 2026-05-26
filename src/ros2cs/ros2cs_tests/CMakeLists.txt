@@ -4,6 +4,7 @@
 # Modifications by Jianbin Liu:
 # - Updated the C# test target framework to .NET 8.
 # - Preserved the final newline for consistent generated build files.
+# - Added a generated message finalizer child-process probe.
 #
 
 cmake_minimum_required(VERSION 3.6)
@@ -55,6 +56,20 @@ if(BUILD_TESTING)
     ${TESTS_SRC}
     INCLUDE_DLLS
     ${ASSEMBLIES_DEP_DLLS}
+  )
+
+  set(FINALIZER_PROBE_TARGET ros2cs_generated_message_finalizer_probe)
+  add_dotnet_executable(${FINALIZER_PROBE_TARGET}
+    src/GeneratedMessageFinalizerProbe.cs
+    INCLUDE_DLLS
+    ${ASSEMBLIES_DEP_DLLS}
+  )
+
+  ament_add_test(
+    ${FINALIZER_PROBE_TARGET}_test
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    WORKING_DIRECTORY "${DOTNET_OUTPUT_PATH}"
+    COMMAND dotnet "${FINALIZER_PROBE_TARGET}.dll"
   )
 
   install_dotnet(${PROJECT_NAME} DESTINATION lib/tests)
