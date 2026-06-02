@@ -207,7 +207,7 @@ namespace ROS2
     private void ProcessRequest(rcl_rmw_request_id_t header, MessageInternals message)
     {
       message.ReadNativeMessage();
-      O response = null;
+      O response = default(O);
       try
       {
         response = callback((I)message);
