@@ -3,7 +3,9 @@
 #
 # Modifications by Jianbin Liu:
 # - Added ROS environment checks and preserved failing test-result exit codes.
+# - Documented why this script does not use set -e.
 
+# Keep -e disabled so colcon test-result still runs and prints diagnostics after colcon test fails.
 set -u
 
 if [ -z "${ROS_DISTRO:-}" ]; then

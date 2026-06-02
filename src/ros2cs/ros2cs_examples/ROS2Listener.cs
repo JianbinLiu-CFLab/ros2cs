@@ -3,6 +3,7 @@
 //
 // Modifications by Jianbin Liu:
 // - Audited listener example metadata during Jazzy/.NET maintenance.
+// - Made node lifetime explicit instead of relying only on global shutdown.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,7 +28,7 @@ namespace Examples
     public static void Main(string[] args)
     {
       using var runtime = new ROS2ExampleRuntime();
-      INode node = Ros2cs.CreateNode("listener");
+      using INode node = Ros2cs.CreateNode("listener");
 
       using ISubscription<std_msgs.msg.String> chatter_sub = node.CreateSubscription<std_msgs.msg.String>(
         "chatter", msg => Console.WriteLine("I heard: [" + msg.Data + "]"));

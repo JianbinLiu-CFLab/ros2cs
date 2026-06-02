@@ -3,6 +3,7 @@
 //
 // Modifications by Jianbin Liu:
 // - Audited talker example metadata during Jazzy/.NET maintenance.
+// - Made node lifetime explicit instead of relying only on global shutdown.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,7 +32,7 @@ namespace Examples
     {
       Console.WriteLine("Talker starting");
       using var runtime = new ROS2ExampleRuntime();
-      INode node = Ros2cs.CreateNode("talker");
+      using INode node = Ros2cs.CreateNode("talker");
       using Publisher<std_msgs.msg.String> chatter_pub = node.CreatePublisher<std_msgs.msg.String>("chatter");
       using var msg = new std_msgs.msg.String();
 
