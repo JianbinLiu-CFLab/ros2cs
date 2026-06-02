@@ -16,6 +16,7 @@
 // Modifications by Jianbin Liu:
 // - Retained ros2cs native library handle while rmw delegates are in use.
 // - Shared the ros2cs native wrapper handle with rcl wrapper bindings.
+// - Normalized delegate binding indentation.
 
 using System;
 using System.Runtime.InteropServices;
@@ -66,22 +67,22 @@ namespace ROS2
       "rmw_native_interface_set_history"),
       typeof(RMWNativeSetHistoryIdentifierType));
 
-      [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-      internal delegate void RMWNativeSetReliabilityIdentifierType(IntPtr profile, int mode);
-      internal static RMWNativeSetReliabilityIdentifierType
-        rmw_native_interface_set_reliability =
-        (RMWNativeSetReliabilityIdentifierType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
-        nativeRMW,
-        "rmw_native_interface_set_reliability"),
-        typeof(RMWNativeSetReliabilityIdentifierType));
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate void RMWNativeSetReliabilityIdentifierType(IntPtr profile, int mode);
+    internal static RMWNativeSetReliabilityIdentifierType
+      rmw_native_interface_set_reliability =
+      (RMWNativeSetReliabilityIdentifierType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
+      nativeRMW,
+      "rmw_native_interface_set_reliability"),
+      typeof(RMWNativeSetReliabilityIdentifierType));
 
-      [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-      internal delegate void RMWNativeSetDurabilityIdentifierType(IntPtr profile, int mode);
-      internal static RMWNativeSetDurabilityIdentifierType
-        rmw_native_interface_set_durability =
-        (RMWNativeSetDurabilityIdentifierType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
-        nativeRMW,
-        "rmw_native_interface_set_durability"),
-        typeof(RMWNativeSetDurabilityIdentifierType));
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate void RMWNativeSetDurabilityIdentifierType(IntPtr profile, int mode);
+    internal static RMWNativeSetDurabilityIdentifierType
+      rmw_native_interface_set_durability =
+      (RMWNativeSetDurabilityIdentifierType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
+      nativeRMW,
+      "rmw_native_interface_set_durability"),
+      typeof(RMWNativeSetDurabilityIdentifierType));
   }
 }

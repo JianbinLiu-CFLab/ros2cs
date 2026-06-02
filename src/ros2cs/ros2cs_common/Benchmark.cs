@@ -2,9 +2,11 @@
 //
 // Modifications by Jianbin Liu:
 // - Kept benchmark disposal behavior explicit while auditing ros2cs common helpers.
+// - Made benchmark disposal idempotent under concurrent callers.
 
 using System;
 using System.Diagnostics;
+using System.Threading;
 
 namespace ROS2
 {
@@ -21,8 +23,8 @@ namespace ROS2
     private readonly Stopwatch timer = new Stopwatch();
     private readonly string benchmarkName;
 
-    public bool IsDisposed { get { return disposed; } }
-    private bool disposed = false;
+    public bool IsDisposed { get { return disposed != 0; } }
+    private int disposed = 0;
 
     public Benchmark(string benchmarkName)
     {
@@ -32,11 +34,10 @@ namespace ROS2
 
     public void Dispose()
     {
-      if (!disposed)
+      if (Interlocked.Exchange(ref disposed, 1) == 0)
       {
         timer.Stop();
         Ros2csLogger.GetInstance().LogDebug($"{benchmarkName} {timer.ElapsedTicks} ticks ({timer.ElapsedMilliseconds} ms)");
-        disposed = true;
       }
     }
   }

@@ -3,6 +3,7 @@
 //
 // Modifications by Jianbin Liu:
 // - Audited performance talker example metadata during Jazzy/.NET maintenance.
+// - Added explicit disposal for nested PointField message wrappers.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -75,6 +76,20 @@ namespace Examples
       return message;
     }
 
+    /// <summary>Dispose nested PointField wrappers owned by the reusable PointCloud2 example message.</summary>
+    private static void DisposePointFields(sensor_msgs.msg.PointCloud2 message)
+    {
+      if (message?.Fields == null)
+      {
+        return;
+      }
+
+      foreach (sensor_msgs.msg.PointField field in message.Fields)
+      {
+        field?.Dispose();
+      }
+    }
+
     public static void Main(string[] args)
     {
       using var runtime = new ROS2ExampleRuntime();
@@ -88,18 +103,25 @@ namespace Examples
       using sensor_msgs.msg.PointCloud2 msg = PrepMessage(messageSize);
       // System.Random rand = new System.Random();
 
-      while (Ros2cs.Ok())
+      try
       {
-        var nowTime = clock.Now;
-        msg.UpdateHeaderTime(nowTime.sec, nowTime.nanosec);
-
-        // Remove this benchmark if you want to measure maximum throughput for smallest messages
-        using (var bench = new Benchmark("Publish"))
+        while (Ros2cs.Ok())
         {
-          // If we want to test changing sizes:
-          // msg = PrepMessage(rand.Next() / 1000);
-          pc_pub.Publish(msg);
+          var nowTime = clock.Now;
+          msg.UpdateHeaderTime(nowTime.sec, nowTime.nanosec);
+
+          // Remove this benchmark if you want to measure maximum throughput for smallest messages
+          using (var bench = new Benchmark("Publish"))
+          {
+            // If we want to test changing sizes:
+            // msg = PrepMessage(rand.Next() / 1000);
+            pc_pub.Publish(msg);
+          }
         }
+      }
+      finally
+      {
+        DisposePointFields(msg);
       }
     }
   }

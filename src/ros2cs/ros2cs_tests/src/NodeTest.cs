@@ -18,6 +18,7 @@
 // - Added coverage for disposed node create-entity behavior.
 
 using System;
+using System.Reflection;
 using NUnit.Framework;
 using example_interfaces.srv;
 
@@ -142,6 +143,14 @@ namespace ROS2.Test
             
             Assert.That(node.RemoveClient(client));
             Assert.That(client.IsDisposed);
+        }
+
+        [Test]
+        public void NodeDisposedFlagIsVolatileForChildDisposeVisibility()
+        {
+            FieldInfo field = typeof(Node).GetField("disposed", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(field, Is.Not.Null);
+            Assert.That(field.GetRequiredCustomModifiers(), Does.Contain(typeof(System.Runtime.CompilerServices.IsVolatile)));
         }
     }
 }

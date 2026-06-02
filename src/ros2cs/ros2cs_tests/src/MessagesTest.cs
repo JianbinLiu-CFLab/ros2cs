@@ -17,7 +17,10 @@
 // Modifications by Jianbin Liu:
 // - Added native roundtrip coverage for int8 sequences.
 // - Added generated message finalizer policy coverage.
+// - Expanded finalizer policy coverage across loaded generated message types.
 
+using System;
+using System.Linq;
 using System.Reflection;
 using NUnit.Framework;
 
@@ -66,11 +69,46 @@ namespace ROS2.Test
         [Test]
         public void GeneratedMessagesDoNotDeclareFinalizer()
         {
-            var finalizeMethod = typeof(std_msgs.msg.String).GetMethod(
-                "Finalize",
-                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+            Type[] anchorTypes =
+            {
+                typeof(std_msgs.msg.String),
+                typeof(std_msgs.msg.Bool),
+                typeof(test_msgs.msg.UnboundedSequences),
+                typeof(example_interfaces.srv.AddTwoInts_Request),
+                typeof(example_interfaces.srv.AddTwoInts_Response)
+            };
 
-            Assert.That(finalizeMethod, Is.Null);
+            Assert.That(anchorTypes, Is.Not.Empty);
+
+            var messageTypes = AppDomain.CurrentDomain.GetAssemblies()
+                .SelectMany(assembly =>
+                {
+                    try
+                    {
+                        return assembly.GetTypes();
+                    }
+                    catch (ReflectionTypeLoadException e)
+                    {
+                        return e.Types.Where(type => type != null);
+                    }
+                })
+                .Where(type => type != null)
+                .Where(type => typeof(Message).IsAssignableFrom(type))
+                .Where(type => !type.IsAbstract)
+                .Where(type => type.Namespace != null &&
+                    (type.Namespace.EndsWith(".msg") || type.Namespace.EndsWith(".srv")))
+                .ToArray();
+
+            Assert.That(messageTypes, Is.Not.Empty);
+
+            foreach (Type messageType in messageTypes)
+            {
+                var finalizeMethod = messageType.GetMethod(
+                    "Finalize",
+                    BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+
+                Assert.That(finalizeMethod, Is.Null, messageType.FullName + " declares a finalizer.");
+            }
         }
 
         [Test]

@@ -18,6 +18,7 @@
 // - Finalizes rcl clock before freeing the wrapper allocation.
 // - Added allocation and null-argument guards for rcl option wrapper helpers.
 // - Finalizes rcl init options when rcl_init fails.
+// - Finalizes node options before freeing their wrapper allocation.
 
 #include <rcl/error_handling.h>
 #include <rcl/node.h>
@@ -65,6 +66,12 @@ rcl_node_options_t * rclcs_node_create_default_options()
 ROSIDL_GENERATOR_C_EXPORT
 void rclcs_node_dispose_options(rcl_node_options_t * node_options_handle)
 {
+  if (node_options_handle == NULL)
+  {
+    return;
+  }
+  rcl_ret_t ret = rcl_node_options_fini(node_options_handle);
+  (void)ret;
   free(node_options_handle);
 }
 

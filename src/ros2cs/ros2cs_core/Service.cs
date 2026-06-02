@@ -17,6 +17,7 @@
 // - Added node-owned disposal path and options cleanup.
 // - Suppressed stale client response noise during shutdown/reconnect.
 // - Added safe request message disposal.
+// - Isolated user callback exceptions from native response handling.
 
 using System;
 using System.Collections.Generic;
@@ -52,6 +53,7 @@ namespace ROS2
     /// Callback to be called to process incoming requests
     /// </summary>
     private readonly Func<I, O> callback;
+    private readonly Ros2csLogger logger = Ros2csLogger.GetInstance();
     // Native service options are released with the service, including constructor failure paths.
     private IntPtr serviceOptions = IntPtr.Zero;
 
@@ -205,7 +207,17 @@ namespace ROS2
     private void ProcessRequest(rcl_rmw_request_id_t header, MessageInternals message)
     {
       message.ReadNativeMessage();
-      O response = callback((I)message);
+      O response = null;
+      try
+      {
+        response = callback((I)message);
+      }
+      catch (Exception e)
+      {
+        logger.LogError("Unhandled exception in service callback for topic '" + topic + "': " + e);
+        return;
+      }
+
       try
       {
         SendResp(header, response);

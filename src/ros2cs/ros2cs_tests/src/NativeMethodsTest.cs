@@ -17,6 +17,8 @@
 // Modifications by Jianbin Liu:
 // - Fixed native test helper option ownership so allocated options are released by teardown.
 // - Added missing native subscription cleanup in the subscription fixture.
+// - Fixed native publisher allocation parameter and wait-set cleanup in native tests.
+// - Added fail-fast native return checks and guarded cleanup in QoS native tests.
 
 using NUnit.Framework;
 using System;
@@ -352,9 +354,8 @@ namespace ROS2.TestNativeMethods
             IntPtr publisherOptions = new IntPtr();
             PublisherInitialize.InitPublisher(ref publisher, ref node, ref publisherOptions);
             using var msg = new std_msgs.msg.Bool();
-            rcl_allocator_t allocator = NativeRcl.rcutils_get_default_allocator();
 
-            var ret = (RCLReturnEnum)NativeRcl.rcl_publish(ref publisher, msg.Handle, allocator.allocate);
+            var ret = (RCLReturnEnum)NativeRcl.rcl_publish(ref publisher, msg.Handle, IntPtr.Zero);
             Assert.That(ret, Is.EqualTo(RCLReturnEnum.RCL_RET_OK), Utils.PopRclErrorString());
             PublisherInitialize.ShutdownPublisher(ref publisher, ref node, publisherOptions);
         }
@@ -467,27 +468,39 @@ namespace ROS2.TestNativeMethods
 
             rcl_allocator_t allocator = NativeRcl.rcutils_get_default_allocator();
             rcl_wait_set_t waitSet = NativeRcl.rcl_get_zero_initialized_wait_set();
-            TestUtils.AssertRetOk(NativeRcl.rcl_wait_set_init(
-                ref waitSet,
-                (UIntPtr)1,
-                (UIntPtr)0,
-                (UIntPtr)0,
-                (UIntPtr)0,
-                (UIntPtr)0,
-                (UIntPtr)0,
-                ref context,
-                allocator
-            ));
-            TestUtils.AssertRetOk(NativeRcl.rcl_wait_set_clear(ref waitSet));
+            bool waitSetInitialized = false;
+            try
+            {
+                TestUtils.AssertRetOk(NativeRcl.rcl_wait_set_init(
+                    ref waitSet,
+                    (UIntPtr)1,
+                    (UIntPtr)0,
+                    (UIntPtr)0,
+                    (UIntPtr)0,
+                    (UIntPtr)0,
+                    (UIntPtr)0,
+                    ref context,
+                    allocator
+                ));
+                waitSetInitialized = true;
+                TestUtils.AssertRetOk(NativeRcl.rcl_wait_set_clear(ref waitSet));
 
-            Assert.That(NativeRcl.rcl_subscription_is_valid(ref subscription), Is.True);
-            UIntPtr index = (UIntPtr)42;
-            TestUtils.AssertRetOk(NativeRcl.rcl_wait_set_add_subscription(ref waitSet, ref subscription, ref index));
-            Assert.That(index.ToUInt64(), Is.EqualTo(0));
+                Assert.That(NativeRcl.rcl_subscription_is_valid(ref subscription), Is.True);
+                UIntPtr index = (UIntPtr)42;
+                TestUtils.AssertRetOk(NativeRcl.rcl_wait_set_add_subscription(ref waitSet, ref subscription, ref index));
+                Assert.That(index.ToUInt64(), Is.EqualTo(0));
 
-            long timeout_ns = 10*1000*1000;
-            var ret = (RCLReturnEnum)NativeRcl.rcl_wait(ref waitSet, timeout_ns);
-            Assert.That(ret, Is.EqualTo(RCLReturnEnum.RCL_RET_TIMEOUT));
+                long timeout_ns = 10*1000*1000;
+                var ret = (RCLReturnEnum)NativeRcl.rcl_wait(ref waitSet, timeout_ns);
+                Assert.That(ret, Is.EqualTo(RCLReturnEnum.RCL_RET_TIMEOUT));
+            }
+            finally
+            {
+                if (waitSetInitialized)
+                {
+                    TestUtils.AssertRetOk(NativeRcl.rcl_wait_set_fini(ref waitSet));
+                }
+            }
         }
     }
 
@@ -545,19 +558,30 @@ namespace ROS2.TestNativeMethods
         {
             rcl_allocator_t allocator = NativeRcl.rcutils_get_default_allocator();
             rcl_wait_set_t waitSet = NativeRcl.rcl_get_zero_initialized_wait_set();
-            NativeRcl.rcl_wait_set_init(
-                ref waitSet,
-                (UIntPtr)1,
-                (UIntPtr)0,
-                (UIntPtr)0,
-                (UIntPtr)0,
-                (UIntPtr)0,
-                (UIntPtr)0,
-                ref context,
-                allocator
-            );
-            TestUtils.AssertRetOk(NativeRcl.rcl_wait_set_clear(ref waitSet));
-            TestUtils.AssertRetOk(NativeRcl.rcl_wait_set_fini(ref waitSet));
+            bool waitSetInitialized = false;
+            try
+            {
+                TestUtils.AssertRetOk(NativeRcl.rcl_wait_set_init(
+                    ref waitSet,
+                    (UIntPtr)1,
+                    (UIntPtr)0,
+                    (UIntPtr)0,
+                    (UIntPtr)0,
+                    (UIntPtr)0,
+                    (UIntPtr)0,
+                    ref context,
+                    allocator
+                ));
+                waitSetInitialized = true;
+                TestUtils.AssertRetOk(NativeRcl.rcl_wait_set_clear(ref waitSet));
+            }
+            finally
+            {
+                if (waitSetInitialized)
+                {
+                    TestUtils.AssertRetOk(NativeRcl.rcl_wait_set_fini(ref waitSet));
+                }
+            }
         }
     }
 
@@ -591,17 +615,26 @@ namespace ROS2.TestNativeMethods
             {
                 IntPtr subscriptionOptions = NativeRclInterface.rclcs_subscription_create_options(qos.handle);
                 Assert.That(subscriptionOptions, Is.Not.EqualTo(IntPtr.Zero));
+                bool subscriptionInitialized = false;
+                try
+                {
+                    using var msg = new std_msgs.msg.Bool();
+                    MessageInternals msgInternals = msg;
+                    IntPtr typeSupportHandle = msgInternals.TypeSupportHandle;
+                    TestUtils.AssertRetOk(NativeRcl.rcl_subscription_init(
+                        ref subscription, ref node, typeSupportHandle, "/subscriber_test_topic", subscriptionOptions));
+                    subscriptionInitialized = true;
 
-                using var msg = new std_msgs.msg.Bool();
-                MessageInternals msgInternals = msg;
-                IntPtr typeSupportHandle = msgInternals.TypeSupportHandle;
-                NativeRcl.rcl_subscription_init(
-                    ref subscription, ref node, typeSupportHandle, "/subscriber_test_topic", subscriptionOptions);
-
-                Assert.That(NativeRcl.rcl_subscription_is_valid(ref subscription), Is.True);
-
-                NativeRcl.rcl_subscription_fini(ref subscription, ref node);
-                NativeRclInterface.rclcs_subscription_dispose_options(subscriptionOptions);
+                    Assert.That(NativeRcl.rcl_subscription_is_valid(ref subscription), Is.True);
+                }
+                finally
+                {
+                    if (subscriptionInitialized)
+                    {
+                        TestUtils.AssertRetOk(NativeRcl.rcl_subscription_fini(ref subscription, ref node));
+                    }
+                    NativeRclInterface.rclcs_subscription_dispose_options(subscriptionOptions);
+                }
             }
         }
     }

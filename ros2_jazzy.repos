@@ -3,6 +3,7 @@
 # Modifications by Jianbin Liu:
 # - Point dotnet_cmake_module to the JianbinLiu-CFLab mainline with the Jazzy .NET test registration fix.
 # - Point rosidl_python to the JianbinLiu-CFLab Jazzy fork with shortened Python extension CMake targets.
+# - Pin dotnet_cmake_module to a verified commit for reproducible Jazzy builds.
 
 repositories:
   ros2/rosidl_defaults:
@@ -48,7 +49,7 @@ repositories:
   external/build_tools/dotnet_cmake_module:
     type: git
     url: https://github.com/JianbinLiu-CFLab/dotnet_cmake_module.git
-    version: main
+    version: c884bbb5ae6ec35c69aa7c5375401696f08750f3
   external/build_tools/ament_cmake_export_assemblies:
     type: git
     url: https://github.com/RobotecAI/ament_cmake_export_assemblies

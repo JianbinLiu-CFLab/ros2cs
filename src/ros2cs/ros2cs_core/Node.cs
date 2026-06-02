@@ -19,6 +19,7 @@
 // - Removes entities even when disposal throws.
 // - Added default node option allocation failure handling.
 // - Removed redundant DestroyNode alias in favor of Dispose.
+// - Made node disposal state volatile for child entity shutdown visibility.
 
 using System;
 using System.Linq;
@@ -81,7 +82,9 @@ namespace ROS2
     private HashSet<IClientBase> clients;
     private HashSet<IServiceBase> services;
     private readonly object mutex = new object();
-    private bool disposed = false;
+    // Child entities read this outside node.mutex while holding their own mutex. Volatile preserves
+    // visibility after rcl_node_fini without reversing the node -> child disposal lock order.
+    private volatile bool disposed = false;
 
     public bool IsDisposed { get { return disposed; } }
 

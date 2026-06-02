@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Modifications Copyright (c) 2026 Jianbin Liu.
+#
+# Modifications by Jianbin Liu:
+# - Audited common library build metadata during Jazzy/.NET maintenance.
+
 cmake_minimum_required(VERSION 3.5)
 
 project(ros2cs_common)
@@ -51,7 +56,3 @@ if(BUILD_TESTING)
 endif()
 
 ament_package()
-# Modifications Copyright (c) 2026 Jianbin Liu.
-#
-# Modifications by Jianbin Liu:
-# - Audited common library build metadata during Jazzy/.NET maintenance.
