@@ -4,10 +4,11 @@
 >
 > Modifications by Jianbin Liu:
 > - Corrected example launch commands and PointCloud2 wording.
-> - Documented that examples target .NET 8 in the current maintenance branch.
+> - Documented that examples target .NET 10 in the current maintenance branch.
 > - Documented performance example QoS compatibility.
+> - Updated examples target framework references to .NET 10.
 
-Current maintenance branch note: `ros2cs_examples` targets `net8.0`. Core/common/generated ros2cs assemblies remain `netstandard2.0`.
+Current maintenance branch note: `ros2cs_examples` targets `net10.0`. Core/common/generated ros2cs assemblies remain `netstandard2.0`.
 
 ## Examples
 

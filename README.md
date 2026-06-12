@@ -7,6 +7,7 @@ Ros2cs
 > - Documented the current conservative verification status for the Jazzy maintenance branch.
 > - Clarified Windows 10 LTSC validation, .NET target framework split, and legacy Ubuntu status.
 > - Declared the JianbinLiu-CFLab `main` branch as the maintained integration line.
+> - Updated tests/examples target framework references to .NET 10.
 
 A C# .NET library for ROS2, including C# implementation of rcl APIs, message generation, tests and examples.
 
@@ -55,7 +56,7 @@ Verified in the current local validation:
 - MSVC toolchain with Ninja generator.
 - `ros2cs` workspace build/test for the Jazzy source workspace.
 - `ros2cs_common`, `ros2cs_core`, and generated message assemblies remain `netstandard2.0`.
-- `ros2cs_tests` and `ros2cs_examples` target `net8.0`.
+- `ros2cs_tests` and `ros2cs_examples` target `net10.0`.
 
 Not yet verified in the current maintenance round:
 

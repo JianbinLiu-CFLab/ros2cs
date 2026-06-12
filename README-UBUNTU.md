@@ -4,8 +4,9 @@
 >
 > Modifications by Jianbin Liu:
 > - Marked Ubuntu instructions as legacy / not recently verified for the current Jazzy maintenance branch.
-> - Noted the .NET 8 tests/examples target framework change without rewriting the Ubuntu flow.
+> - Noted the .NET 10 tests/examples target framework change without rewriting the Ubuntu flow.
 > - Refreshed SDK and ROS sourcing examples to avoid stale .NET 6 / Foxy copy-paste paths.
+> - Updated tests/examples target framework references to .NET 10.
 
 ## Current verification status
 
@@ -16,7 +17,7 @@ Current local validation was performed on Windows 10 LTSC with ROS 2 Jazzy. Ubun
 The current target framework split is:
 
 - `ros2cs_common`, `ros2cs_core`, and generated message assemblies: `netstandard2.0`.
-- `ros2cs_tests` and `ros2cs_examples`: `net8.0`.
+- `ros2cs_tests` and `ros2cs_examples`: `net10.0`.
 
 The Ubuntu flow below still needs a fresh build/test run before claiming support
 for this branch, but the SDK and ROS sourcing commands now match the current
@@ -30,7 +31,7 @@ target framework split.
 
 - ROS2 installed on the system, along with `test-msgs`, `cyclonedds` and `fastrtps` packages
 - vcstool package - [see here](https://github.com/dirk-thomas/vcstool)
-- .NET 8 SDK - [see here](https://www.microsoft.com/net/learn/get-started)
+- .NET 10 SDK - [see here](https://www.microsoft.com/net/learn/get-started)
 
 
 ```bash
@@ -49,11 +50,11 @@ wget https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-mi
 sudo dpkg -i packages-microsoft-prod.deb
 rm packages-microsoft-prod.deb
 
-# Install .NET 8 SDK
+# Install .NET 10 SDK
 sudo apt-get update; \
   sudo apt-get install -y apt-transport-https && \
   sudo apt-get update && \
-  sudo apt-get install -y dotnet-sdk-8.0
+  sudo apt-get install -y dotnet-sdk-10.0
 ```
 
 **Optional**

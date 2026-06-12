@@ -2,7 +2,7 @@
 # Modifications Copyright (c) 2026 Jianbin Liu.
 #
 # Modifications by Jianbin Liu:
-# - Updated the C# test target framework to .NET 8.
+# - Updated the C# test target framework to .NET 10.
 # - Preserved the final newline for consistent generated build files.
 # - Added a generated message finalizer child-process probe.
 # - Added isolated ros2cs_common primitive coverage.
@@ -17,8 +17,8 @@ if(BUILD_TESTING)
   find_package(ament_cmake REQUIRED)
   find_package(dotnet_cmake_module REQUIRED)
 
-  # Build tests on .NET 8 while core/common remain netstandard2.0.
-  set(CSHARP_TARGET_FRAMEWORK "net8.0")
+  # Build tests on .NET 10 while core/common remain netstandard2.0.
+  set(CSHARP_TARGET_FRAMEWORK "net10.0")
 
   set(CSBUILD_TOOL "DotNetCore")
   find_package(DotNETExtra REQUIRED)

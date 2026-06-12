@@ -14,7 +14,7 @@
 # limitations under the License.
 
 # Modifications by Jianbin Liu:
-# - Updated the C# target framework to .NET 8.
+# - Updated the C# target framework to .NET 10.
 
 cmake_minimum_required(VERSION 3.5)
 
@@ -29,8 +29,8 @@ find_package(example_interfaces REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(dotnet_cmake_module REQUIRED)
 
-# Build examples on .NET 8 while core/common remain netstandard2.0.
-set(CSHARP_TARGET_FRAMEWORK "net8.0")
+# Build examples on .NET 10 while core/common remain netstandard2.0.
+set(CSHARP_TARGET_FRAMEWORK "net10.0")
 set(CSBUILD_TOOL "DotNetCore")
 
 find_package(DotNETExtra REQUIRED)

@@ -5,7 +5,8 @@
 > Modifications by Jianbin Liu:
 > - Documented the Jazzy/FastRTPS RTI Connext DDS Micro probe stderr as a known non-blocking environment warning.
 > - Documented Ninja as the required Windows Jazzy generator policy for VS 2026 / VS 18 toolchains.
-> - Updated the current Windows verification status for Windows 10 LTSC + ROS 2 Jazzy and .NET 8 tests/examples.
+> - Updated the current Windows verification status for Windows 10 LTSC + ROS 2 Jazzy and .NET 10 tests/examples.
+> - Updated tests/examples target framework references to .NET 10.
 
 ## Building
 
@@ -19,7 +20,7 @@ Current GREEN evidence for this maintenance branch is:
 - MSVC compiler with Ninja generator.
 - `ros2cs` source workspace build/test.
 - `ros2cs_common`, `ros2cs_core`, and generated message assemblies on `netstandard2.0`.
-- `ros2cs_tests` and `ros2cs_examples` on `net8.0`.
+- `ros2cs_tests` and `ros2cs_examples` on `net10.0`.
 - Latest public maintenance preview: [`v0.5.0-jazzy-preview.1`](https://github.com/JianbinLiu-CFLab/ros2cs/releases/tag/v0.5.0-jazzy-preview.1).
 
 Windows 11 is an expected target but was not the OS used for the current local validation. Older ROS 2 distributions in this README are legacy context unless fresh evidence is added.
@@ -28,7 +29,7 @@ Windows 11 is an expected target but was not the OS used for the current local v
 
 *  ROS2 installed on the system. For this maintenance branch, the verified target is ROS 2 Jazzy.
 *  vcstool package - [see here](https://github.com/dirk-thomas/vcstool)
-*  .NET 8 SDK for tests/examples.
+*  .NET 10 SDK for tests/examples.
 *  `ros2cs_common`, `ros2cs_core`, and generated message assemblies remain compatible with `netstandard2.0`.
 *  For tests only: NUnit test infrastructure as configured by `ros2cs_tests`.
 
