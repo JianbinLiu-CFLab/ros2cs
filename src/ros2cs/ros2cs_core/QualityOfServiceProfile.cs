@@ -99,13 +99,7 @@ namespace ROS2
       lock (mutex)
       {
         ThrowIfDisposed();
-        if (policy == HistoryPolicy.QOS_POLICY_HISTORY_KEEP_LAST && depth < 1)
-        {
-          throw new ArgumentOutOfRangeException(
-            nameof(depth),
-            depth,
-            "KEEP_LAST history requires a positive depth.");
-        }
+        ValidateHistoryDepth(policy, depth);
         NativeRmwInterface.rmw_native_interface_set_history(handle, (int)policy, depth);
       }
     }
@@ -125,6 +119,22 @@ namespace ROS2
       {
         ThrowIfDisposed();
         NativeRmwInterface.rmw_native_interface_set_durability(handle, (int)policy);
+      }
+    }
+
+    public void SetPolicies(
+      HistoryPolicy history,
+      int depth,
+      ReliabilityPolicy reliability,
+      DurabilityPolicy durability)
+    {
+      lock (mutex)
+      {
+        ThrowIfDisposed();
+        ValidateHistoryDepth(history, depth);
+        NativeRmwInterface.rmw_native_interface_set_history(handle, (int)history, depth);
+        NativeRmwInterface.rmw_native_interface_set_reliability(handle, (int)reliability);
+        NativeRmwInterface.rmw_native_interface_set_durability(handle, (int)durability);
       }
     }
 
@@ -194,6 +204,47 @@ namespace ROS2
       {
         throw new ObjectDisposedException(nameof(QualityOfServiceProfile));
       }
+    }
+
+    private static void ValidateHistoryDepth(HistoryPolicy policy, int depth)
+    {
+      if (policy == HistoryPolicy.QOS_POLICY_HISTORY_KEEP_LAST && depth < 1)
+      {
+        throw new ArgumentOutOfRangeException(
+          nameof(depth),
+          depth,
+          "KEEP_LAST history requires a positive depth.");
+      }
+    }
+  }
+
+  /// <summary>Owns a temporary preset QoS profile only when the caller did not provide one.</summary>
+  internal sealed class QosScope : IDisposable
+  {
+    private QualityOfServiceProfile ownedProfile;
+
+    internal IntPtr Handle { get; private set; }
+
+    internal QosScope(QualityOfServiceProfile profile, QosPresetProfile defaultPreset)
+    {
+      QualityOfServiceProfile activeProfile = profile;
+      if (activeProfile == null)
+      {
+        activeProfile = new QualityOfServiceProfile(defaultPreset);
+        ownedProfile = activeProfile;
+      }
+
+      Handle = activeProfile.Handle;
+    }
+
+    public void Dispose()
+    {
+      if (ownedProfile != null)
+      {
+        ownedProfile.Dispose();
+        ownedProfile = null;
+      }
+      Handle = IntPtr.Zero;
     }
   }
 }

@@ -91,31 +91,16 @@ namespace ROS2
       topic = pubTopic;
       this.node = node;
 
-      QualityOfServiceProfile qualityOfServiceProfile = qos;
-      bool ownsQos = false;
-      if (qualityOfServiceProfile == null)
-      {
-        qualityOfServiceProfile = new QualityOfServiceProfile(QosPresetProfile.SERVICES_DEFAULT);
-        ownsQos = true;
-      }
-
       Requests = new Dictionary<long, (TaskCompletionSource<O>, Task<O>)>();
       RequestSequencesByTask = new Dictionary<Task<O>, long>();
       PendingRequests = new PendingTasksView(Requests);
 
-      try
+      using (var qosScope = new QosScope(qos, QosPresetProfile.SERVICES_DEFAULT))
       {
-        clientOptions = NativeRclInterface.rclcs_client_create_options(qualityOfServiceProfile.Handle);
+        clientOptions = NativeRclInterface.rclcs_client_create_options(qosScope.Handle);
         if (clientOptions == IntPtr.Zero)
         {
           throw new RuntimeError("Failed to create client options");
-        }
-      }
-      finally
-      {
-        if (ownsQos)
-        {
-          qualityOfServiceProfile.Dispose();
         }
       }
 

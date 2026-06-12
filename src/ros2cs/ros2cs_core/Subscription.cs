@@ -127,27 +127,12 @@ namespace ROS2
       topic = subTopic;
       subscriptionHandle = NativeRcl.rcl_get_zero_initialized_subscription();
 
-      QualityOfServiceProfile qualityOfServiceProfile = qos;
-      bool ownsQos = false;
-      if (qualityOfServiceProfile == null)
+      using (var qosScope = new QosScope(qos, QosPresetProfile.DEFAULT))
       {
-        qualityOfServiceProfile = new QualityOfServiceProfile();
-        ownsQos = true;
-      }
-
-      try
-      {
-        subscriptionOptions = NativeRclInterface.rclcs_subscription_create_options(qualityOfServiceProfile.Handle);
+        subscriptionOptions = NativeRclInterface.rclcs_subscription_create_options(qosScope.Handle);
         if (subscriptionOptions == IntPtr.Zero)
         {
           throw new RuntimeError("Failed to create subscription options");
-        }
-      }
-      finally
-      {
-        if (ownsQos)
-        {
-          qualityOfServiceProfile.Dispose();
         }
       }
 

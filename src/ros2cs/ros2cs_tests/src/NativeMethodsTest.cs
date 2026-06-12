@@ -748,6 +748,19 @@ namespace ROS2.TestNativeMethods
             Assert.DoesNotThrow(
                 () => qos.SetLiveliness(LivelinessPolicy.QOS_POLICY_LIVELINESS_AUTOMATIC));
         }
+
+        [Test]
+        public void SetPoliciesDoesNotThrow()
+        {
+            using var qos = new QualityOfServiceProfile();
+
+            Assert.DoesNotThrow(
+                () => qos.SetPolicies(
+                    HistoryPolicy.QOS_POLICY_HISTORY_KEEP_LAST,
+                    10,
+                    ReliabilityPolicy.QOS_POLICY_RELIABILITY_RELIABLE,
+                    DurabilityPolicy.QOS_POLICY_DURABILITY_VOLATILE));
+        }
     }
 
     [TestFixture]

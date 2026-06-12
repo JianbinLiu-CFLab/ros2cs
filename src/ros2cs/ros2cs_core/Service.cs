@@ -74,27 +74,12 @@ namespace ROS2
       topic = subTopic;
       serviceHandle = NativeRcl.rcl_get_zero_initialized_service();
 
-      QualityOfServiceProfile qualityOfServiceProfile = qos;
-      bool ownsQos = false;
-      if (qualityOfServiceProfile == null)
+      using (var qosScope = new QosScope(qos, QosPresetProfile.SERVICES_DEFAULT))
       {
-        qualityOfServiceProfile = new QualityOfServiceProfile(QosPresetProfile.SERVICES_DEFAULT);
-        ownsQos = true;
-      }
-
-      try
-      {
-        serviceOptions = NativeRclInterface.rclcs_service_create_options(qualityOfServiceProfile.Handle);
+        serviceOptions = NativeRclInterface.rclcs_service_create_options(qosScope.Handle);
         if (serviceOptions == IntPtr.Zero)
         {
           throw new RuntimeError("Failed to create service options");
-        }
-      }
-      finally
-      {
-        if (ownsQos)
-        {
-          qualityOfServiceProfile.Dispose();
         }
       }
 

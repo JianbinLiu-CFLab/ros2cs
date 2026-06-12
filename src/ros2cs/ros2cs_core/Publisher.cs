@@ -50,27 +50,12 @@ namespace ROS2
       topic = pubTopic;
       this.node = node;
 
-      QualityOfServiceProfile qualityOfServiceProfile = qos;
-      bool ownsQos = false;
-      if (qualityOfServiceProfile == null)
+      using (var qosScope = new QosScope(qos, QosPresetProfile.DEFAULT))
       {
-        qualityOfServiceProfile = new QualityOfServiceProfile();
-        ownsQos = true;
-      }
-
-      try
-      {
-        publisherOptions = NativeRclInterface.rclcs_publisher_create_options(qualityOfServiceProfile.Handle);
+        publisherOptions = NativeRclInterface.rclcs_publisher_create_options(qosScope.Handle);
         if (publisherOptions == IntPtr.Zero)
         {
           throw new RuntimeError("Failed to create publisher options");
-        }
-      }
-      finally
-      {
-        if (ownsQos)
-        {
-          qualityOfServiceProfile.Dispose();
         }
       }
 
