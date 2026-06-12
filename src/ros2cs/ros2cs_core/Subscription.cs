@@ -43,6 +43,7 @@ namespace ROS2
     private readonly Action<T> callback;
     // Native subscription options are released with the subscription, including constructor failure paths.
     private IntPtr subscriptionOptions = IntPtr.Zero;
+    private MessageInternals takeMessage;
 
     public object Mutex { get { return mutex; } }
     private object mutex = new object();
@@ -61,14 +62,16 @@ namespace ROS2
           return;
         }
 
-        message = CreateMessage();
+        message = GetTakeMessage();
         ret = (RCLReturnEnum)NativeRcl.rcl_take(ref subscriptionHandle, message.Handle, IntPtr.Zero, IntPtr.Zero);
+        if (ret != RCLReturnEnum.RCL_RET_OK && ret != RCLReturnEnum.RCL_RET_SUBSCRIPTION_TAKE_FAILED)
+        {
+          takeMessage = null;
+        }
       }
 
       if (ret == RCLReturnEnum.RCL_RET_SUBSCRIPTION_TAKE_FAILED)
       {
-        // No message was available after wait; dispose the temporary wrapper quietly.
-        ((IDisposable)message).Dispose();
         return;
       }
 
@@ -79,14 +82,17 @@ namespace ROS2
         return;
       }
 
-      try
+      TriggerCallback(message);
+    }
+
+    /// <summary>Return the reusable callback message wrapper for this subscription.</summary>
+    private MessageInternals GetTakeMessage()
+    {
+      if (takeMessage == null)
       {
-        TriggerCallback(message);
+        takeMessage = CreateMessage();
       }
-      finally
-      {
-        ((IDisposable)message).Dispose();
-      }
+      return takeMessage;
     }
 
     /// <summary> Construct a message of the subscription type and validate its native-message interface. </summary>
@@ -245,6 +251,11 @@ namespace ROS2
           }
           finally
           {
+            if (takeMessage != null)
+            {
+              ((IDisposable)takeMessage).Dispose();
+              takeMessage = null;
+            }
             subscriptionOptions = IntPtr.Zero;
             disposed = true;
           }

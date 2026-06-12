@@ -406,15 +406,15 @@ namespace ROS2
           // Sequential processing. Isolate each entity so one user callback cannot stop the whole batch.
           foreach (ISubscriptionBase subscription in allSubscriptions)
           {
-            TryTakeMessage(subscription.TakeMessage, "subscription", subscription.Topic);
+            TryTakeMessage(subscription);
           }
           foreach (IClientBase client in allClients)
           {
-            TryTakeMessage(client.TakeMessage, "client", client.Topic);
+            TryTakeMessage(client);
           }
           foreach (IServiceBase service in allServices)
           {
-            TryTakeMessage(service.TakeMessage, "service", service.Topic);
+            TryTakeMessage(service);
           }
         }
         finally
@@ -460,18 +460,64 @@ namespace ROS2
       }
     }
 
-    /// <summary>Run one waitable callback path without letting user exceptions abort the spin batch.</summary>
-    private static void TryTakeMessage(Action action, string entityKind, string topic)
+    /// <summary>Run one subscription callback path without letting user exceptions abort the spin batch.</summary>
+    private static void TryTakeMessage(ISubscriptionBase subscription)
+    {
+      TryTakeSubscriptionMessage(subscription);
+    }
+
+    /// <summary>Run one client response path without letting user exceptions abort the spin batch.</summary>
+    private static void TryTakeMessage(IClientBase client)
+    {
+      TryTakeClientMessage(client);
+    }
+
+    /// <summary>Run one service callback path without letting user exceptions abort the spin batch.</summary>
+    private static void TryTakeMessage(IServiceBase service)
+    {
+      TryTakeServiceMessage(service);
+    }
+
+    private static void TryTakeSubscriptionMessage(ISubscriptionBase subscription)
     {
       try
       {
-        action();
+        subscription.TakeMessage();
       }
       catch (Exception e)
       {
-        Ros2csLogger.GetInstance().LogError(
-          "Unhandled exception while processing " + entityKind + " '" + topic + "': " + e);
+        LogTakeMessageException("subscription", subscription.Topic, e);
       }
+    }
+
+    private static void TryTakeClientMessage(IClientBase client)
+    {
+      try
+      {
+        client.TakeMessage();
+      }
+      catch (Exception e)
+      {
+        LogTakeMessageException("client", client.Topic, e);
+      }
+    }
+
+    private static void TryTakeServiceMessage(IServiceBase service)
+    {
+      try
+      {
+        service.TakeMessage();
+      }
+      catch (Exception e)
+      {
+        LogTakeMessageException("service", service.Topic, e);
+      }
+    }
+
+    private static void LogTakeMessageException(string entityKind, string topic, Exception e)
+    {
+      Ros2csLogger.GetInstance().LogError(
+        "Unhandled exception while processing " + entityKind + " '" + topic + "': " + e);
     }
 
     /// <summary>Fail explicitly when a resized wait set cannot accept all collected entities.</summary>

@@ -65,6 +65,7 @@ namespace ROS2
     /// <see cref="Cancel"/> to work even if the source returns multiple tasks.
     /// </remarks>
     private Dictionary<long, (TaskCompletionSource<O>, Task<O>)> Requests;
+    private Dictionary<Task<O>, long> RequestSequencesByTask;
 
     private Ros2csLogger logger = Ros2csLogger.GetInstance();
 
@@ -72,6 +73,7 @@ namespace ROS2
     private rcl_client_t clientHandle;
 
     private IntPtr clientOptions = IntPtr.Zero;
+    private MessageInternals responseScratchMessage;
 
     // Keep the owning node reference so fini calls always use the current native node handle.
     private readonly Node node;
@@ -98,6 +100,7 @@ namespace ROS2
       }
 
       Requests = new Dictionary<long, (TaskCompletionSource<O>, Task<O>)>();
+      RequestSequencesByTask = new Dictionary<Task<O>, long>();
       PendingRequests = new PendingTasksView(Requests);
 
       try
@@ -177,6 +180,7 @@ namespace ROS2
             source.Item1.TrySetException(new ObjectDisposedException("client has been disposed"));
           }
           Requests.Clear();
+          RequestSequencesByTask.Clear();
         }
 
         try
@@ -215,6 +219,11 @@ namespace ROS2
           }
           finally
           {
+            if (responseScratchMessage != null)
+            {
+              ((IDisposable)responseScratchMessage).Dispose();
+              responseScratchMessage = null;
+            }
             clientOptions = IntPtr.Zero;
             disposed = true;
           }
@@ -261,17 +270,20 @@ namespace ROS2
           return;
         }
 
-        msg = CreateResponseMessage();
+        msg = GetResponseMessage();
         ret = (RCLReturnEnum)NativeRcl.rcl_take_response(
           ref clientHandle,
           ref requestHeader,
           msg.Handle
         );
+        if (ret != RCLReturnEnum.RCL_RET_CLIENT_TAKE_FAILED)
+        {
+          responseScratchMessage = null;
+        }
       }
 
       if (ret == RCLReturnEnum.RCL_RET_CLIENT_TAKE_FAILED)
       {
-        ((IDisposable)msg).Dispose();
         return;
       }
 
@@ -287,6 +299,16 @@ namespace ROS2
       {
         ((IDisposable)msg).Dispose();
       }
+    }
+
+    /// <summary>Return the reusable response wrapper used while probing for a response.</summary>
+    private MessageInternals GetResponseMessage()
+    {
+      if (responseScratchMessage == null)
+      {
+        responseScratchMessage = CreateResponseMessage();
+      }
+      return responseScratchMessage;
     }
 
     /// <summary>Create a response message and validate its native-message interface.</summary>
@@ -320,6 +342,7 @@ namespace ROS2
         {
           exists = true;
           Requests.Remove(sequence_number);
+          RequestSequencesByTask.Remove(source.Item2);
         }
       }
       if (exists)
@@ -367,6 +390,7 @@ namespace ROS2
       lock (Requests)
       {
         Requests.Add(sequence_number, (source, task));
+        RequestSequencesByTask.Add(task, sequence_number);
       }
       return task;
     }
@@ -432,34 +456,24 @@ namespace ROS2
     /// <inheritdoc/>
     public bool Cancel(Task task)
     {
-      (TaskCompletionSource<O>, Task<O>) source = default((TaskCompletionSource<O>, Task<O>));
-      bool found = false;
-      long sequenceNumber = default(long);
-
-      lock(this.Requests)
-      {
-        foreach (var entry in this.Requests)
-        {
-          if (entry.Value.Item2 == task)
-          {
-            sequenceNumber = entry.Key;
-            source = entry.Value;
-            found = true;
-            break;
-          }
-        }
-
-        if (found)
-        {
-          this.Requests.Remove(sequenceNumber);
-        }
-      }
-
-      if (!found)
+      Task<O> typedTask = task as Task<O>;
+      if (typedTask == null)
       {
         return false;
       }
-      return source.Item1.TrySetCanceled();
+
+      lock(this.Requests)
+      {
+        if (!RequestSequencesByTask.TryGetValue(typedTask, out long sequenceNumber))
+        {
+          return false;
+        }
+
+        (TaskCompletionSource<O>, Task<O>) source = this.Requests[sequenceNumber];
+        this.Requests.Remove(sequenceNumber);
+        RequestSequencesByTask.Remove(typedTask);
+        return source.Item1.TrySetCanceled();
+      }
     }
 
     /// <summary>

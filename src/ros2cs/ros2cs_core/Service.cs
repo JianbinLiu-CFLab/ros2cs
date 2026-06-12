@@ -57,6 +57,7 @@ namespace ROS2
     private readonly Ros2csLogger logger = Ros2csLogger.GetInstance();
     // Native service options are released with the service, including constructor failure paths.
     private IntPtr serviceOptions = IntPtr.Zero;
+    private MessageInternals requestMessage;
 
     /// <inheritdoc/>
     public object Mutex { get { return mutex; } }
@@ -156,14 +157,17 @@ namespace ROS2
         {
           return;
         }
-        message = CreateMessage();
+        message = GetRequestMessage();
 
         ret = (RCLReturnEnum)NativeRcl.rcl_take_request(ref serviceHandle, ref header, message.Handle);
+        if (ret != RCLReturnEnum.RCL_RET_OK && ret != RCLReturnEnum.RCL_RET_SERVICE_TAKE_FAILED)
+        {
+          requestMessage = null;
+        }
       }
 
       if (ret == RCLReturnEnum.RCL_RET_SERVICE_TAKE_FAILED)
       {
-        ((IDisposable)message).Dispose();
         return;
       }
 
@@ -174,14 +178,17 @@ namespace ROS2
         return;
       }
 
-      try
+      ProcessRequest(header, message);
+    }
+
+    /// <summary>Return the reusable request wrapper used by this service callback.</summary>
+    private MessageInternals GetRequestMessage()
+    {
+      if (requestMessage == null)
       {
-        ProcessRequest(header, message);
+        requestMessage = CreateMessage();
       }
-      finally
-      {
-        ((IDisposable)message).Dispose();
-      }
+      return requestMessage;
     }
 
     /// <summary>Create a request message and validate its native-message interface.</summary>
@@ -301,6 +308,11 @@ namespace ROS2
           }
           finally
           {
+            if (requestMessage != null)
+            {
+              ((IDisposable)requestMessage).Dispose();
+              requestMessage = null;
+            }
             serviceOptions = IntPtr.Zero;
             disposed = true;
           }
