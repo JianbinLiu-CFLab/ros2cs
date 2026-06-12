@@ -19,6 +19,7 @@
 // - Added allocation and null-argument guards for rcl option wrapper helpers.
 // - Finalizes rcl init options when rcl_init fails.
 // - Finalizes node options before freeing their wrapper allocation.
+// - Surfaced option finalization return codes and guarded null option disposals.
 
 #include <rcl/error_handling.h>
 #include <rcl/node.h>
@@ -64,15 +65,15 @@ rcl_node_options_t * rclcs_node_create_default_options()
 }
 
 ROSIDL_GENERATOR_C_EXPORT
-void rclcs_node_dispose_options(rcl_node_options_t * node_options_handle)
+int rclcs_node_dispose_options(rcl_node_options_t * node_options_handle)
 {
   if (node_options_handle == NULL)
   {
-    return;
+    return RCL_RET_OK;
   }
   rcl_ret_t ret = rcl_node_options_fini(node_options_handle);
-  (void)ret;
   free(node_options_handle);
+  return (int)ret;
 }
 
 ROSIDL_GENERATOR_C_EXPORT
@@ -94,9 +95,15 @@ rcl_subscription_options_t *rclcs_subscription_create_options(rmw_qos_profile_t 
 }
 
 ROSIDL_GENERATOR_C_EXPORT
-void rclcs_subscription_dispose_options(rcl_subscription_options_t *subscription_options_handle)
+int rclcs_subscription_dispose_options(rcl_subscription_options_t *subscription_options_handle)
 {
+  if (subscription_options_handle == NULL)
+  {
+    return RCL_RET_OK;
+  }
+  rcl_ret_t ret = rcl_subscription_options_fini(subscription_options_handle);
   free(subscription_options_handle);
+  return (int)ret;
 }
 
 ROSIDL_GENERATOR_C_EXPORT
@@ -120,6 +127,11 @@ rcl_publisher_options_t *rclcs_publisher_create_options(rmw_qos_profile_t * qos)
 ROSIDL_GENERATOR_C_EXPORT
 void rclcs_publisher_dispose_options(rcl_publisher_options_t * publisher_options_handle)
 {
+  // Jazzy exposes no rcl_publisher_options_fini; defaults are plain values today.
+  if (publisher_options_handle == NULL)
+  {
+    return;
+  }
   free(publisher_options_handle);
 }
 
@@ -144,6 +156,11 @@ rcl_client_options_t *rclcs_client_create_options(rmw_qos_profile_t * qos)
 ROSIDL_GENERATOR_C_EXPORT
 void rclcs_client_dispose_options(rcl_client_options_t * client_options_handle)
 {
+  // Jazzy exposes no rcl_client_options_fini; defaults are plain values today.
+  if (client_options_handle == NULL)
+  {
+    return;
+  }
   free(client_options_handle);
 }
 
@@ -168,6 +185,11 @@ rcl_service_options_t *rclcs_service_create_options(rmw_qos_profile_t * qos)
 ROSIDL_GENERATOR_C_EXPORT
 void rclcs_service_dispose_options(rcl_service_options_t * service_options_handle)
 {
+  // Jazzy exposes no rcl_service_options_fini; defaults are plain values today.
+  if (service_options_handle == NULL)
+  {
+    return;
+  }
   free(service_options_handle);
 }
 

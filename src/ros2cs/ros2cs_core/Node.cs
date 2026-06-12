@@ -20,6 +20,7 @@
 // - Added default node option allocation failure handling.
 // - Removed redundant DestroyNode alias in favor of Dispose.
 // - Made node disposal state volatile for child entity shutdown visibility.
+// - Propagates native node option finalization failures during explicit disposal.
 
 using System;
 using System.Linq;
@@ -111,10 +112,22 @@ namespace ROS2
       {
         Utils.CheckReturnEnum(NativeRcl.rcl_node_init(ref nodeHandle, nodeName, nodeNamespace, ref context, defaultNodeOptions));
       }
-      catch
+      catch (Exception initException)
       {
-        NativeRclInterface.rclcs_node_dispose_options(defaultNodeOptions);
-        defaultNodeOptions = IntPtr.Zero;
+        List<Exception> exceptions = new List<Exception> { initException };
+        try
+        {
+          Utils.CheckReturnEnum(NativeRclInterface.rclcs_node_dispose_options(defaultNodeOptions));
+        }
+        catch (Exception disposeException)
+        {
+          exceptions.Add(disposeException);
+        }
+        finally
+        {
+          defaultNodeOptions = IntPtr.Zero;
+        }
+        Utils.ThrowCollectedExceptions(exceptions);
         throw;
       }
       logger.LogInfo("Node initialized");
@@ -179,7 +192,7 @@ namespace ROS2
           {
             if (defaultNodeOptions != IntPtr.Zero)
             {
-              NativeRclInterface.rclcs_node_dispose_options(defaultNodeOptions);
+              Utils.CheckReturnEnum(NativeRclInterface.rclcs_node_dispose_options(defaultNodeOptions));
             }
           }
           catch (Exception e)

@@ -19,6 +19,7 @@
 // - Added missing native subscription cleanup in the subscription fixture.
 // - Fixed native publisher allocation parameter and wait-set cleanup in native tests.
 // - Added fail-fast native return checks and guarded cleanup in QoS native tests.
+// - Asserted native option-dispose return codes for wrappers that expose rcl fini.
 
 using NUnit.Framework;
 using System;
@@ -177,7 +178,13 @@ namespace ROS2.TestNativeMethods
         {
             IntPtr defaultNodeOptions = NativeRclInterface.rclcs_node_create_default_options();
             Assert.That(defaultNodeOptions, Is.Not.EqualTo(IntPtr.Zero));
-            NativeRclInterface.rclcs_node_dispose_options(defaultNodeOptions);
+            TestUtils.AssertRetOk(NativeRclInterface.rclcs_node_dispose_options(defaultNodeOptions));
+        }
+
+        [Test]
+        public void NodeDisposeOptionsAcceptsNull()
+        {
+            TestUtils.AssertRetOk(NativeRclInterface.rclcs_node_dispose_options(IntPtr.Zero));
         }
 
         public static void InitNode(ref rcl_node_t node, ref IntPtr nodeOptions, ref rcl_context_t context)
@@ -199,7 +206,7 @@ namespace ROS2.TestNativeMethods
             NativeRcl.rcl_node_fini(ref node);
             if (nodeOptions != IntPtr.Zero)
             {
-                NativeRclInterface.rclcs_node_dispose_options(nodeOptions);
+                TestUtils.AssertRetOk(NativeRclInterface.rclcs_node_dispose_options(nodeOptions));
             }
         }
 
@@ -377,8 +384,14 @@ namespace ROS2.TestNativeMethods
             {
                 IntPtr subscriptionOptions = NativeRclInterface.rclcs_subscription_create_options(qos.handle);
                 Assert.That(subscriptionOptions, Is.Not.EqualTo(IntPtr.Zero));
-                NativeRclInterface.rclcs_subscription_dispose_options(subscriptionOptions);
+                TestUtils.AssertRetOk(NativeRclInterface.rclcs_subscription_dispose_options(subscriptionOptions));
             }
+        }
+
+        [Test]
+        public void SubscriptionDisposeOptionsAcceptsNull()
+        {
+            TestUtils.AssertRetOk(NativeRclInterface.rclcs_subscription_dispose_options(IntPtr.Zero));
         }
 
         public static void InitSubscription(
@@ -404,7 +417,7 @@ namespace ROS2.TestNativeMethods
             var ret = (RCLReturnEnum)NativeRcl.rcl_subscription_fini(ref subscription, ref node);
             if (subscriptionOptions != IntPtr.Zero)
             {
-                NativeRclInterface.rclcs_subscription_dispose_options(subscriptionOptions);
+                TestUtils.AssertRetOk(NativeRclInterface.rclcs_subscription_dispose_options(subscriptionOptions));
             }
             Assert.That(ret, Is.EqualTo(RCLReturnEnum.RCL_RET_OK), Utils.PopRclErrorString());
         }
@@ -633,7 +646,7 @@ namespace ROS2.TestNativeMethods
                     {
                         TestUtils.AssertRetOk(NativeRcl.rcl_subscription_fini(ref subscription, ref node));
                     }
-                    NativeRclInterface.rclcs_subscription_dispose_options(subscriptionOptions);
+                    TestUtils.AssertRetOk(NativeRclInterface.rclcs_subscription_dispose_options(subscriptionOptions));
                 }
             }
         }
