@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  ros2cs-tests:
+    runs-on: ubuntu-24.04
+    container:
+      image: ros:jazzy
+
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+
+    steps:
+      - name: Checkout ros2cs
+        uses: actions/checkout@v4
+        with:
+          path: ros2cs_ws/src/ros2cs
+
+      - name: Install workflow dependencies
+        run: |
+          apt-get update
+          apt-get install -y python3-vcstool
+
+      - name: Install .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Import source dependencies
+        working-directory: ros2cs_ws
+        run: |
+          vcs import src < src/ros2cs/ros2_jazzy.repos
+
+      - name: Install ROS dependencies
+        working-directory: ros2cs_ws
+        run: |
+          rosdep update
+          rosdep install --from-paths src --ignore-src -y
+
+      - name: Build ros2cs tests
+        working-directory: ros2cs_ws
+        run: |
+          . /opt/ros/jazzy/setup.sh
+          colcon build \
+            --packages-up-to ros2cs_tests \
+            --merge-install \
+            --event-handlers console_direct+
+
+      - name: Run ros2cs tests
+        working-directory: ros2cs_ws
+        run: |
+          . /opt/ros/jazzy/setup.sh
+          . install/setup.sh
+          colcon test \
+            --packages-select ros2cs_tests \
+            --merge-install \
+            --event-handlers console_direct+
+          colcon test-result --verbose
