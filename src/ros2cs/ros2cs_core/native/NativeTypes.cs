@@ -154,5 +154,22 @@ namespace ROS2
     rcl_allocator_t allocator;
   }
 
+  /// <summary>Managed mirror of rclcs_string_array_t with explicit native field order.</summary>
+  [StructLayout(LayoutKind.Sequential)]
+  internal struct rclcs_string_array_t
+  {
+    internal IntPtr data;
+    internal UIntPtr size;
+  }
+
+  /// <summary>Managed mirror of rclcs_topic_names_and_types_t with explicit native field order.</summary>
+  [StructLayout(LayoutKind.Sequential)]
+  internal struct rclcs_topic_names_and_types_t
+  {
+    internal IntPtr names;
+    internal IntPtr types;
+    internal UIntPtr size;
+  }
+
 #pragma warning restore 0169
 }

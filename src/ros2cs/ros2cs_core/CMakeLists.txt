@@ -111,6 +111,7 @@ set(CS_SOURCES
   QualityOfServiceProfile.cs
   Ros2cs.cs
   Subscription.cs
+  TopicNamesAndTypes.cs
   WaitSet.cs
   properties/AssemblyInfo.cs
 )

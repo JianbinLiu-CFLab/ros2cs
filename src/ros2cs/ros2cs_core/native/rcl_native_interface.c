@@ -22,6 +22,7 @@
 // - Surfaced option finalization return codes and guarded null option disposals.
 
 #include <rcl/error_handling.h>
+#include <rcl/graph.h>
 #include <rcl/node.h>
 #include <rcl/rcl.h>
 #include <rcl/time.h>
@@ -29,7 +30,21 @@
 #include <rcutils/strdup.h>
 #include <rcutils/types.h>
 #include <rmw/qos_profiles.h>
+#include <stdbool.h>
 #include <stdlib.h>
+
+typedef struct rclcs_string_array_s
+{
+  char ** data;
+  size_t size;
+} rclcs_string_array_t;
+
+typedef struct rclcs_topic_names_and_types_s
+{
+  char ** names;
+  rclcs_string_array_t * types;
+  size_t size;
+} rclcs_topic_names_and_types_t;
 
 ROSIDL_GENERATOR_C_EXPORT
 int rclcs_init(rcl_context_t *context, rcl_allocator_t allocator)
@@ -205,6 +220,121 @@ ROSIDL_GENERATOR_C_EXPORT
 void rclcs_dispose_error_string(char * error_c_string)
 {
   free(error_c_string);
+}
+
+ROSIDL_GENERATOR_C_EXPORT
+void rclcs_dispose_topic_names_and_types(rclcs_topic_names_and_types_t * result)
+{
+  if (result == NULL)
+  {
+    return;
+  }
+
+  for (size_t i = 0; i < result->size; i++)
+  {
+    free(result->names[i]);
+    for (size_t j = 0; j < result->types[i].size; j++)
+    {
+      free(result->types[i].data[j]);
+    }
+    free(result->types[i].data);
+  }
+
+  free(result->names);
+  free(result->types);
+  free(result);
+}
+
+ROSIDL_GENERATOR_C_EXPORT
+int rclcs_get_topic_names_and_types(
+  const rcl_node_t * node,
+  bool no_demangle,
+  rclcs_topic_names_and_types_t ** result)
+{
+  if (result == NULL)
+  {
+    return RCL_RET_INVALID_ARGUMENT;
+  }
+  *result = NULL;
+  if (node == NULL)
+  {
+    return RCL_RET_INVALID_ARGUMENT;
+  }
+
+  rcl_allocator_t allocator = rcl_get_default_allocator();
+  rcl_names_and_types_t names_and_types = rcl_get_zero_initialized_names_and_types();
+  rcl_ret_t ret = rcl_get_topic_names_and_types(
+    node,
+    &allocator,
+    no_demangle,
+    &names_and_types);
+  if (ret != RCL_RET_OK)
+  {
+    return (int)ret;
+  }
+
+  rclcs_topic_names_and_types_t * flattened =
+    (rclcs_topic_names_and_types_t *)calloc(1, sizeof(rclcs_topic_names_and_types_t));
+  if (flattened == NULL)
+  {
+    rcl_names_and_types_fini(&names_and_types);
+    return RCL_RET_BAD_ALLOC;
+  }
+
+  flattened->size = names_and_types.names.size;
+  if (flattened->size > 0)
+  {
+    flattened->names = (char **)calloc(flattened->size, sizeof(char *));
+    flattened->types =
+      (rclcs_string_array_t *)calloc(flattened->size, sizeof(rclcs_string_array_t));
+    if (flattened->names == NULL || flattened->types == NULL)
+    {
+      rclcs_dispose_topic_names_and_types(flattened);
+      rcl_names_and_types_fini(&names_and_types);
+      return RCL_RET_BAD_ALLOC;
+    }
+  }
+
+  for (size_t i = 0; i < flattened->size; i++)
+  {
+    flattened->names[i] = strdup(names_and_types.names.data[i]);
+    if (flattened->names[i] == NULL)
+    {
+      rclcs_dispose_topic_names_and_types(flattened);
+      rcl_names_and_types_fini(&names_and_types);
+      return RCL_RET_BAD_ALLOC;
+    }
+
+    size_t type_count = names_and_types.types[i].size;
+    flattened->types[i].size = type_count;
+    if (type_count == 0)
+    {
+      continue;
+    }
+
+    flattened->types[i].data = (char **)calloc(type_count, sizeof(char *));
+    if (flattened->types[i].data == NULL)
+    {
+      rclcs_dispose_topic_names_and_types(flattened);
+      rcl_names_and_types_fini(&names_and_types);
+      return RCL_RET_BAD_ALLOC;
+    }
+
+    for (size_t j = 0; j < type_count; j++)
+    {
+      flattened->types[i].data[j] = strdup(names_and_types.types[i].data[j]);
+      if (flattened->types[i].data[j] == NULL)
+      {
+        rclcs_dispose_topic_names_and_types(flattened);
+        rcl_names_and_types_fini(&names_and_types);
+        return RCL_RET_BAD_ALLOC;
+      }
+    }
+  }
+
+  rcl_names_and_types_fini(&names_and_types);
+  *result = flattened;
+  return RCL_RET_OK;
 }
 
 ROSIDL_GENERATOR_C_EXPORT

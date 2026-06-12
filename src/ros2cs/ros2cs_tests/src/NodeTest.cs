@@ -19,8 +19,11 @@
 // - Added node-owned entity disposal and stale-node pruning coverage.
 
 using System;
+using System.Collections.Generic;
 using System.Reflection;
+using System.Threading;
 using NUnit.Framework;
+using NUnit.Framework.Constraints;
 using example_interfaces.srv;
 
 namespace ROS2.Test
@@ -30,6 +33,11 @@ namespace ROS2.Test
     {
         INode node;
         string TEST_NODE = "my_node";
+        const string GRAPH_TEST_TOPIC = "/graph_discovery_test_topic";
+        const string GRAPH_NAMES_TYPES_TOPIC = "/graph_names_and_types_test_topic";
+        const string GRAPH_NAMES_TYPES_EXPECTED_TYPE = "std_msgs/msg/Bool";
+        static readonly TimeSpan GraphTimeout = TimeSpan.FromSeconds(5);
+        static readonly TimeSpan GraphPollInterval = TimeSpan.FromMilliseconds(100);
 
         [SetUp]
         public void SetUp()
@@ -81,6 +89,61 @@ namespace ROS2.Test
             node.Dispose();
 
             Assert.Throws<ObjectDisposedException>(() => node.CreatePublisher<std_msgs.msg.Bool>("test_topic"));
+        }
+
+        [Test]
+        public void CountPublishersAndSubscribersTrackGraphEndpoints()
+        {
+            Assert.That(node.CountPublishers(GRAPH_TEST_TOPIC), Is.EqualTo(0));
+            Assert.That(node.CountSubscribers(GRAPH_TEST_TOPIC), Is.EqualTo(0));
+
+            using (node.CreatePublisher<std_msgs.msg.Bool>(GRAPH_TEST_TOPIC))
+            {
+                WaitForGraphCount(() => node.CountPublishers(GRAPH_TEST_TOPIC), Is.GreaterThanOrEqualTo(1));
+            }
+            WaitForGraphCount(() => node.CountPublishers(GRAPH_TEST_TOPIC), Is.EqualTo(0));
+
+            using (node.CreateSubscription<std_msgs.msg.Bool>(GRAPH_TEST_TOPIC, msg => { }))
+            {
+                WaitForGraphCount(() => node.CountSubscribers(GRAPH_TEST_TOPIC), Is.GreaterThanOrEqualTo(1));
+            }
+            WaitForGraphCount(() => node.CountSubscribers(GRAPH_TEST_TOPIC), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void CountPublishersAndSubscribersAfterDisposeThrow()
+        {
+            node.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => node.CountPublishers(GRAPH_TEST_TOPIC));
+            Assert.Throws<ObjectDisposedException>(() => node.CountSubscribers(GRAPH_TEST_TOPIC));
+        }
+
+        [Test]
+        public void GetTopicNamesAndTypesReturnsListForFreshNode()
+        {
+            IReadOnlyList<TopicNamesAndTypes> topics = node.GetTopicNamesAndTypes();
+
+            Assert.That(topics, Is.Not.Null);
+        }
+
+        [Test]
+        public void GetTopicNamesAndTypesEventuallyFindsPublisherTopic()
+        {
+            using (node.CreatePublisher<std_msgs.msg.Bool>(GRAPH_NAMES_TYPES_TOPIC))
+            {
+                Assert.That(
+                    PollUntilGraphContainsTopic(GRAPH_NAMES_TYPES_TOPIC, GRAPH_NAMES_TYPES_EXPECTED_TYPE),
+                    Is.True);
+            }
+        }
+
+        [Test]
+        public void GetTopicNamesAndTypesAfterDisposeThrows()
+        {
+            node.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => node.GetTopicNamesAndTypes());
         }
 
         [Test]
@@ -216,6 +279,46 @@ namespace ROS2.Test
                     Does.Contain(typeof(System.Runtime.CompilerServices.IsVolatile)),
                     childType.FullName);
             }
+        }
+
+        private static void WaitForGraphCount(Func<int> readCount, IResolveConstraint expected)
+        {
+            DateTime deadline = DateTime.UtcNow + GraphTimeout;
+            int count = readCount();
+            while (!expected.Resolve().ApplyTo(count).IsSuccess)
+            {
+                if (DateTime.UtcNow >= deadline)
+                {
+                    Assert.That(count, expected);
+                }
+                Thread.Sleep(GraphPollInterval);
+                count = readCount();
+            }
+        }
+
+        private bool PollUntilGraphContainsTopic(string topicName, string expectedType)
+        {
+            DateTime deadline = DateTime.UtcNow + GraphTimeout;
+            while (DateTime.UtcNow < deadline)
+            {
+                IReadOnlyList<TopicNamesAndTypes> topics = node.GetTopicNamesAndTypes();
+                foreach (TopicNamesAndTypes topic in topics)
+                {
+                    if (topic.Name != topicName)
+                    {
+                        continue;
+                    }
+                    foreach (string type in topic.Types)
+                    {
+                        if (type == expectedType)
+                        {
+                            return true;
+                        }
+                    }
+                }
+                Thread.Sleep(GraphPollInterval);
+            }
+            return false;
         }
     }
 }

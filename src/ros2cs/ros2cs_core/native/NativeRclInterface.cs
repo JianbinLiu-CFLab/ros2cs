@@ -178,5 +178,26 @@ namespace ROS2
         nativeROS2CS,
         "rclcs_ros_clock_dispose"),
         typeof(RclcsClockDispose));
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate int GetTopicNamesAndTypesType(
+        ref rcl_node_t node,
+        [MarshalAs(UnmanagedType.I1)] bool noDemangle,
+        out IntPtr result);
+    internal static GetTopicNamesAndTypesType
+        rclcs_get_topic_names_and_types =
+        (GetTopicNamesAndTypesType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
+        nativeROS2CS,
+        "rclcs_get_topic_names_and_types"),
+        typeof(GetTopicNamesAndTypesType));
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate void DisposeTopicNamesAndTypesType(IntPtr result);
+    internal static DisposeTopicNamesAndTypesType
+        rclcs_dispose_topic_names_and_types =
+        (DisposeTopicNamesAndTypesType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
+        nativeROS2CS,
+        "rclcs_dispose_topic_names_and_types"),
+        typeof(DisposeTopicNamesAndTypesType));
   }
 }
