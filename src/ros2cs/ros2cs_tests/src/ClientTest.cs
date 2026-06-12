@@ -38,10 +38,24 @@ namespace ROS2.Test
 
         private IClient<AddTwoInts_Request, AddTwoInts_Response> Client;
 
+        [OneTimeSetUp]
+        public void OneTimeSetUp()
+        {
+            Ros2cs.Init();
+        }
+
+        [OneTimeTearDown]
+        public void OneTimeTearDown()
+        {
+            if (Ros2cs.Ok())
+            {
+                Ros2cs.Shutdown();
+            }
+        }
+
         [SetUp]
         public void SetUp()
         {
-            Ros2cs.Init();
             Node = Ros2cs.CreateNode("service_test_node");
             Client = Node.CreateClient<AddTwoInts_Request, AddTwoInts_Response>(SERVICE_NAME);
         }
@@ -49,9 +63,9 @@ namespace ROS2.Test
         [TearDown]
         public void TearDown()
         {
-            if (Ros2cs.Ok())
+            if (!Node.IsDisposed)
             {
-                Ros2cs.Shutdown();
+                Node.Dispose();
             }
         }
 

@@ -71,20 +71,6 @@ namespace ROS2.TestNativeMethods
     [TestFixture]
     public class RCL
     {
-        rcl_context_t context = new rcl_context_t();
-
-        [SetUp]
-        public void SetUp()
-        {
-            RCLInitialize.InitRcl(ref context);
-        }
-
-        [TearDown]
-        public void TearDown()
-        {
-            RCLInitialize.ShutdownRcl(ref context);
-        }
-
         [Test]
         public void GetZeroInitializedContext()
         {
@@ -246,15 +232,15 @@ namespace ROS2.TestNativeMethods
         rcl_node_t node;
         IntPtr nodeOptions = new IntPtr();
 
-        [SetUp]
-        public void SetUp()
+        [OneTimeSetUp]
+        public void OneTimeSetUp()
         {
             RCLInitialize.InitRcl(ref context);
             NodeInitialize.InitNode(ref node, ref nodeOptions, ref context);
         }
 
-        [TearDown]
-        public void TearDown()
+        [OneTimeTearDown]
+        public void OneTimeTearDown()
         {
             NodeInitialize.ShutdownNode(ref node, nodeOptions);
             RCLInitialize.ShutdownRcl(ref context);
@@ -323,15 +309,15 @@ namespace ROS2.TestNativeMethods
         rcl_node_t node;
         IntPtr nodeOptions = new IntPtr();
 
-        [SetUp]
-        public void SetUp()
+        [OneTimeSetUp]
+        public void OneTimeSetUp()
         {
             RCLInitialize.InitRcl(ref context);
             NodeInitialize.InitNode(ref node, ref nodeOptions, ref context);
         }
 
-        [TearDown]
-        public void TearDown()
+        [OneTimeTearDown]
+        public void OneTimeTearDown()
         {
             NodeInitialize.ShutdownNode(ref node, nodeOptions);
             RCLInitialize.ShutdownRcl(ref context);
@@ -399,15 +385,15 @@ namespace ROS2.TestNativeMethods
         rcl_node_t node;
         IntPtr nodeOptions = new IntPtr();
 
-        [SetUp]
-        public void SetUp()
+        [OneTimeSetUp]
+        public void OneTimeSetUp()
         {
             RCLInitialize.InitRcl(ref context);
             NodeInitialize.InitNode(ref node, ref nodeOptions, ref context);
         }
 
-        [TearDown]
-        public void TearDown()
+        [OneTimeTearDown]
+        public void OneTimeTearDown()
         {
             NodeInitialize.ShutdownNode(ref node, nodeOptions);
             RCLInitialize.ShutdownRcl(ref context);
@@ -583,15 +569,15 @@ namespace ROS2.TestNativeMethods
         rcl_node_t node;
         IntPtr nodeOptions = new IntPtr();
 
-        [SetUp]
-        public void SetUp()
+        [OneTimeSetUp]
+        public void OneTimeSetUp()
         {
             RCLInitialize.InitRcl(ref context);
             NodeInitialize.InitNode(ref node, ref nodeOptions, ref context);
         }
 
-        [TearDown]
-        public void TearDown()
+        [OneTimeTearDown]
+        public void OneTimeTearDown()
         {
             NodeInitialize.ShutdownNode(ref node, nodeOptions);
             RCLInitialize.ShutdownRcl(ref context);
@@ -664,15 +650,15 @@ namespace ROS2.TestNativeMethods
         rcl_node_t node;
         IntPtr nodeOptions = new IntPtr();
 
-        [SetUp]
-        public void SetUp()
+        [OneTimeSetUp]
+        public void OneTimeSetUp()
         {
             RCLInitialize.InitRcl(ref context);
             NodeInitialize.InitNode(ref node, ref nodeOptions, ref context);
         }
 
-        [TearDown]
-        public void TearDown()
+        [OneTimeTearDown]
+        public void OneTimeTearDown()
         {
             NodeInitialize.ShutdownNode(ref node, nodeOptions);
             RCLInitialize.ShutdownRcl(ref context);
@@ -770,15 +756,15 @@ namespace ROS2.TestNativeMethods
         rcl_node_t node;
         IntPtr nodeOptions = new IntPtr();
 
-        [SetUp]
-        public void SetUp()
+        [OneTimeSetUp]
+        public void OneTimeSetUp()
         {
             RCLInitialize.InitRcl(ref context);
             NodeInitialize.InitNode(ref node, ref nodeOptions, ref context);
         }
 
-        [TearDown]
-        public void TearDown()
+        [OneTimeTearDown]
+        public void OneTimeTearDown()
         {
             NodeInitialize.ShutdownNode(ref node, nodeOptions);
             RCLInitialize.ShutdownRcl(ref context);

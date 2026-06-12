@@ -29,11 +29,26 @@ namespace ROS2.Test
     {
         INode node;
         Publisher<std_msgs.msg.Int32> publisher;
+        private const double SpinOnceTimeoutSeconds = 0.01;
+
+        [OneTimeSetUp]
+        public void OneTimeSetUp()
+        {
+            Ros2cs.Init();
+        }
+
+        [OneTimeTearDown]
+        public void OneTimeTearDown()
+        {
+            if (Ros2cs.Ok())
+            {
+                Ros2cs.Shutdown();
+            }
+        }
 
         [SetUp]
         public void SetUp()
         {
-            Ros2cs.Init();
             node = Ros2cs.CreateNode("subscription_test_node");
             publisher = node.CreatePublisher<std_msgs.msg.Int32>("subscription_test_topic");
         }
@@ -43,14 +58,13 @@ namespace ROS2.Test
         {
             publisher.Dispose();
             node.Dispose();
-            Ros2cs.Shutdown();
         }
 
         private void AllowEndpointDiscovery()
         {
             for (int i = 0; i < 5; i++)
             {
-                Ros2cs.SpinOnce(node, 0.1);
+                Ros2cs.SpinOnce(node, SpinOnceTimeoutSeconds);
             }
         }
 
@@ -61,7 +75,7 @@ namespace ROS2.Test
             node.CreateSubscription<std_msgs.msg.Int32>("subscription_test_topic", (msg) => { callbackTriggered = true; });
             using var publishedMsg = new std_msgs.msg.Int32();
             publisher.Publish(publishedMsg);
-            Ros2cs.SpinOnce(node, 0.1);
+            Ros2cs.SpinOnce(node, SpinOnceTimeoutSeconds);
 
             Assert.That(callbackTriggered, Is.True);
         }
@@ -74,7 +88,7 @@ namespace ROS2.Test
             using var published_msg = new std_msgs.msg.Int32();
             published_msg.Data = 42;
             publisher.Publish(published_msg);
-            Ros2cs.SpinOnce(node, 0.1);
+            Ros2cs.SpinOnce(node, SpinOnceTimeoutSeconds);
 
             Assert.That(messageData, Is.EqualTo(42));
         }
@@ -96,7 +110,7 @@ namespace ROS2.Test
 
             for (int i = 0; i < 10 && !secondCallbackTriggered; i++)
             {
-                Assert.DoesNotThrow(() => { Ros2cs.SpinOnce(node, 0.1); });
+                Assert.DoesNotThrow(() => { Ros2cs.SpinOnce(node, SpinOnceTimeoutSeconds); });
             }
 
             Assert.That(secondCallbackTriggered, Is.True);
@@ -108,7 +122,7 @@ namespace ROS2.Test
             ISubscription<std_msgs.msg.Int32> subscriber =
               node.CreateSubscription<std_msgs.msg.Int32>("subscription_test_topic", (msg) => { });
             subscriber.Dispose();
-            Assert.DoesNotThrow( () => { Ros2cs.SpinOnce(node, 0.1); });
+            Assert.DoesNotThrow( () => { Ros2cs.SpinOnce(node, SpinOnceTimeoutSeconds); });
         }
 
         [Test]
@@ -121,12 +135,12 @@ namespace ROS2.Test
                 subscriptions.Add(
                     node.CreateSubscription<std_msgs.msg.Int32>("subscription_test_topic", (msg) => { }));
             }
-            Ros2cs.SpinOnce(node, 0.1);
+            Ros2cs.SpinOnce(node, SpinOnceTimeoutSeconds);
             subscriptions.ForEach(delegate(Subscription<std_msgs.msg.Int32> subscription)
             {
                 subscription.Dispose();
             });
-            Assert.DoesNotThrow( () => { Ros2cs.SpinOnce(node, 0.1); });
+            Assert.DoesNotThrow( () => { Ros2cs.SpinOnce(node, SpinOnceTimeoutSeconds); });
         }
 
         [Test]
@@ -137,7 +151,7 @@ namespace ROS2.Test
             subscriber.Dispose();
             subscriber =
               node.CreateSubscription<std_msgs.msg.Int32>("subscription_test_topic", (msg) => { });
-            Assert.DoesNotThrow( () => { Ros2cs.SpinOnce(node, 0.1); });
+            Assert.DoesNotThrow( () => { Ros2cs.SpinOnce(node, SpinOnceTimeoutSeconds); });
         }
 
         [Test]
@@ -158,7 +172,7 @@ namespace ROS2.Test
 
             for (int i = 0; i < 11; i++)
             {
-                Ros2cs.SpinOnce(node, 0.1);
+                Ros2cs.SpinOnce(node, SpinOnceTimeoutSeconds);
             }
 
             Assert.That(count, Is.EqualTo(10));
@@ -187,7 +201,7 @@ namespace ROS2.Test
 
             for (int i = 0; i < 11; i++)
             {
-                Ros2cs.SpinOnce(node, 0.1);
+                Ros2cs.SpinOnce(node, SpinOnceTimeoutSeconds);
             }
 
             Assert.That(count, Is.EqualTo(5));
@@ -210,12 +224,12 @@ namespace ROS2.Test
 
             for (int i = 0; i < 3; i++)
             {
-                Ros2cs.SpinOnce(node, 0.1);
+                Ros2cs.SpinOnce(node, SpinOnceTimeoutSeconds);
             }
             for (int i = 0; i < 3; i++)
             {
                 bestEffortPublisher.Publish(publishedMsg);
-                Ros2cs.SpinOnce(node, 0.1);
+                Ros2cs.SpinOnce(node, SpinOnceTimeoutSeconds);
             }
 
             Assert.That(count, Is.Zero);

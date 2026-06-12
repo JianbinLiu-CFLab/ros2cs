@@ -39,10 +39,24 @@ namespace ROS2.Test
         static readonly TimeSpan GraphTimeout = TimeSpan.FromSeconds(5);
         static readonly TimeSpan GraphPollInterval = TimeSpan.FromMilliseconds(100);
 
+        [OneTimeSetUp]
+        public void OneTimeSetUp()
+        {
+            Ros2cs.Init();
+        }
+
+        [OneTimeTearDown]
+        public void OneTimeTearDown()
+        {
+            if (Ros2cs.Ok())
+            {
+                Ros2cs.Shutdown();
+            }
+        }
+
         [SetUp]
         public void SetUp()
         {
-            Ros2cs.Init();
             node = Ros2cs.CreateNode(TEST_NODE);
         }
 
@@ -53,7 +67,6 @@ namespace ROS2.Test
             {
                 node.Dispose();
             }
-            Ros2cs.Shutdown();
         }
 
         [Test]
