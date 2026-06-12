@@ -19,6 +19,8 @@
 // limitations under the License.
 
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 using NUnit.Framework;
 
 namespace ROS2.Test
@@ -131,6 +133,32 @@ namespace ROS2.Test
             {
                 Ros2cs.Shutdown();
             }
+        }
+
+        [Test]
+        public void ShutdownDuringActiveSpinOnceDoesNotThrow()
+        {
+            Ros2cs.Init();
+            var node = Ros2cs.CreateNode("shutdown_during_spin_node");
+            Exception spinException = null;
+            Task spinTask = Task.Run(() =>
+            {
+                try
+                {
+                    Ros2cs.SpinOnce(node, 1.0);
+                }
+                catch (Exception e)
+                {
+                    spinException = e;
+                }
+            });
+
+            Thread.Sleep(100);
+            Assert.DoesNotThrow(() => Ros2cs.Shutdown());
+
+            Assert.That(spinTask.Wait(TimeSpan.FromSeconds(2)), Is.True);
+            Assert.That(spinException, Is.Null);
+            Assert.That(Ros2cs.Ok(), Is.False);
         }
     }
 }

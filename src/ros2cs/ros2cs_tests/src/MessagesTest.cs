@@ -20,6 +20,7 @@
 // - Expanded finalizer policy coverage across loaded generated message types.
 
 using System;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using NUnit.Framework;
@@ -69,16 +70,7 @@ namespace ROS2.Test
         [Test]
         public void GeneratedMessagesDoNotDeclareFinalizer()
         {
-            Type[] anchorTypes =
-            {
-                typeof(std_msgs.msg.String),
-                typeof(std_msgs.msg.Bool),
-                typeof(test_msgs.msg.UnboundedSequences),
-                typeof(example_interfaces.srv.AddTwoInts_Request),
-                typeof(example_interfaces.srv.AddTwoInts_Response)
-            };
-
-            Assert.That(anchorTypes, Is.Not.Empty);
+            LoadGeneratedMessageAssemblies();
 
             var messageTypes = AppDomain.CurrentDomain.GetAssemblies()
                 .SelectMany(assembly =>
@@ -108,6 +100,18 @@ namespace ROS2.Test
                     BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
 
                 Assert.That(finalizeMethod, Is.Null, messageType.FullName + " declares a finalizer.");
+            }
+        }
+
+        private static void LoadGeneratedMessageAssemblies()
+        {
+            string outputDirectory = AppContext.BaseDirectory;
+            string[] assemblyPaths = Directory.GetFiles(outputDirectory, "*_assembly.dll");
+            Assert.That(assemblyPaths, Is.Not.Empty);
+
+            foreach (string assemblyPath in assemblyPaths)
+            {
+                Assembly.LoadFrom(assemblyPath);
             }
         }
 
@@ -177,6 +181,29 @@ namespace ROS2.Test
             msg.ReadNativeMessage();
 
             Assert.That(msg.Int8_values, Is.EqualTo(expected));
+        }
+
+        /// <summary>Verifies generated primitive sequence marshaling preserves representative native layouts.</summary>
+        [Test]
+        public void NativeRoundtripPreservesRepresentativeSequences()
+        {
+            bool[] expectedBool = new bool[] { true, false, true };
+            double[] expectedFloat64 = new double[] { -1.5, 0.0, 42.25 };
+            string[] expectedString = new string[] { "hello", "", "世界" };
+            using var msg = new test_msgs.msg.UnboundedSequences();
+            msg.Bool_values = expectedBool;
+            msg.Float64_values = expectedFloat64;
+            msg.String_values = expectedString;
+
+            msg.WriteNativeMessage();
+            msg.Bool_values = Array.Empty<bool>();
+            msg.Float64_values = Array.Empty<double>();
+            msg.String_values = Array.Empty<string>();
+            msg.ReadNativeMessage();
+
+            Assert.That(msg.Bool_values, Is.EqualTo(expectedBool));
+            Assert.That(msg.Float64_values, Is.EqualTo(expectedFloat64));
+            Assert.That(msg.String_values, Is.EqualTo(expectedString));
         }
 
         /// <summary>Fresh generated messages must not allocate native storage just to read from it.</summary>

@@ -87,18 +87,24 @@ namespace ROS2.TestNativeMethods
         public void GetZeroInitializedContext()
         {
             rcl_context_t context = NativeRcl.rcl_get_zero_initialized_context();
+            Assert.That(context, Is.EqualTo(default(rcl_context_t)));
         }
 
         [Test]
         public void GetDefaultAllocator()
         {
             rcl_allocator_t allocator = NativeRcl.rcutils_get_default_allocator();
+            Assert.That(allocator.allocate, Is.Not.EqualTo(IntPtr.Zero));
+            Assert.That(allocator.deallocate, Is.Not.EqualTo(IntPtr.Zero));
+            Assert.That(allocator.reallocate, Is.Not.EqualTo(IntPtr.Zero));
+            Assert.That(allocator.zero_allocate, Is.Not.EqualTo(IntPtr.Zero));
         }
 
         [Test]
         public void GetZeroInitializedInitOptions()
         {
             rcl_init_options_t init_options = NativeRcl.rcl_get_zero_initialized_init_options();
+            Assert.That(init_options, Is.EqualTo(default(rcl_init_options_t)));
         }
 
         [Test]
@@ -124,6 +130,7 @@ namespace ROS2.TestNativeMethods
         public void ResetError()
         {
             NativeRcl.rcl_reset_error();
+            Assert.That(Utils.GetRclErrorString(), Is.EqualTo("error not set"));
         }
 
         [Test]
