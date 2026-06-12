@@ -53,6 +53,8 @@ namespace ROS2
     private static rcl_context_t global_context;  // a simplification, we only use global default context
     private static rcl_allocator_t default_allocator;
     private static List<INode> nodes = new List<INode>(); // kept to shutdown everything in order
+    private static readonly Lazy<string> RmwImplementation =
+      new Lazy<string>(() => Utils.PtrToString(NativeRmwInterface.rmw_native_interface_get_implementation_identifier()));
 
     private static WaitSet WaitSet;
     private static bool destructorFinalizerSuppressed;
@@ -95,7 +97,7 @@ namespace ROS2
 
     public static string GetRMWImplementation()
     {
-      return Utils.PtrToString(NativeRmwInterface.rmw_native_interface_get_implementation_identifier());
+      return RmwImplementation.Value;
     }
 
     /// <summary> Globally shutdown ros2 (rcl) </summary>

@@ -23,6 +23,8 @@
 
 using NUnit.Framework;
 using System;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using ROS2.Test;
 using ROS2.Internal;
 
@@ -105,6 +107,15 @@ namespace ROS2.TestNativeMethods
         {
             rcl_init_options_t init_options = NativeRcl.rcl_get_zero_initialized_init_options();
             Assert.That(init_options, Is.EqualTo(default(rcl_init_options_t)));
+        }
+
+        [Test]
+        public void RequestIdHeaderIsBlittableWithoutManagedGuidArray()
+        {
+            FieldInfo writerGuid = typeof(rcl_rmw_request_id_t).GetField("writer_guid");
+
+            Assert.That(writerGuid, Is.Null);
+            Assert.That(Marshal.SizeOf<rcl_rmw_request_id_t>(), Is.EqualTo(24));
         }
 
         [Test]

@@ -115,9 +115,9 @@ namespace ROS2
   [StructLayout(LayoutKind.Sequential)]
   public struct rcl_rmw_request_id_t
   {
-    /// The guid of the writer associated with this request
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
-    public byte[] writer_guid;
+    // Native writer_guid is 16 inline bytes. Keep it blittable to avoid a byte[] allocation per take.
+    private long writer_guid_0;
+    private long writer_guid_1;
     /// Sequence number of this service
     [MarshalAs(UnmanagedType.I8)]
     public long sequence_number;
