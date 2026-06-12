@@ -27,7 +27,11 @@ namespace ROS2
     /// <summary>
     /// Tries to get a request message from rcl/rmw layers
     /// </summary>
-    /// <remarks>Invokes the callback if successful</remarks>
+    /// <remarks>
+    /// Invokes the callback if successful. The request wrapper passed to the callback is owned by
+    /// ros2cs and is disposed after the callback returns. The response returned by the callback is
+    /// also disposed by ros2cs after it is copied into native memory.
+    /// </remarks>
     // Internal spin entry point; kept on the public interface for compatibility.
     void TakeMessage();
 

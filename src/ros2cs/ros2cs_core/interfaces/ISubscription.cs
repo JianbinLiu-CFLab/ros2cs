@@ -24,6 +24,10 @@ namespace ROS2
   /// <description> Use Ros2cs.CreateSubscription to construct </description>
   public interface ISubscriptionBase : IExtendedDisposable
   {
+    /// <remarks>
+    /// The subscription callback receives a message wrapper owned by ros2cs. Callers must not
+    /// dispose that callback argument; ros2cs disposes it after the callback returns.
+    /// </remarks>
     // Internal spin entry point; kept on the public interface for compatibility.
     void TakeMessage();
 

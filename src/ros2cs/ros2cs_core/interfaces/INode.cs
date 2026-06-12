@@ -64,7 +64,7 @@ namespace ROS2
     /// <summary> Create a service for this node for a given topic, callback, qos and message type </summary>
     /// <description> Can only be called in an initialized Ros2cs state. </description>
     /// <param name="topic"> Topic to service to. Naming restrictions of ros2 apply and violation results in an exception </param>
-    /// <param name="callback"> Action to be called when message is received (through Spin or SpinOnce). Provide a lambda or a method </param>
+    /// <param name="callback"> Action to be called when message is received (through Spin or SpinOnce). The message passed to this callback is owned and disposed by ros2cs. Provide a lambda or a method </param>
     /// <param name="qos"> Quality of Service settings. Not passing this parameter will result in default settings </param>
     /// <returns> Service for the topic </returns>
     Service<I, O> CreateService<I, O>(string topic, Func<I, O> callback, QualityOfServiceProfile qos = null) where I : Message, new() where O : Message, new();
@@ -85,7 +85,7 @@ namespace ROS2
     /// <summary> Create a subscription for this node for a given topic, callback, qos and message type </summary>
     /// <description> Can only be called in an initialized Ros2cs state. </description>
     /// <param name="topic"> Topic to subscribe to. Naming restrictions of ros2 apply and violation results in an exception </param>
-    /// <param name="callback"> Action to be called when message is received (through Spin or SpinOnce). Provide a lambda or a method </param>
+    /// <param name="callback"> Action to be called when message is received (through Spin or SpinOnce). The message passed to this callback is owned and disposed by ros2cs. Provide a lambda or a method </param>
     /// <param name="qos"> Quality of Service settings. Not passing this parameter will result in default settings </param>
     /// <returns> Subscription for the topic </returns>
     Subscription<T> CreateSubscription<T>(string topic, Action<T> callback, QualityOfServiceProfile qos = null) where T : Message, new();
