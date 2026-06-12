@@ -75,25 +75,16 @@ namespace ROS2
           {
             return typeSupportHandle;
           }
-        }
 
-        T msg = new T();
-        try
-        {
-          // Create one temporary generated message only when the type support handle is not cached yet.
-          typeSupportHandle = AsMessageInternals(msg, nameof(msg)).TypeSupportHandle;
-        }
-        finally
-        {
-          msg.Dispose();
-        }
-
-        lock (TypeSupportHandlesMutex)
-        {
-          IntPtr cachedTypeSupportHandle;
-          if (TypeSupportHandles.TryGetValue(messageType, out cachedTypeSupportHandle))
+          T msg = new T();
+          try
           {
-            return cachedTypeSupportHandle;
+            // Create one temporary generated message only when the type support handle is not cached yet.
+            typeSupportHandle = AsMessageInternals(msg, nameof(msg)).TypeSupportHandle;
+          }
+          finally
+          {
+            msg.Dispose();
           }
 
           TypeSupportHandles[messageType] = typeSupportHandle;

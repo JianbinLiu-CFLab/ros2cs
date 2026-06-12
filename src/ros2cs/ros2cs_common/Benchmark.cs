@@ -37,7 +37,8 @@ namespace ROS2
       if (Interlocked.Exchange(ref disposed, 1) == 0)
       {
         timer.Stop();
-        Ros2csLogger.GetInstance().LogDebug($"{benchmarkName} {timer.ElapsedTicks} ticks ({timer.ElapsedMilliseconds} ms)");
+        Ros2csLogger.GetInstance().LogDebug(
+          () => $"{benchmarkName} {timer.ElapsedTicks} ticks ({timer.ElapsedMilliseconds} ms)");
       }
     }
   }
