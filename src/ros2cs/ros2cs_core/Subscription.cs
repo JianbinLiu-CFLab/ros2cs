@@ -17,6 +17,7 @@
 // - Added node-owned disposal path and options cleanup.
 // - Added safe message disposal and take-failure handling.
 // - Propagates native subscription option finalization failures during explicit disposal.
+// - Made disposal state volatile for node/entity visibility.
 
 using System;
 using System.Collections.Generic;
@@ -35,7 +36,7 @@ namespace ROS2
     private string topic;
 
     public bool IsDisposed { get { return disposed; } }
-    private bool disposed = false;
+    private volatile bool disposed = false;
 
     // Keep the owning node reference so fini calls always use the current native node handle.
     private readonly Node node;

@@ -16,6 +16,7 @@
 
 // Modifications by Jianbin Liu:
 // - Added coverage for disposed node create-entity behavior.
+// - Added node-owned entity disposal and stale-node pruning coverage.
 
 using System;
 using System.Reflection;
@@ -77,6 +78,16 @@ namespace ROS2.Test
             node.Dispose();
 
             Assert.Throws<ObjectDisposedException>(() => node.CreatePublisher<std_msgs.msg.Bool>("test_topic"));
+        }
+
+        [Test]
+        public void DirectDisposeAllowsSameNameNodeRecreate()
+        {
+            node.Dispose();
+
+            node = Ros2cs.CreateNode(TEST_NODE);
+
+            Assert.That(node.Name, Is.EqualTo(TEST_NODE));
         }
 
         [Test]
@@ -146,11 +157,62 @@ namespace ROS2.Test
         }
 
         [Test]
+        public void NodeDisposeDisposesOwnedEntities()
+        {
+            var publisher = node.CreatePublisher<std_msgs.msg.Bool>("owned_publisher");
+            var subscription = node.CreateSubscription<std_msgs.msg.Bool>("owned_subscription", msg => { });
+            var service = node.CreateService<AddTwoInts_Request, AddTwoInts_Response>(
+                "owned_service",
+                request => new AddTwoInts_Response());
+            var client = node.CreateClient<AddTwoInts_Request, AddTwoInts_Response>("owned_service");
+
+            node.Dispose();
+
+            Assert.That(publisher.IsDisposed, Is.True);
+            Assert.That(subscription.IsDisposed, Is.True);
+            Assert.That(service.IsDisposed, Is.True);
+            Assert.That(client.IsDisposed, Is.True);
+        }
+
+        [Test]
+        public void PublisherHeldAfterNodeDisposeReturnsSafely()
+        {
+            var publisher = node.CreatePublisher<std_msgs.msg.Bool>("held_publisher");
+            using var msg = new std_msgs.msg.Bool();
+
+            node.Dispose();
+
+            Assert.That(publisher.IsDisposed, Is.True);
+            Assert.DoesNotThrow(() => publisher.Publish(msg));
+        }
+
+        [Test]
         public void NodeDisposedFlagIsVolatileForChildDisposeVisibility()
         {
             FieldInfo field = typeof(Node).GetField("disposed", BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.That(field, Is.Not.Null);
             Assert.That(field.GetRequiredCustomModifiers(), Does.Contain(typeof(System.Runtime.CompilerServices.IsVolatile)));
+        }
+
+        [Test]
+        public void ChildDisposedFlagsAreVolatileForEntityVisibility()
+        {
+            Type[] childTypes = {
+                typeof(Publisher<std_msgs.msg.Bool>),
+                typeof(Subscription<std_msgs.msg.Bool>),
+                typeof(Service<AddTwoInts_Request, AddTwoInts_Response>),
+                typeof(Client<AddTwoInts_Request, AddTwoInts_Response>)
+            };
+
+            foreach (Type childType in childTypes)
+            {
+                FieldInfo field = childType.GetField("disposed", BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.That(field, Is.Not.Null, childType.FullName);
+                Assert.That(
+                    field.GetRequiredCustomModifiers(),
+                    Does.Contain(typeof(System.Runtime.CompilerServices.IsVolatile)),
+                    childType.FullName);
+            }
         }
     }
 }

@@ -17,6 +17,7 @@
 // - Added node-owned disposal path.
 // - Added QoS/options cleanup and owning-node shutdown guards.
 // - Restricted construction to node factory methods.
+// - Made disposal state volatile for node/entity visibility.
 
 using System;
 using System.Collections.Generic;
@@ -38,7 +39,7 @@ namespace ROS2
     // Keep the owning node reference so fini calls always use the current native node handle.
     private readonly Node node;
     private readonly object mutex = new object();
-    private bool disposed = false;
+    private volatile bool disposed = false;
 
     public bool IsDisposed { get { return disposed; } }
 

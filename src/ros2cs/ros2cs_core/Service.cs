@@ -18,6 +18,7 @@
 // - Suppressed stale client response noise during shutdown/reconnect.
 // - Added safe request message disposal.
 // - Isolated user callback exceptions from native response handling.
+// - Made disposal state volatile for node/entity visibility.
 
 using System;
 using System.Collections.Generic;
@@ -44,7 +45,7 @@ namespace ROS2
 
     /// <inheritdoc/>
     public bool IsDisposed { get { return disposed; } }
-    private bool disposed = false;
+    private volatile bool disposed = false;
 
     // Keep the owning node reference so fini calls always use the current native node handle.
     private readonly Node node;

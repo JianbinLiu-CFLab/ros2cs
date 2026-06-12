@@ -19,6 +19,7 @@
 // - Serialized wait set access and reduced reconnect/spin noise.
 // - Suppressed the static shutdown finalizer after explicit Shutdown.
 // - Clarified context and wait-set lifecycle invariants.
+// - Pruned directly disposed nodes before enforcing name uniqueness.
 
 using System;
 using System.Linq;
@@ -231,6 +232,7 @@ namespace ROS2
           throw new NotInitializedException();
         }
 
+        nodes.RemoveAll(node => node.IsDisposed);
         foreach (var node in nodes)
         {
           if (node.Name == nodeName)
