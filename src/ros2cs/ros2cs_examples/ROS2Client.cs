@@ -30,7 +30,7 @@ namespace Examples
     {
       Console.WriteLine("Client start");
       using var runtime = new ROS2ExampleRuntime();
-      INode node = Ros2cs.CreateNode("client");
+      using INode node = Ros2cs.CreateNode("client");
       using Client<example_interfaces.srv.AddTwoInts_Request, example_interfaces.srv.AddTwoInts_Response> my_client = node.CreateClient<example_interfaces.srv.AddTwoInts_Request, example_interfaces.srv.AddTwoInts_Response>("add_two_ints");
 
       using var msg = new example_interfaces.srv.AddTwoInts_Request();

@@ -21,6 +21,7 @@ using System;
 using ROS2;
 using System.Collections;
 using System.Collections.Concurrent;
+using System.Threading;
 
 namespace Examples
 {
@@ -89,16 +90,15 @@ namespace Examples
     {
       using var runtime = new ROS2ExampleRuntime();
       using var clock = new Clock();
-      INode node = Ros2cs.CreateNode("perf_listener");
+      using INode node = Ros2cs.CreateNode("perf_listener");
       Console.WriteLine("Enter sample size: ");
       int sampleSize = Convert.ToInt32(Console.ReadLine());
-      Console.Clear();
       Console.WriteLine("Waiting for {0} messages...", sampleSize);
       FixedSizedQueue queue = new FixedSizedQueue(sampleSize);
 
       RosTime timeStamp = new RosTime();
       int counter = 0;
-      bool done = false;
+      int done = 0;
 
       using (QualityOfServiceProfile qos = new QualityOfServiceProfile(QosPresetProfile.SENSOR_DATA))
       {
@@ -117,15 +117,15 @@ namespace Examples
             if (counter == queue.Size)
             {
               counter = 0;
-              Console.Clear();
               var result = queue.MeanAndStdDev();
               Console.WriteLine("Latency of sample size {0} - avg: {1:F6}s, std dev: {2:F10}s", sampleSize, result.mean, result.stdDev);
-              done = true;
+              Console.WriteLine("PERFORMANCE_LISTENER_COMPLETE sample_size={0} avg_s={1:F6} stddev_s={2:F10}", sampleSize, result.mean, result.stdDev);
+              Volatile.Write(ref done, 1);
             }
           },
           qos);
 
-        while (!done && Ros2cs.Ok())
+        while (Volatile.Read(ref done) == 0 && Ros2cs.Ok())
         {
           Ros2cs.SpinOnce(node, 0.1);
         }
