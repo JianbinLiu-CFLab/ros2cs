@@ -354,7 +354,7 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
 @[  elif isinstance(member.type, AbstractGenericString)]@
     @(get_field_name(member.type, member.name, message_class)) = "";
 @[  elif isinstance(member.type, AbstractSequence)]@
-    @(get_field_name(member.type, member.name, message_class)) = new @(get_dotnet_type(member.type.value_type))[0];
+    @(get_field_name(member.type, member.name, message_class)) = Array.Empty<@(get_dotnet_type(member.type.value_type))>();
 @[  elif isinstance(member.type, Array)]@
     @(get_field_name(member.type, member.name, message_class)) = new @(get_dotnet_type(member.type.value_type))[@(member.type.size)];
 @[  end if]@
@@ -413,7 +413,18 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
     { //TODO - (adam) this is a bit clunky. Is there a better way to marshal unsigned and bool types?
       int arraySize = 0;
       IntPtr pArr = native_read_field_@(member.name)(out arraySize, handle);
-      @(get_field_name(member.type, member.name, message_class)) = new @(get_dotnet_type(member.type.value_type))[arraySize];
+      if (@(get_field_name(member.type, member.name, message_class)) == null ||
+          @(get_field_name(member.type, member.name, message_class)).Length != arraySize)
+      {
+        @(get_field_name(member.type, member.name, message_class)) = new @(get_dotnet_type(member.type.value_type))[arraySize];
+      }
+@[    if get_marshal_array_type(member.type) == get_dotnet_type(member.type.value_type)]@
+      if (arraySize != 0)
+      {
+        int start = 0;
+        Marshal.Copy(pArr, @(get_field_name(member.type, member.name, message_class)), start, arraySize);
+      }
+@[    else]@
       @(get_marshal_array_type(member.type))[] __@(get_field_name(member.type, member.name, message_class)) = new @(get_marshal_array_type(member.type))[arraySize];
 
       if (arraySize != 0)
@@ -430,16 +441,24 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
         @(get_field_name(member.type, member.name, message_class))[i] = (@(get_dotnet_type(member.type.value_type)))(__@(get_field_name(member.type, member.name, message_class))[i]);
 @[    end if]@
       }
+@[    end if]@
     }
 @[  elif isinstance(member.type, AbstractNestedType) and \
          isinstance(member.type.value_type, (NamedType, NamespacedType, AbstractGenericString))]@
     {
       int __native_array_size = native_get_array_size_@(member.name)(handle);
-      @(get_field_name(member.type, member.name, message_class)) = new @(get_dotnet_type(member.type.value_type))[__native_array_size];
+      if (@(get_field_name(member.type, member.name, message_class)) == null ||
+          @(get_field_name(member.type, member.name, message_class)).Length != __native_array_size)
+      {
+        @(get_field_name(member.type, member.name, message_class)) = new @(get_dotnet_type(member.type.value_type))[__native_array_size];
+      }
       for (int i = 0; i < __native_array_size; ++i)
       {
 @[    if isinstance(member.type.value_type, (NamedType, NamespacedType))]@
-        @(get_field_name(member.type, member.name, message_class))[i] = new @(get_dotnet_type(member.type.value_type))();
+        if (@(get_field_name(member.type, member.name, message_class))[i] == null)
+        {
+          @(get_field_name(member.type, member.name, message_class))[i] = new @(get_dotnet_type(member.type.value_type))();
+        }
         @(get_field_name(member.type, member.name, message_class))[i].ReadNativeMessage(native_get_nested_message_handle_@(member.name)(handle, i));
 @[    elif isinstance(member.type.value_type, AbstractString)]@
         @(get_field_name(member.type, member.name, message_class))[i] = Marshal.PtrToStringAnsi(native_read_field_@(member.name)(i, handle));
