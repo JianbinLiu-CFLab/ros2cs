@@ -5,8 +5,21 @@ Set-StrictMode -Version Latest
 #
 # Modifications by Jianbin Liu:
 # - Added fail-fast validation for ROS_DISTRO, repository files, and custom message imports.
+# - Added configurable vcs import worker count through ROS2CS_VCS_WORKERS.
 
 $scriptPath = split-path -parent $MyInvocation.MyCommand.Definition
+
+function Get-VcsWorkers {
+    if (-not [string]::IsNullOrWhiteSpace($Env:ROS2CS_VCS_WORKERS)) {
+        $workers = 0
+        if ([int]::TryParse($Env:ROS2CS_VCS_WORKERS, [ref]$workers) -and $workers -gt 0) {
+            return $workers
+        }
+        throw "ROS2CS_VCS_WORKERS must be a positive integer."
+    }
+
+    return [System.Environment]::ProcessorCount
+}
 
 if (([string]::IsNullOrEmpty($Env:ROS_DISTRO)))
 {
@@ -37,10 +50,11 @@ foreach ($arg in $args)
 $src_path = Join-Path -Path $scriptPath -ChildPath "\src"
 $repos_file = Join-Path -Path $scriptPath -ChildPath "\ros2_$Env:ROS_DISTRO.repos"
 $custom_repos_file = Join-Path -Path $scriptPath -ChildPath "\custom_messages.repos"
+$vcsWorkers = Get-VcsWorkers
 if (Test-Path -Path $repos_file) {
     $repos_file = Resolve-Path -Path $repos_file
-    Write-Host "Detected ROS2 $Env:ROS_DISTRO. Getting required repos from $repos_file" -ForegroundColor Green
-    vcs import --input $repos_file $src_path
+    Write-Host "Detected ROS2 $Env:ROS_DISTRO. Getting required repos from $repos_file (workers: $vcsWorkers)" -ForegroundColor Green
+    vcs import --workers $vcsWorkers --input $repos_file $src_path
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }
@@ -50,7 +64,7 @@ if (Test-Path -Path $repos_file) {
             exit 1
         }
         Write-Host "Getting custom messages from $custom_repos_file" -ForegroundColor Green
-        vcs import --input $custom_repos_file $src_path
+        vcs import --workers $vcsWorkers --input $custom_repos_file $src_path
         if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
         }
