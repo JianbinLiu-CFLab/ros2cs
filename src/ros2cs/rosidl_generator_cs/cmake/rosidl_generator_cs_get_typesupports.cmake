@@ -23,11 +23,7 @@ macro(accumulate_typesupports)
 endmacro()
 
 macro(rosidl_generator_cs_get_typesupports TYPESUPPORT_IMPLS)
-  set(TYPESUPPORT_IMPLS "")
   set(_typesupport_impls "")
   call_for_each_rmw_implementation(accumulate_typesupports)
-
-  foreach(_typesupport_impl ${_typesupport_impls})
-    list_append_unique(TYPESUPPORT_IMPLS ${_typesupport_impl})
-  endforeach()
+  set(${TYPESUPPORT_IMPLS} ${_typesupport_impls})
 endmacro()

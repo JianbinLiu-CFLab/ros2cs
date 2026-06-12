@@ -35,6 +35,10 @@ if(_typesupport_impls STREQUAL "")
   return()
 endif()
 
+foreach(_typesupport_impl ${_typesupport_impls})
+  find_package(${_typesupport_impl} REQUIRED)
+endforeach()
+
 set(_output_path "${CMAKE_CURRENT_BINARY_DIR}/rosidl_generator_cs/${PROJECT_NAME}")
 set(_generated_msg_cs_files "")
 set(_generated_msg_c_files "")
@@ -191,6 +195,15 @@ if(NOT WIN32)
   set(_extension_compile_flags "-Wall -Wextra")
 endif()
 
+set(_extension_link_flags "")
+if(NOT WIN32)
+  if(CMAKE_COMPILER_IS_GNUCXX)
+    set(_extension_link_flags "-Wl,--no-undefined")
+  elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    set(_extension_link_flags "-Wl,-undefined,error")
+  endif()
+endif()
+
 set(_generated_msg_c_structs_target "")
 if(_generated_msg_c_files)
   set(_generated_msg_c_structs_target "${PROJECT_NAME}__cs_msg_structs")
@@ -263,20 +276,17 @@ if(_generated_srv_c_files)
   endif()
 endif()
 
-foreach(_generated_msg_c_ts_file ${_generated_msg_c_ts_files})
+list(LENGTH _generated_msg_c_ts_files _generated_msg_c_ts_count)
+if(_generated_msg_c_ts_count GREATER 0)
+  math(EXPR _generated_msg_c_ts_last_index "${_generated_msg_c_ts_count} - 1")
+  foreach(_file_index RANGE 0 ${_generated_msg_c_ts_last_index})
+    list(GET _generated_msg_c_ts_files ${_file_index} _generated_msg_c_ts_file)
+    list(GET _type_support_by_generated_msg_c_files ${_file_index} _typesupport_impl)
   get_filename_component(_full_folder "${_generated_msg_c_ts_file}" DIRECTORY)
   get_filename_component(_package_folder "${_full_folder}" DIRECTORY)
   get_filename_component(_package_name "${_package_folder}" NAME)
   get_filename_component(_parent_folder "${_full_folder}" NAME)
   get_filename_component(_base_msg_name "${_generated_msg_c_ts_file}" NAME_WE)
-  get_filename_component(_full_extension_msg_name "${_generated_msg_c_ts_file}" EXT)
-
-  set(_msg_name "${_base_msg_name}${_full_extension_msg_name}")
-
-  list(FIND _generated_msg_c_ts_files ${_generated_msg_c_ts_file} _file_index)
-  list(GET _type_support_by_generated_msg_c_files ${_file_index} _typesupport_impl)
-
-  find_package(${_typesupport_impl} REQUIRED)
 
   set(_runtime_name "${_package_name}_${_base_msg_name}__${_typesupport_impl}")
   # Keep the runtime DLL name stable for generated C# LoadLibrary calls, but use
@@ -308,15 +318,6 @@ foreach(_generated_msg_c_ts_file ${_generated_msg_c_ts_files})
     LIBRARY_OUTPUT_DIRECTORY_MINSIZEREL     ${_destination_dir}
   )
 
-  set(_extension_link_flags "")
-  if(NOT WIN32)
-    if(CMAKE_COMPILER_IS_GNUCXX)
-      set(_extension_link_flags "-Wl,--no-undefined")
-    elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-      set(_extension_link_flags "-Wl,-undefined,error")
-    endif()
-  endif()
-
   message("Link libraries: ${PROJECT_NAME}__${_typesupport_impl}")
   target_link_libraries(${_target_name}
     ${PROJECT_NAME}__${_typesupport_impl}
@@ -362,22 +363,20 @@ foreach(_generated_msg_c_ts_file ${_generated_msg_c_ts_files})
     )
   endif()
 
-endforeach()
+  endforeach()
+endif()
 
-foreach(_generated_srv_c_ts_file ${_generated_srv_c_ts_files})
+list(LENGTH _generated_srv_c_ts_files _generated_srv_c_ts_count)
+if(_generated_srv_c_ts_count GREATER 0)
+  math(EXPR _generated_srv_c_ts_last_index "${_generated_srv_c_ts_count} - 1")
+  foreach(_file_index RANGE 0 ${_generated_srv_c_ts_last_index})
+    list(GET _generated_srv_c_ts_files ${_file_index} _generated_srv_c_ts_file)
+    list(GET _type_support_by_generated_srv_c_files ${_file_index} _typesupport_impl)
   get_filename_component(_full_folder "${_generated_srv_c_ts_file}" DIRECTORY)
   get_filename_component(_package_folder "${_full_folder}" DIRECTORY)
   get_filename_component(_package_name "${_package_folder}" NAME)
   get_filename_component(_parent_folder "${_full_folder}" NAME)
   get_filename_component(_base_srv_name "${_generated_srv_c_ts_file}" NAME_WE)
-  get_filename_component(_full_extension_srv_name "${_generated_srv_c_ts_file}" EXT)
-
-  set(_srv_name "${_base_srv_name}${_full_extension_srv_name}")
-
-  list(FIND _generated_srv_c_ts_files ${_generated_srv_c_ts_file} _file_index)
-  list(GET _type_support_by_generated_srv_c_files ${_file_index} _typesupport_impl)
-
-  find_package(${_typesupport_impl} REQUIRED)
 
   set(_runtime_name "${_package_name}_srv_${_base_srv_name}__${_typesupport_impl}")
   # Keep the runtime DLL name stable for generated C# LoadLibrary calls, but use
@@ -409,15 +408,6 @@ foreach(_generated_srv_c_ts_file ${_generated_srv_c_ts_files})
     LIBRARY_OUTPUT_DIRECTORY_MINSIZEREL     ${_destination_dir}
   )
 
-  set(_extension_link_flags "")
-  if(NOT WIN32)
-    if(CMAKE_COMPILER_IS_GNUCXX)
-      set(_extension_link_flags "-Wl,--no-undefined")
-    elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-      set(_extension_link_flags "-Wl,-undefined,error")
-    endif()
-  endif()
-
   message("Link libraries: ${PROJECT_NAME}__${_typesupport_impl}")
   target_link_libraries(${_target_name}
     ${PROJECT_NAME}__${_typesupport_impl}
@@ -463,13 +453,11 @@ foreach(_generated_srv_c_ts_file ${_generated_srv_c_ts_files})
     )
   endif()
 
-endforeach()
+  endforeach()
+endif()
 
 set(_assembly_deps_dll "")
-
-foreach(_assembly_dep ${ros2cs_common_ASSEMBLIES_DLL})
-  list_append_unique(_assembly_deps_dll "${_assembly_dep}")
-endforeach()
+list(APPEND _assembly_deps_dll ${ros2cs_common_ASSEMBLIES_DLL})
 
 foreach(_pkg_name ${rosidl_generate_interfaces_DEPENDENCY_PACKAGE_NAMES})
   find_package(${_pkg_name} REQUIRED)

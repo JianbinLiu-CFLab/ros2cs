@@ -30,9 +30,9 @@ from rosidl_parser.definition import NamedType
 
 
 def generate_cs(generator_arguments_file, typesupport_impls, cs_build_tool):
-    type_support_impl_by_filename = {
-        '%s.ep.{0}.c'.format(impl): impl for impl in typesupport_impls
-    }
+    type_support_output_patterns = [
+        '%s.ep.{0}.c'.format(impl) for impl in typesupport_impls
+    ]
 
     mapping = {
         'idl.cs.em': '%s.cs',
@@ -51,7 +51,7 @@ def generate_cs(generator_arguments_file, typesupport_impls, cs_build_tool):
 
     generate_files(generator_arguments_file, mapping, additional_context)
 
-    for type_support in type_support_impl_by_filename.keys():
+    for type_support in type_support_output_patterns:
         typemapping = { 'idl_typesupport.c.em': type_support }
         generate_files(generator_arguments_file, typemapping)
 
