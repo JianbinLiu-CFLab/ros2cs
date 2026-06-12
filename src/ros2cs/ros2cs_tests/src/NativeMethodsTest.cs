@@ -650,6 +650,45 @@ namespace ROS2.TestNativeMethods
                 }
             }
         }
+
+        [Test]
+        public void QosPolicyEnumsMatchJazzyRmwOrdinals()
+        {
+            Assert.That((int)HistoryPolicy.QOS_POLICY_HISTORY_SYSTEM_DEFAULT, Is.EqualTo(0));
+            Assert.That((int)HistoryPolicy.QOS_POLICY_HISTORY_KEEP_LAST, Is.EqualTo(1));
+            Assert.That((int)HistoryPolicy.QOS_POLICY_HISTORY_KEEP_ALL, Is.EqualTo(2));
+            Assert.That((int)ReliabilityPolicy.QOS_POLICY_RELIABILITY_SYSTEM_DEFAULT, Is.EqualTo(0));
+            Assert.That((int)ReliabilityPolicy.QOS_POLICY_RELIABILITY_RELIABLE, Is.EqualTo(1));
+            Assert.That((int)ReliabilityPolicy.QOS_POLICY_RELIABILITY_BEST_EFFORT, Is.EqualTo(2));
+            Assert.That((int)DurabilityPolicy.QOS_POLICY_DURABILITY_SYSTEM_DEFAULT, Is.EqualTo(0));
+            Assert.That((int)DurabilityPolicy.QOS_POLICY_DURABILITY_TRANSIENT_LOCAL, Is.EqualTo(1));
+            Assert.That((int)DurabilityPolicy.QOS_POLICY_DURABILITY_VOLATILE, Is.EqualTo(2));
+            Assert.That((int)LivelinessPolicy.QOS_POLICY_LIVELINESS_SYSTEM_DEFAULT, Is.EqualTo(0));
+            Assert.That((int)LivelinessPolicy.QOS_POLICY_LIVELINESS_AUTOMATIC, Is.EqualTo(1));
+            Assert.That((int)LivelinessPolicy.QOS_POLICY_LIVELINESS_MANUAL_BY_TOPIC, Is.EqualTo(3));
+        }
+
+        [Test]
+        public void KeepLastHistoryRejectsNonPositiveDepth()
+        {
+            using var qos = new QualityOfServiceProfile();
+
+            Assert.Throws<ArgumentOutOfRangeException>(
+                () => qos.SetHistory(HistoryPolicy.QOS_POLICY_HISTORY_KEEP_LAST, 0));
+            Assert.Throws<ArgumentOutOfRangeException>(
+                () => qos.SetHistory(HistoryPolicy.QOS_POLICY_HISTORY_KEEP_LAST, -1));
+            Assert.DoesNotThrow(
+                () => qos.SetHistory(HistoryPolicy.QOS_POLICY_HISTORY_KEEP_ALL, 0));
+        }
+
+        [Test]
+        public void SetLivelinessPolicyDoesNotThrow()
+        {
+            using var qos = new QualityOfServiceProfile();
+
+            Assert.DoesNotThrow(
+                () => qos.SetLiveliness(LivelinessPolicy.QOS_POLICY_LIVELINESS_AUTOMATIC));
+        }
     }
 
     [TestFixture]

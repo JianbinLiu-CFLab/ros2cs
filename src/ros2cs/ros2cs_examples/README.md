@@ -5,6 +5,7 @@
 > Modifications by Jianbin Liu:
 > - Corrected example launch commands and PointCloud2 wording.
 > - Documented that examples target .NET 8 in the current maintenance branch.
+> - Documented performance example QoS compatibility.
 
 Current maintenance branch note: `ros2cs_examples` targets `net8.0`. Core/common/generated ros2cs assemblies remain `netstandard2.0`.
 
@@ -73,6 +74,10 @@ Listener will print out `"I heard: [Hello World: X]` messages sent by a talker.
 The service prints the incoming `A` and `B` values. The client sends `7 + 2` and prints `Sum = 9`.
 
 ## Performance test
+
+The performance talker/listener use `QosPresetProfile.SENSOR_DATA`, which maps to BEST_EFFORT
+reliability for high-rate data. ROS 2 Jazzy `ros2 topic echo` adapts to compatible publisher QoS,
+but explicit RELIABLE subscribers or older tools must request BEST_EFFORT to receive this topic.
 
 1.  Build project:
  

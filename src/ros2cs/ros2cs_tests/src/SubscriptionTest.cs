@@ -16,6 +16,7 @@
 
 // Modifications by Jianbin Liu:
 // - Added coverage that spin processing continues after one subscription callback throws.
+// - Added QoS reliability compatibility coverage.
 
 using NUnit.Framework;
 using System;
@@ -160,6 +161,8 @@ namespace ROS2.Test
             int count = 0;
             using var qosProfile = new QualityOfServiceProfile(QosPresetProfile.SENSOR_DATA);
 
+            // A RELIABLE publisher can satisfy a BEST_EFFORT subscriber; the subscriber still uses
+            // the SENSOR_DATA depth of 5.
             node.CreateSubscription<std_msgs.msg.Int32>("subscription_test_topic",
                                                         (msg) => { count += 1; },
                                                         qosProfile);
@@ -178,6 +181,34 @@ namespace ROS2.Test
             }
 
             Assert.That(count, Is.EqualTo(5));
+        }
+
+        [Test]
+        public void BestEffortPublisherDoesNotMatchReliableSubscriber()
+        {
+            int count = 0;
+            using var qosProfile = new QualityOfServiceProfile(QosPresetProfile.SENSOR_DATA);
+            using var bestEffortPublisher =
+                node.CreatePublisher<std_msgs.msg.Int32>("subscription_qos_incompatible_topic", qosProfile);
+
+            node.CreateSubscription<std_msgs.msg.Int32>(
+                "subscription_qos_incompatible_topic",
+                (msg) => { count += 1; });
+
+            using var publishedMsg = new std_msgs.msg.Int32();
+            publishedMsg.Data = 42;
+
+            for (int i = 0; i < 3; i++)
+            {
+                Ros2cs.SpinOnce(node, 0.1);
+            }
+            for (int i = 0; i < 3; i++)
+            {
+                bestEffortPublisher.Publish(publishedMsg);
+                Ros2cs.SpinOnce(node, 0.1);
+            }
+
+            Assert.That(count, Is.Zero);
         }
     }
 }

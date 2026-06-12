@@ -16,6 +16,7 @@
 // Modifications by Jianbin Liu:
 // - Added disposed client availability coverage.
 // - Added synchronous call reentry guard coverage.
+// - Added explicit service QoS client-call coverage.
 
 using System;
 using System.Linq;
@@ -149,6 +150,24 @@ namespace ROS2.Test
             var task = Client.CallAsync(CreateRequest(42, 3));
             SpinUntil(() => task.IsCompleted, "Timed out waiting for service response.");
             Assert.That(task.Result.Sum, Is.EqualTo(45));
+        }
+
+        [Test]
+        public void ClientAndServiceAcceptExplicitServicesQos()
+        {
+            Client.Dispose();
+            using var qos = new QualityOfServiceProfile(QosPresetProfile.SERVICES_DEFAULT);
+            using var service = Node.CreateService<AddTwoInts_Request, AddTwoInts_Response>(
+                SERVICE_NAME,
+                HandleRequest,
+                qos
+            );
+            Client = Node.CreateClient<AddTwoInts_Request, AddTwoInts_Response>(SERVICE_NAME, qos);
+
+            var task = Client.CallAsync(CreateRequest(6, 7));
+            SpinUntil(() => task.IsCompleted, "Timed out waiting for explicit QoS service response.");
+
+            Assert.That(task.Result.Sum, Is.EqualTo(13));
         }
 
         [Test]

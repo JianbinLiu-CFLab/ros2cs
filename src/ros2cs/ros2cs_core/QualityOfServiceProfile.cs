@@ -16,6 +16,7 @@
 // Modifications by Jianbin Liu:
 // - Made QoS profiles disposable.
 // - Added native handle validation before QoS mutation.
+// - Added QoS policy validation, explicit rmw ordinals, and liveliness setter support.
 
 using System;
 
@@ -25,40 +26,41 @@ namespace ROS2
   /// <remarks> This is mapped to rmw presets, for example SENSOR_DATA is rmw_qos_profile_sensor_data </remarks>
   public enum QosPresetProfile
   {
-    SENSOR_DATA,
-    PARAMETERS,
-    DEFAULT,
-    SERVICES_DEFAULT,
-    PARAMETER_EVENTS,
-    SYSTEM_DEFAULT
+    SENSOR_DATA = 0,
+    PARAMETERS = 1,
+    DEFAULT = 2,
+    SERVICES_DEFAULT = 3,
+    PARAMETER_EVENTS = 4,
+    /// <summary>Vendor/system-defined policies; prefer an explicit preset for portable behavior.</summary>
+    SYSTEM_DEFAULT = 5
   }
 
   public enum HistoryPolicy
   {
-    QOS_POLICY_HISTORY_SYSTEM_DEFAULT,
-    QOS_POLICY_HISTORY_KEEP_LAST,
-    QOS_POLICY_HISTORY_KEEP_ALL
+    QOS_POLICY_HISTORY_SYSTEM_DEFAULT = 0,
+    QOS_POLICY_HISTORY_KEEP_LAST = 1,
+    QOS_POLICY_HISTORY_KEEP_ALL = 2
   }
 
   public enum ReliabilityPolicy
   {
-    QOS_POLICY_RELIABILITY_SYSTEM_DEFAULT,
-    QOS_POLICY_RELIABILITY_RELIABLE,
-    QOS_POLICY_RELIABILITY_BEST_EFFORT
+    QOS_POLICY_RELIABILITY_SYSTEM_DEFAULT = 0,
+    QOS_POLICY_RELIABILITY_RELIABLE = 1,
+    QOS_POLICY_RELIABILITY_BEST_EFFORT = 2
   }
 
   public enum DurabilityPolicy
   {
-    QOS_POLICY_DURABILITY_SYSTEM_DEFAULT,
-    QOS_POLICY_DURABILITY_TRANSIENT_LOCAL,
-    QOS_POLICY_DURABILITY_VOLATILE
+    QOS_POLICY_DURABILITY_SYSTEM_DEFAULT = 0,
+    QOS_POLICY_DURABILITY_TRANSIENT_LOCAL = 1,
+    QOS_POLICY_DURABILITY_VOLATILE = 2
   }
 
   public enum LivelinessPolicy
   {
-    QOS_POLICY_LIVELINESS_SYSTEM_DEFAULT,
-    QOS_POLICY_LIVELINESS_AUTOMATIC,
-    QOS_POLICY_LIVELINESS_MANUAL_BY_TOPIC
+    QOS_POLICY_LIVELINESS_SYSTEM_DEFAULT = 0,
+    QOS_POLICY_LIVELINESS_AUTOMATIC = 1,
+    QOS_POLICY_LIVELINESS_MANUAL_BY_TOPIC = 3
   }
 
   /// <summary> Quality of Service settings for publishers and subscriptions </summary>
@@ -97,6 +99,13 @@ namespace ROS2
       lock (mutex)
       {
         ThrowIfDisposed();
+        if (policy == HistoryPolicy.QOS_POLICY_HISTORY_KEEP_LAST && depth < 1)
+        {
+          throw new ArgumentOutOfRangeException(
+            nameof(depth),
+            depth,
+            "KEEP_LAST history requires a positive depth.");
+        }
         NativeRmwInterface.rmw_native_interface_set_history(handle, (int)policy, depth);
       }
     }
@@ -116,6 +125,15 @@ namespace ROS2
       {
         ThrowIfDisposed();
         NativeRmwInterface.rmw_native_interface_set_durability(handle, (int)policy);
+      }
+    }
+
+    public void SetLiveliness(LivelinessPolicy policy)
+    {
+      lock (mutex)
+      {
+        ThrowIfDisposed();
+        NativeRmwInterface.rmw_native_interface_set_liveliness(handle, (int)policy);
       }
     }
 

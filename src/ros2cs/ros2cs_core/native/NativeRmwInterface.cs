@@ -17,6 +17,7 @@
 // - Retained ros2cs native library handle while rmw delegates are in use.
 // - Shared the ros2cs native wrapper handle with rcl wrapper bindings.
 // - Normalized delegate binding indentation.
+// - Added liveliness QoS setter binding.
 
 using System;
 using System.Runtime.InteropServices;
@@ -84,5 +85,14 @@ namespace ROS2
       nativeRMW,
       "rmw_native_interface_set_durability"),
       typeof(RMWNativeSetDurabilityIdentifierType));
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate void RMWNativeSetLivelinessIdentifierType(IntPtr profile, int mode);
+    internal static RMWNativeSetLivelinessIdentifierType
+      rmw_native_interface_set_liveliness =
+      (RMWNativeSetLivelinessIdentifierType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
+      nativeRMW,
+      "rmw_native_interface_set_liveliness"),
+      typeof(RMWNativeSetLivelinessIdentifierType));
   }
 }
