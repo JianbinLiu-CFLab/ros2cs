@@ -19,6 +19,7 @@
 // - Hardened platform detection and native unload guards.
 // - Reworked Linux preload tracking to avoid stale handles.
 // - Serialized native library handle disposal and symbol lookup diagnostics.
+// - Made native loader settings an atomic snapshot and applied them on macOS.
 
 // Based on http://dimitry-i.blogspot.com.es/2013/01/mononet-how-to-dynamically-load-native.html
 
@@ -30,15 +31,46 @@ using System.Threading;
 namespace ROS2
 {
   public class GlobalVariables {
-    public static bool preloadLibrary = false;
-    public static string preloadLibraryName = "";
-    public static string absolutePath = "";
+    private static Snapshot settings = new Snapshot(false, "", "");
 
-    internal struct Snapshot
+    /// <summary>Whether a native dependency should be preloaded before loading ros2cs libraries.</summary>
+    public static bool preloadLibrary
     {
-      internal bool PreloadLibrary;
-      internal string PreloadLibraryName;
-      internal string AbsolutePath;
+      get { return GetSnapshot().PreloadLibrary; }
+      set
+      {
+        Snapshot current = GetSnapshot();
+        SetSnapshot(new Snapshot(value, current.PreloadLibraryName, current.AbsolutePath));
+      }
+    }
+
+    /// <summary>Native dependency name used when <see cref="preloadLibrary"/> is enabled.</summary>
+    public static string preloadLibraryName
+    {
+      get { return GetSnapshot().PreloadLibraryName; }
+      set
+      {
+        Snapshot current = GetSnapshot();
+        SetSnapshot(new Snapshot(current.PreloadLibrary, value, current.AbsolutePath));
+      }
+    }
+
+    /// <summary>Optional absolute search path prepended before falling back to platform defaults.</summary>
+    public static string absolutePath
+    {
+      get { return GetSnapshot().AbsolutePath; }
+      set
+      {
+        Snapshot current = GetSnapshot();
+        SetSnapshot(new Snapshot(current.PreloadLibrary, current.PreloadLibraryName, value));
+      }
+    }
+
+    internal sealed class Snapshot
+    {
+      internal readonly bool PreloadLibrary;
+      internal readonly string PreloadLibraryName;
+      internal readonly string AbsolutePath;
 
       internal Snapshot(bool preloadLibrary, string preloadLibraryName, string absolutePath)
       {
@@ -50,10 +82,18 @@ namespace ROS2
 
     internal static Snapshot GetSnapshot()
     {
-      return new Snapshot(
-        Volatile.Read(ref preloadLibrary),
-        Volatile.Read(ref preloadLibraryName),
-        Volatile.Read(ref absolutePath));
+      return Volatile.Read(ref settings);
+    }
+
+    /// <summary>Atomically replace all native loader settings.</summary>
+    public static void SetLoaderSettings(bool preloadLibrary, string preloadLibraryName, string absolutePath)
+    {
+      SetSnapshot(new Snapshot(preloadLibrary, preloadLibraryName, absolutePath));
+    }
+
+    private static void SetSnapshot(Snapshot snapshot)
+    {
+      Volatile.Write(ref settings, snapshot);
     }
   }
 
@@ -442,6 +482,38 @@ namespace ROS2
     private static extern IntPtr dlerror ();
 
     const int RTLD_NOW = 2;
+    private static string preloadedLibraryKey = "";
+    private static NativeLibraryHandle preloadedLibraryHandle = null;
+    private static readonly object preloadMutex = new object();
+
+    private void CheckPreloadLibraries(GlobalVariables.Snapshot settings)
+    {
+      string preloadKey = settings.AbsolutePath + "|" + settings.PreloadLibraryName;
+      if (settings.PreloadLibraryName == "")
+      {
+        return;
+      }
+
+      lock (preloadMutex)
+      {
+        if (preloadedLibraryKey == preloadKey)
+        {
+          return;
+        }
+
+        Ros2csLogger.GetInstance().LogDebug("Preloading " + settings.PreloadLibraryName);
+        IntPtr libPtr = Load(settings.PreloadLibraryName, settings.AbsolutePath);
+        if (preloadedLibraryHandle != null)
+        {
+          preloadedLibraryHandle.Dispose();
+        }
+        preloadedLibraryHandle = NativeLibraryHandle.FromHandle(this, libPtr);
+
+        Ros2csLogger.GetInstance().LogDebug("Preloading " + settings.PreloadLibraryName + " successful.");
+
+        preloadedLibraryKey = preloadKey;
+      }
+    }
 
     public void FreeLibrary (IntPtr handle) {
       if (handle != IntPtr.Zero) {
@@ -460,22 +532,46 @@ namespace ROS2
       return res;
     }
 
+    private IntPtr Load(string libraryFileName, string absolutePath) {
+      string libraryPath = absolutePath + libraryFileName;
+      string dlopenSearchString = libraryPath;
+      Ros2csLogger.GetInstance().LogDebug("Loading lib: " + dlopenSearchString);
+      IntPtr ptr = dlopen(dlopenSearchString, RTLD_NOW);
+      if (ptr == IntPtr.Zero) {
+        if (!String.IsNullOrEmpty(absolutePath)) {
+          var errPtr = dlerror ();
+          Ros2csLogger.GetInstance().LogDebug("Could not find " + dlopenSearchString + ": " + Marshal.PtrToStringAnsi (errPtr) + ". Fallback to " + libraryFileName);
+          dlopenSearchString = libraryFileName;
+          ptr = dlopen(dlopenSearchString, RTLD_NOW);
+        }
+      }
+      if (ptr == IntPtr.Zero) {
+        var errPtr = dlerror ();
+        string detail = Marshal.PtrToStringAnsi (errPtr);
+        if (!String.IsNullOrEmpty(detail)) {
+          throw new UnsatisfiedLinkError(dlopenSearchString + ": " + detail);
+        }
+        throw new UnsatisfiedLinkError(dlopenSearchString);
+      }
+      Ros2csLogger.GetInstance().LogDebug("Loaded library: " + dlopenSearchString);
+      return ptr;
+    }
+
+    private IntPtr LoadLibraryByName(string libraryFileName) {
+      GlobalVariables.Snapshot settings = GlobalVariables.GetSnapshot();
+      if (settings.PreloadLibrary)
+        CheckPreloadLibraries(settings);
+      return Load(libraryFileName, settings.AbsolutePath);
+    }
+
     public IntPtr LoadLibrary (string fileName) {
       string libraryName = "lib" + fileName + "_native.dylib";
-      IntPtr ptr = dlopen (libraryName, RTLD_NOW);
-      if (ptr == IntPtr.Zero) {
-        throw new UnsatisfiedLinkError (libraryName);
-      }
-      return ptr;
+      return LoadLibraryByName(libraryName);
     }
 
     public IntPtr LoadLibraryNoSuffix (string fileName) {
       string libraryName = "lib" + fileName + ".dylib";
-      IntPtr ptr = dlopen (libraryName, RTLD_NOW);
-      if (ptr == IntPtr.Zero) {
-        throw new UnsatisfiedLinkError (libraryName);
-      }
-      return ptr;
+      return LoadLibraryByName(libraryName);
     }
   }
 }

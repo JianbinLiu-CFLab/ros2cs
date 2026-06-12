@@ -25,11 +25,13 @@ namespace ROS2
   namespace Internal
   { // TODO (adamdbrw) a namespace to warn where design did not deliver.
 
-    /// <summary> Message interface that is meant to be internal </summary>
-    /// <remarks> Not sure if it is possible to make this internal
-    /// Note that this has to be visible between message assemblies (e.g. calling for nested messages)
-    /// as well as for all messages (custom, generated, in principle unknown to ros2cs_core).
-    /// It also needs to be visible to ros2cs_core classes. </remarks>
+    /// <summary>Native message contract exposed by generated message assemblies.</summary>
+    /// <remarks>
+    /// This interface is public only because generated message assemblies, custom message assemblies,
+    /// nested message implementations, and ros2cs_core must share one native-message contract. It is
+    /// not an application-level API; external callers should use the public message, publisher,
+    /// subscription, service, and client APIs instead of calling these members directly.
+    /// </remarks>
     public interface MessageInternals
     {
       IntPtr Handle { get; }

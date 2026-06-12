@@ -22,6 +22,7 @@ using System.Runtime.Serialization;
 
 namespace ROS2
 {
+    /// <summary>Base exception for native library load failures. Prefer catching this type.</summary>
     [Serializable]
     public class UnsatisfiedLinkException : Exception {
       public UnsatisfiedLinkException () : base() { }
@@ -38,6 +39,10 @@ namespace ROS2
       protected UnknownPlatformException(SerializationInfo info, StreamingContext context) : base(info, context) { }
     }
 
+    /// <summary>
+    /// Concrete native library load failure thrown by current loader implementations.
+    /// Catch <see cref="UnsatisfiedLinkException"/> to handle all native link failures.
+    /// </summary>
     [Serializable]
     public class UnsatisfiedLinkError : UnsatisfiedLinkException {
       public UnsatisfiedLinkError () : base() { }
