@@ -42,6 +42,9 @@ void *@(msg_typename)_native_create_native_message()
 
 ROSIDL_GENERATOR_C_EXPORT
 void @(msg_typename)_native_destroy_native_message(void *raw_ros_message) {
+  if (!raw_ros_message) {
+    return;
+  }
   @(msg_typename) *ros_message = (@(msg_typename) *)raw_ros_message;
   @(msg_typename)__destroy(ros_message);
 }

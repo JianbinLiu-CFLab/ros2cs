@@ -3,6 +3,7 @@
 //
 // Modifications by Jianbin Liu:
 // - Added coverage for service callback exceptions during direct service take.
+// - Added explicit service QoS request/response coverage.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -74,6 +75,33 @@ namespace ROS2.Test
             Service.Dispose();
             Service = Node.CreateService<AddTwoInts_Request, AddTwoInts_Response>(SERVICE_NAME, OnRequest);
             Assert.DoesNotThrow(() => { Ros2cs.SpinOnce(Node, 0.1); });
+        }
+
+        [Test]
+        public void ServiceAcceptsExplicitServicesQos()
+        {
+            Service.Dispose();
+            using var qos = new QualityOfServiceProfile(QosPresetProfile.SERVICES_DEFAULT);
+            Service = Node.CreateService<AddTwoInts_Request, AddTwoInts_Response>(
+                SERVICE_NAME,
+                msg =>
+                {
+                    var response = new AddTwoInts_Response();
+                    response.Sum = msg.A + msg.B;
+                    return response;
+                },
+                qos);
+            using var client = Node.CreateClient<AddTwoInts_Request, AddTwoInts_Response>(SERVICE_NAME, qos);
+
+            Task<AddTwoInts_Response> pendingResponse = client.CallAsync(CreateRequest(4, 5));
+            DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+            while (!pendingResponse.IsCompleted && DateTime.UtcNow < deadline)
+            {
+                Ros2cs.SpinOnce(Node, 0.1);
+            }
+
+            Assert.That(pendingResponse.IsCompletedSuccessfully, Is.True);
+            Assert.That(pendingResponse.Result.Sum, Is.EqualTo(9));
         }
 
         [Test]

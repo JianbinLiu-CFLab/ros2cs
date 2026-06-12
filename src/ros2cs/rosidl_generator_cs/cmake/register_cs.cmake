@@ -26,8 +26,11 @@ macro(rosidl_generator_cs_extras BIN GENERATOR_FILES TEMPLATE_DIR)
   normalize_path(BIN_NORMALIZED "${BIN}")
   set(rosidl_generator_cs_BIN "${BIN_NORMALIZED}")
 
-  normalize_path(GENERATOR_FILES_NORMALIZED "${GENERATOR_FILES}")
-  set(rosidl_generator_cs_GENERATOR_FILES "${GENERATOR_FILES_NORMALIZED}")
+  set(rosidl_generator_cs_GENERATOR_FILES "")
+  foreach(_generator_file ${GENERATOR_FILES})
+    normalize_path(_generator_file "${_generator_file}")
+    list(APPEND rosidl_generator_cs_GENERATOR_FILES "${_generator_file}")
+  endforeach()
 
   normalize_path(TEMPLATE_DIR_NORMALIZED "${TEMPLATE_DIR}")
   set(rosidl_generator_cs_TEMPLATE_DIR "${TEMPLATE_DIR_NORMALIZED}")

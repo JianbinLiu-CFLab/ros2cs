@@ -86,6 +86,7 @@ foreach(_idl_file ${rosidl_generate_interfaces_ABS_IDL_FILES})
         list(APPEND _type_support_by_generated_srv_c_files "${_typesupport_impl}")
     endforeach()
   elseif(_parent_folder STREQUAL "action")
+    message(STATUS "rosidl_generator_cs: action type '${_msg_name}' skipped (not yet supported)")
   else()
     message(FATAL_ERROR "Interface file with unknown parent folder: ${_idl_file}")
   endif()
@@ -282,8 +283,6 @@ foreach(_generated_msg_c_ts_file ${_generated_msg_c_ts_files})
   # a short logical CMake target name so MSVC object paths stay below CMake limits.
   set(_target_name "${PROJECT_NAME}__cs_msg_ts_${_file_index}")
 
-  string_camel_case_to_lower_case_underscore("${_module_name}" _header_name)
-
   add_library(${_target_name} SHARED
     "${_generated_msg_c_ts_file}"
     # Keep one shared library per message/typesupport for compatibility; only repeated struct compilation is removed.
@@ -309,8 +308,6 @@ foreach(_generated_msg_c_ts_file ${_generated_msg_c_ts_files})
     LIBRARY_OUTPUT_DIRECTORY_MINSIZEREL     ${_destination_dir}
   )
 
-  list(APPEND _extension_dependencies ${_target_name})
-
   set(_extension_link_flags "")
   if(NOT WIN32)
     if(CMAKE_COMPILER_IS_GNUCXX)
@@ -326,8 +323,6 @@ foreach(_generated_msg_c_ts_file ${_generated_msg_c_ts_files})
     ${_extension_link_flags}
     ${PROJECT_NAME}__rosidl_generator_c
   )
-
-  set(ros2_distro "$ENV{ROS_DISTRO}")
 
   if(${rosidl_cmake_VERSION} VERSION_GREATER 2.5.0)
     rosidl_get_typesupport_target(c_typesupport_target "${PROJECT_NAME}" "rosidl_typesupport_c")
@@ -360,7 +355,7 @@ foreach(_generated_msg_c_ts_file ${_generated_msg_c_ts_files})
   )
 
   if(NOT rosidl_generate_interfaces_SKIP_INSTALL)
-    install(TARGETS ${_target_name} EXPORT ${_target_name}
+    install(TARGETS ${_target_name}
       ARCHIVE DESTINATION lib
       LIBRARY DESTINATION lib
       RUNTIME DESTINATION bin
@@ -389,8 +384,6 @@ foreach(_generated_srv_c_ts_file ${_generated_srv_c_ts_files})
   # a short logical CMake target name so MSVC object paths stay below CMake limits.
   set(_target_name "${PROJECT_NAME}__cs_srv_ts_${_file_index}")
 
-  string_camel_case_to_lower_case_underscore("${_module_name}" _header_name)
-
   add_library(${_target_name} SHARED
     "${_generated_srv_c_ts_file}"
     # Keep one shared library per service/typesupport for compatibility; only repeated struct compilation is removed.
@@ -416,8 +409,6 @@ foreach(_generated_srv_c_ts_file ${_generated_srv_c_ts_files})
     LIBRARY_OUTPUT_DIRECTORY_MINSIZEREL     ${_destination_dir}
   )
 
-  list(APPEND _extension_dependencies ${_target_name})
-
   set(_extension_link_flags "")
   if(NOT WIN32)
     if(CMAKE_COMPILER_IS_GNUCXX)
@@ -433,8 +424,6 @@ foreach(_generated_srv_c_ts_file ${_generated_srv_c_ts_files})
     ${_extension_link_flags}
     ${PROJECT_NAME}__rosidl_generator_c
   )
-
-  set(ros2_distro "$ENV{ROS_DISTRO}")
 
   if(${rosidl_cmake_VERSION} VERSION_GREATER 2.5.0)
     rosidl_get_typesupport_target(c_typesupport_target "${PROJECT_NAME}" "rosidl_typesupport_c")
@@ -467,7 +456,7 @@ foreach(_generated_srv_c_ts_file ${_generated_srv_c_ts_files})
   )
 
   if(NOT rosidl_generate_interfaces_SKIP_INSTALL)
-    install(TARGETS ${_target_name} EXPORT ${_target_name}
+    install(TARGETS ${_target_name}
       ARCHIVE DESTINATION lib
       LIBRARY DESTINATION lib
       RUNTIME DESTINATION bin
@@ -479,13 +468,13 @@ endforeach()
 set(_assembly_deps_dll "")
 
 foreach(_assembly_dep ${ros2cs_common_ASSEMBLIES_DLL})
-  list(APPEND _assembly_deps_dll "${_assembly_dep}")
+  list_append_unique(_assembly_deps_dll "${_assembly_dep}")
 endforeach()
 
 foreach(_pkg_name ${rosidl_generate_interfaces_DEPENDENCY_PACKAGE_NAMES})
   find_package(${_pkg_name} REQUIRED)
   foreach(_assembly_dep ${${_pkg_name}_ASSEMBLIES_DLL})
-    list(APPEND _assembly_deps_dll "${_assembly_dep}")
+    list_append_unique(_assembly_deps_dll "${_assembly_dep}")
   endforeach()
 endforeach()
 

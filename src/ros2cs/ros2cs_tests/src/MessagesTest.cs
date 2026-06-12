@@ -179,6 +179,79 @@ namespace ROS2.Test
             Assert.That(msg.Int8_values, Is.EqualTo(expected));
         }
 
+        /// <summary>Fresh generated messages must not allocate native storage just to read from it.</summary>
+        [Test]
+        public void ReadNativeMessageWithoutNativeHandleThrows()
+        {
+            using var msg = new std_msgs.msg.Empty();
+
+            Assert.Throws<InvalidOperationException>(() => msg.ReadNativeMessage());
+        }
+
+        /// <summary>Handle-taking native read/write overloads must respect Dispose state before using a handle.</summary>
+        [Test]
+        public void NativeMessageOverloadsThrowAfterDispose()
+        {
+            var msg = new std_msgs.msg.Empty();
+
+            msg.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => msg.ReadNativeMessage(IntPtr.Zero));
+            Assert.Throws<ObjectDisposedException>(() => msg.WriteNativeMessage(IntPtr.Zero));
+        }
+
+        /// <summary>Generated parent messages own direct nested message members created by their constructor.</summary>
+        [Test]
+        public void DisposeReleasesDirectNestedMessages()
+        {
+            var msg = new test_msgs.msg.Nested();
+            test_msgs.msg.BasicTypes nested = msg.Basic_types_value;
+            _ = nested.Handle;
+
+            msg.Dispose();
+
+            Assert.That(msg.IsDisposed, Is.True);
+            Assert.That(nested.IsDisposed, Is.True);
+        }
+
+        /// <summary>Nested sequence elements are caller-owned and must not be disposed by the parent message.</summary>
+        [Test]
+        public void DisposeDoesNotReleaseNestedSequenceElements()
+        {
+            using var nested = new test_msgs.msg.BasicTypes();
+            var msg = new test_msgs.msg.UnboundedSequences
+            {
+                Basic_types_values = new[] { nested }
+            };
+
+            msg.Dispose();
+
+            Assert.That(nested.IsDisposed, Is.False);
+        }
+
+        /// <summary>Verifies generated wstring fields preserve Unicode through native storage.</summary>
+        [Test]
+        public void NativeRoundtripPreservesWStrings()
+        {
+            using var msg = new test_msgs.msg.WStrings();
+            msg.Wstring_value = "Hello 世界";
+            msg.Wstring_value_default1 = "Bonjour";
+            msg.Wstring_value_default2 = "Hellö wörld!";
+            msg.Wstring_value_default3 = "ハローワールド";
+
+            msg.WriteNativeMessage();
+            msg.Wstring_value = "";
+            msg.Wstring_value_default1 = "";
+            msg.Wstring_value_default2 = "";
+            msg.Wstring_value_default3 = "";
+            msg.ReadNativeMessage();
+
+            Assert.That(msg.Wstring_value, Is.EqualTo("Hello 世界"));
+            Assert.That(msg.Wstring_value_default1, Is.EqualTo("Bonjour"));
+            Assert.That(msg.Wstring_value_default2, Is.EqualTo("Hellö wörld!"));
+            Assert.That(msg.Wstring_value_default3, Is.EqualTo("ハローワールド"));
+        }
+
         [Test]
         public void SetBoundedSequences()
         {

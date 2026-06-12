@@ -2,6 +2,6 @@
 include("${CMAKE_CURRENT_LIST_DIR}/register_cs.cmake")
 rosidl_generator_cs_extras(
   "${rosidl_generator_cs_DIR}/../../../lib/rosidl_generator_cs/rosidl_generator_cs"
-  "${rosidl_generator_cs_DIR}/../../../@PYTHON_INSTALL_DIR@/rosidl_generator_cs/__init__.py"
+  "${rosidl_generator_cs_DIR}/../../../@PYTHON_INSTALL_DIR@/rosidl_generator_cs/__init__.py;${rosidl_generator_cs_DIR}/../../../@PYTHON_INSTALL_DIR@/rosidl_generator_cs/generate_cs_impl.py"
   "${rosidl_generator_cs_DIR}/../resource"
 )

@@ -244,8 +244,6 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
 
   static @(message_class)()
   {
-    Ros2csLogger logger = Ros2csLogger.GetInstance();
-
     dllLoadUtils = DllLoadUtilsFactory.GetDllLoadUtils();
     message_library_typesupport = NativeLibraryHandle.LoadLibraryNoSuffix(dllLoadUtils, "@(package_name)__rosidl_typesupport_c");
     message_library_generator = NativeLibraryHandle.LoadLibraryNoSuffix(dllLoadUtils, "@(package_name)__rosidl_generator_c");
@@ -323,7 +321,7 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
     }
   }
 
-  // Handle. Create on first use. Can be set for nested classes. TODO -- access...
+  // Handle. Create native storage on first use. Nested fields marshal through native child handles.
   public IntPtr Handle
   {
     get
@@ -365,13 +363,37 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
 
   public void ReadNativeMessage()
   {
-    ReadNativeMessage(Handle);
+    IntPtr handle;
+    lock (mutex)
+    {
+      if (disposed)
+      {
+        throw new ObjectDisposedException(nameof(@(message_class)));
+      }
+
+      if (_handle == IntPtr.Zero)
+      {
+        throw new System.InvalidOperationException("Cannot read native message before a native handle has been created");
+      }
+
+      handle = _handle;
+    }
+    ReadNativeMessage(handle);
   }
 
   public void ReadNativeMessage(IntPtr handle)
   {
-    if (handle == IntPtr.Zero)
-      throw new System.InvalidOperationException("Invalid handle for reading");
+    lock (mutex)
+    {
+      if (disposed)
+      {
+        throw new ObjectDisposedException(nameof(@(message_class)));
+      }
+
+      if (handle == IntPtr.Zero)
+      {
+        throw new System.InvalidOperationException("Invalid handle for reading");
+      }
 @[for member in message.structure.members]@
 @[  if isinstance(member.type, BasicType)]@
     @(get_field_name(member.type, member.name, message_class)) = native_read_field_@(member.name)(handle);
@@ -428,6 +450,7 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
     }
 @[  end if]@
 @[end for]@
+    }
   }
 
   public void WriteNativeMessage()
@@ -438,8 +461,17 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
   // Write from CS to native handle
   public void WriteNativeMessage(IntPtr handle)
   {
-    if (handle == IntPtr.Zero)
-      throw new System.InvalidOperationException("Invalid handle for writing");
+    lock (mutex)
+    {
+      if (disposed)
+      {
+        throw new ObjectDisposedException(nameof(@(message_class)));
+      }
+
+      if (handle == IntPtr.Zero)
+      {
+        throw new System.InvalidOperationException("Invalid handle for writing");
+      }
 @[for member in message.structure.members]@
 @[  if isinstance(member.type, (BasicType, AbstractGenericString))]@
     native_write_field_@(member.name)(handle, @(get_field_name(member.type, member.name, message_class)));
@@ -479,6 +511,7 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
     }
 @[  end if]@
 @[end for]@
+    }
   }
 
   // Generated service messages intentionally do not use a finalizer. Unity/Mono can
@@ -498,6 +531,14 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
         native_destroy_native_message(_handle);
         _handle = IntPtr.Zero;
       }
+@[for member in message.structure.members]@
+@[  if isinstance(member.type, (NamedType, NamespacedType))]@
+      if (@(get_field_name(member.type, member.name, message_class)) != null)
+      {
+        @(get_field_name(member.type, member.name, message_class)).Dispose();
+      }
+@[  end if]@
+@[end for]@
       disposed = true;
     }
   }

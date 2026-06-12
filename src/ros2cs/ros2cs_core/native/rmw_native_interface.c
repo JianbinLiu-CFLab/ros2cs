@@ -15,6 +15,7 @@
 
 // Modifications by Jianbin Liu:
 // - Added allocation and null-argument guards for QoS profile helpers.
+// - Added liveliness QoS setter wrapper.
 
 #include <rmw/qos_profiles.h>
 #include <rmw/types.h>
@@ -96,4 +97,14 @@ void rmw_native_interface_set_durability(rmw_qos_profile_t * profile, int durabi
     return;
   }
   profile->durability = durability_mode;
+}
+
+ROSIDL_GENERATOR_C_EXPORT
+void rmw_native_interface_set_liveliness(rmw_qos_profile_t * profile, int liveliness_mode)
+{
+  if (profile == NULL)
+  {
+    return;
+  }
+  profile->liveliness = liveliness_mode;
 }
