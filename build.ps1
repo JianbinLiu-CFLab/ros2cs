@@ -18,6 +18,7 @@ Modifications by Jianbin Liu:
 - Added explicit parallel worker selection with ROS2CS_PARALLEL_WORKERS override.
 - Added optional compiler launcher support through ROS2CS_COMPILER_LAUNCHER or sccache auto-detection.
 - Added optional short colcon build base support through -build_base or ROS2CS_BUILD_BASE.
+- Added ROS2CS_EVENT_HANDLER override and defaulted colcon output to console_cohesion+.
 #>
 Param (
     [Parameter(Mandatory=$false)][switch]$with_tests=$false,
@@ -74,6 +75,11 @@ if($standalone) {
 
 $parallelWorkers = Get-ParallelWorkers
 $compilerLauncher = Get-CompilerLauncher
+$eventHandler = if ([string]::IsNullOrWhiteSpace($Env:ROS2CS_EVENT_HANDLER)) {
+    "console_cohesion+"
+} else {
+    $Env:ROS2CS_EVENT_HANDLER
+}
 $cmakeArgs = @(
     "-G", "Ninja",
     "-DSTANDALONE_BUILD=$standalone_switch",
@@ -97,11 +103,11 @@ if (-not [string]::IsNullOrWhiteSpace($build_base)) {
 $colconArgs += @(
     "--parallel-workers", "$parallelWorkers",
     "--merge-install",
-    "--event-handlers", "console_direct+",
+    "--event-handlers", "$eventHandler",
     "--cmake-args"
 ) + $cmakeArgs
 
-$msg += " (workers: $parallelWorkers, generator: Ninja)"
+$msg += " (workers: $parallelWorkers, generator: Ninja, event handler: $eventHandler)"
 
 Write-Host $msg -ForegroundColor Green
 colcon @colconArgs

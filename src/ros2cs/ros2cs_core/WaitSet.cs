@@ -48,7 +48,7 @@ namespace ROS2
     private readonly object mutex = new object();
     private bool disposed;
 
-    internal WaitSet(ref rcl_context_t context)
+    internal WaitSet(ref rcl_context_t context, rcl_allocator_t allocator)
     {
       Handle = NativeRcl.rcl_get_zero_initialized_wait_set();
       Utils.CheckReturnEnum(NativeRcl.rcl_wait_set_init(
@@ -60,7 +60,7 @@ namespace ROS2
         (UIntPtr)0,
         (UIntPtr)0,
         ref context,
-        NativeRcl.rcutils_get_default_allocator()));
+        allocator));
     }
 
     ~WaitSet()
@@ -113,14 +113,22 @@ namespace ROS2
       lock (mutex)
       {
         ThrowIfDisposed();
+        if (SubscriptionCount == subscriptionCount &&
+            ClientCount == clientCount &&
+            ServiceCount == serviceCount)
+        {
+          Utils.CheckReturnEnum(NativeRcl.rcl_wait_set_clear(ref Handle));
+          return;
+        }
+
         Utils.CheckReturnEnum(NativeRcl.rcl_wait_set_resize(
-        ref Handle,
-        (UIntPtr)subscriptionCount,
-        (UIntPtr)0,
-        (UIntPtr)0,
-        (UIntPtr)clientCount,
-        (UIntPtr)serviceCount,
-        (UIntPtr)0));
+          ref Handle,
+          (UIntPtr)subscriptionCount,
+          (UIntPtr)0,
+          (UIntPtr)0,
+          (UIntPtr)clientCount,
+          (UIntPtr)serviceCount,
+          (UIntPtr)0));
       }
     }
 

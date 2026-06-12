@@ -229,9 +229,9 @@ namespace ROS2
     {
       lock (mutex)
       {
-        targetSubscriptions.AddRange(subscriptions.Where(s => s != null));
-        targetClients.AddRange(clients.Where(c => c != null));
-        targetServices.AddRange(services.Where(s => s != null));
+        targetSubscriptions.AddRange(subscriptions);
+        targetClients.AddRange(clients);
+        targetServices.AddRange(services);
       }
     }
 

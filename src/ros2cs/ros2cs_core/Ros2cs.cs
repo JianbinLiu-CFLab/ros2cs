@@ -49,10 +49,12 @@ namespace ROS2
     private static volatile bool initialized = false;  // for most part equivalent to rcl::ok()
     // true before first Init() so FiniContext() is a no-op in the pre-init state.
     // After Init(), it prevents rcl_context_fini from running twice across shutdown/finalization.
-    private static bool contextFinalized = true;
+    private static volatile bool contextFinalized = true;
     private static rcl_context_t global_context;  // a simplification, we only use global default context
     private static rcl_allocator_t default_allocator;
     private static List<INode> nodes = new List<INode>(); // kept to shutdown everything in order
+    private static readonly Lazy<string> RmwImplementation =
+      new Lazy<string>(() => Utils.PtrToString(NativeRmwInterface.rmw_native_interface_get_implementation_identifier()));
 
     private static WaitSet WaitSet;
     private static bool destructorFinalizerSuppressed;
@@ -81,7 +83,7 @@ namespace ROS2
           default_allocator = NativeRcl.rcutils_get_default_allocator();
           global_context = NativeRcl.rcl_get_zero_initialized_context();
           Utils.CheckReturnEnum(NativeRclInterface.rclcs_init(ref global_context, default_allocator));
-          WaitSet = new WaitSet(ref global_context);
+          WaitSet = new WaitSet(ref global_context, default_allocator);
           initialized = true;
           contextFinalized = false;
         }
@@ -95,7 +97,7 @@ namespace ROS2
 
     public static string GetRMWImplementation()
     {
-      return Utils.PtrToString(NativeRmwInterface.rmw_native_interface_get_implementation_identifier());
+      return RmwImplementation.Value;
     }
 
     /// <summary> Globally shutdown ros2 (rcl) </summary>
@@ -178,10 +180,7 @@ namespace ROS2
     /// </description>
     public static bool Ok()
     {
-      lock (contextMutex)
-      {
-        return initialized && !contextFinalized && NativeRcl.rcl_context_is_valid(ref global_context);
-      }
+      return initialized && !contextFinalized;
     }
 
     /// <summary> Helper class to handle Ros2cs finalization </summary>
@@ -285,8 +284,13 @@ namespace ROS2
     /// <param name="timoutSec"> Maximum time to wait for execution item (e. g. subscription) </param>
     public static void Spin(INode node, double timeoutSec = 0.1)
     {
-      var nodes = new List<INode>{ node };
-      Spin(nodes, timeoutSec);
+      while (initialized)
+      {
+        if (!SpinOnce(node, timeoutSec))
+        {
+          Thread.Sleep(TimeSpan.FromSeconds(timeoutSec));
+        }
+      }
     }
 
     /// <summary> Spin overload for multiple nodes </summary>
@@ -311,8 +315,7 @@ namespace ROS2
     /// <see cref="Spin(INode,double)"/>
     public static bool SpinOnce(INode node, double timeoutSec = 0.1)
     {
-      var nodes = new List<INode>{ node };
-      return SpinOnce(nodes, timeoutSec);
+      return SpinOnceCore(node, null, timeoutSec);
     }
 
     /// <summary> SpinOnce overload for multiple nodes </summary>
@@ -321,6 +324,12 @@ namespace ROS2
     /// <returns> Whether the wait set was populated and waited on. Timeout with entities returns true. </returns>
     /// <see cref="SpinOnce(INode,double)"/>
     public static bool SpinOnce(List<INode> nodes, double timeoutSec = 0.1)
+    {
+      return SpinOnceCore(null, nodes, timeoutSec);
+    }
+
+    /// <summary>Shared spin path for single-node and multi-node public overloads.</summary>
+    private static bool SpinOnceCore(INode singleNode, List<INode> nodes, double timeoutSec)
     {
       List<ISubscriptionBase> allSubscriptions;
       List<IClientBase> allClients;
@@ -338,13 +347,16 @@ namespace ROS2
         allSubscriptions = new List<ISubscriptionBase>();
         allClients = new List<IClientBase>();
         allServices = new List<IServiceBase>();
-        foreach (INode node_interface in nodes)
+        if (singleNode != null)
         {
-          Node node = node_interface as Node;
-          if (node == null)
-            continue; //Rare situation in which we are disposing
-
-          node.AppendEntities(allSubscriptions, allClients, allServices);
+          AppendNodeEntities(singleNode, allSubscriptions, allClients, allServices);
+        }
+        else
+        {
+          foreach (INode nodeInterface in nodes)
+          {
+            AppendNodeEntities(nodeInterface, allSubscriptions, allClients, allServices);
+          }
         }
       }
 
@@ -411,6 +423,22 @@ namespace ROS2
         }
       }
       return true;
+    }
+
+    /// <summary>Append entities from a concrete ros2cs node, ignoring foreign/disposed interface instances.</summary>
+    private static void AppendNodeEntities(
+      INode nodeInterface,
+      List<ISubscriptionBase> allSubscriptions,
+      List<IClientBase> allClients,
+      List<IServiceBase> allServices)
+    {
+      Node node = nodeInterface as Node;
+      if (node == null)
+      {
+        return;
+      }
+
+      node.AppendEntities(allSubscriptions, allClients, allServices);
     }
 
     /// <summary>Finalize the global rcl context exactly once.</summary>

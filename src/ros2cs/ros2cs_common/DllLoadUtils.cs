@@ -392,7 +392,7 @@ namespace ROS2
             return;
         }
 
-        Ros2csLogger.GetInstance().LogDebug("Preloading " + settings.PreloadLibraryName);
+        Ros2csLogger.GetInstance().LogDebug(() => "Preloading " + settings.PreloadLibraryName);
         IntPtr libPtr = Load(settings.PreloadLibraryName, settings.AbsolutePath);
         if (preloadedLibraryHandle != null)
         {
@@ -400,7 +400,7 @@ namespace ROS2
         }
         preloadedLibraryHandle = NativeLibraryHandle.FromHandle(this, libPtr);
 
-        Ros2csLogger.GetInstance().LogDebug("Preloading " + settings.PreloadLibraryName + " successful.");
+        Ros2csLogger.GetInstance().LogDebug(() => "Preloading " + settings.PreloadLibraryName + " successful.");
 
         preloadedLibraryKey = preloadKey;
       }
@@ -426,13 +426,13 @@ namespace ROS2
     private IntPtr Load(string libraryFileName, string absolutePath) {
       string libraryPath = absolutePath + libraryFileName;
       string dlopenSearchString = libraryPath;
-      Ros2csLogger.GetInstance().LogDebug("Loading lib: " + dlopenSearchString);
+      Ros2csLogger.GetInstance().LogDebug(() => "Loading lib: " + dlopenSearchString);
       IntPtr ptr = dlopen(dlopenSearchString, RTLD_NOW);
       if (ptr == IntPtr.Zero) {
         if (!String.IsNullOrEmpty(absolutePath)) {
           // Fallback - look for library in default paths
           var errPtr = dlerror ();
-          Ros2csLogger.GetInstance().LogDebug("Could not find " + dlopenSearchString + ": " + Marshal.PtrToStringAnsi (errPtr) + ". Fallback to " + libraryFileName);
+          Ros2csLogger.GetInstance().LogDebug(() => "Could not find " + dlopenSearchString + ": " + Marshal.PtrToStringAnsi (errPtr) + ". Fallback to " + libraryFileName);
           dlopenSearchString = libraryFileName;
           ptr = dlopen(dlopenSearchString, RTLD_NOW);
         }
@@ -445,7 +445,7 @@ namespace ROS2
         }
         throw new UnsatisfiedLinkError(dlopenSearchString);
       }
-      Ros2csLogger.GetInstance().LogDebug("Loaded library: " + dlopenSearchString);
+      Ros2csLogger.GetInstance().LogDebug(() => "Loaded library: " + dlopenSearchString);
       return ptr;
     }
 
@@ -501,7 +501,7 @@ namespace ROS2
           return;
         }
 
-        Ros2csLogger.GetInstance().LogDebug("Preloading " + settings.PreloadLibraryName);
+        Ros2csLogger.GetInstance().LogDebug(() => "Preloading " + settings.PreloadLibraryName);
         IntPtr libPtr = Load(settings.PreloadLibraryName, settings.AbsolutePath);
         if (preloadedLibraryHandle != null)
         {
@@ -509,7 +509,7 @@ namespace ROS2
         }
         preloadedLibraryHandle = NativeLibraryHandle.FromHandle(this, libPtr);
 
-        Ros2csLogger.GetInstance().LogDebug("Preloading " + settings.PreloadLibraryName + " successful.");
+        Ros2csLogger.GetInstance().LogDebug(() => "Preloading " + settings.PreloadLibraryName + " successful.");
 
         preloadedLibraryKey = preloadKey;
       }
@@ -535,12 +535,12 @@ namespace ROS2
     private IntPtr Load(string libraryFileName, string absolutePath) {
       string libraryPath = absolutePath + libraryFileName;
       string dlopenSearchString = libraryPath;
-      Ros2csLogger.GetInstance().LogDebug("Loading lib: " + dlopenSearchString);
+      Ros2csLogger.GetInstance().LogDebug(() => "Loading lib: " + dlopenSearchString);
       IntPtr ptr = dlopen(dlopenSearchString, RTLD_NOW);
       if (ptr == IntPtr.Zero) {
         if (!String.IsNullOrEmpty(absolutePath)) {
           var errPtr = dlerror ();
-          Ros2csLogger.GetInstance().LogDebug("Could not find " + dlopenSearchString + ": " + Marshal.PtrToStringAnsi (errPtr) + ". Fallback to " + libraryFileName);
+          Ros2csLogger.GetInstance().LogDebug(() => "Could not find " + dlopenSearchString + ": " + Marshal.PtrToStringAnsi (errPtr) + ". Fallback to " + libraryFileName);
           dlopenSearchString = libraryFileName;
           ptr = dlopen(dlopenSearchString, RTLD_NOW);
         }
@@ -553,7 +553,7 @@ namespace ROS2
         }
         throw new UnsatisfiedLinkError(dlopenSearchString);
       }
-      Ros2csLogger.GetInstance().LogDebug("Loaded library: " + dlopenSearchString);
+      Ros2csLogger.GetInstance().LogDebug(() => "Loaded library: " + dlopenSearchString);
       return ptr;
     }
 

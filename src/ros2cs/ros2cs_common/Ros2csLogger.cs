@@ -20,7 +20,6 @@
 // - Isolated application logger callback exceptions from ros2cs callers.
 
 using System;
-using System.Collections.Generic;
 
 namespace ROS2
 {
@@ -40,16 +39,16 @@ namespace ROS2
     private static readonly Lazy<Ros2csLogger> Instance = new Lazy<Ros2csLogger>(() => new Ros2csLogger());
     // Protects mutable log level, callbacks, and console color writes.
     private static readonly object LoggerMutex = new object();
-    private static LogLevel _logLevel;
+    private static volatile LogLevel _logLevel;
 
     public delegate void Callback(object message);
 
-    private static Dictionary<LogLevel, String> LevelNames = new Dictionary<LogLevel, String>()
+    private static readonly string[] LevelNames = new string[]
     {
-      {LogLevel.DEBUG, "DEBUG"},
-      {LogLevel.INFO, "INFO"},
-      {LogLevel.WARNING, "WARNING"},
-      {LogLevel.ERROR, "ERROR"},
+      "DEBUG",
+      "INFO",
+      "WARNING",
+      "ERROR",
     };
 
     /// <summary>Minimum level that will be emitted by the logger.</summary>
@@ -57,34 +56,28 @@ namespace ROS2
     {
       get
       {
-        lock (LoggerMutex)
-        {
-          return _logLevel;
-        }
+        return _logLevel;
       }
       set
       {
-        lock (LoggerMutex)
-        {
-          _logLevel = value;
-        }
+        _logLevel = value;
       }
     }
 
-    private static Dictionary<LogLevel, Callback> LevelCallbacks = new Dictionary<LogLevel, Callback>()
+    private static readonly Callback[] LevelCallbacks = new Callback[]
     {
-      {LogLevel.DEBUG, null},
-      {LogLevel.INFO, null},
-      {LogLevel.WARNING, null},
-      {LogLevel.ERROR, null},
+      null,
+      null,
+      null,
+      null,
     };
 
-    private static Dictionary<LogLevel, ConsoleColor> LevelColors = new Dictionary<LogLevel, ConsoleColor>()
+    private static readonly ConsoleColor[] LevelColors = new ConsoleColor[]
     {
-      {LogLevel.DEBUG, ConsoleColor.Green},
-      {LogLevel.INFO, ConsoleColor.White},
-      {LogLevel.WARNING, ConsoleColor.Yellow},
-      {LogLevel.ERROR, ConsoleColor.Red},
+      ConsoleColor.Green,
+      ConsoleColor.White,
+      ConsoleColor.Yellow,
+      ConsoleColor.Red,
     };
 
     /// <summary> Set a callback for an application layer logger </summary>
@@ -96,7 +89,7 @@ namespace ROS2
     {
       lock (LoggerMutex)
       {
-        LevelCallbacks[level] = cb;
+        LevelCallbacks[(int)level] = cb;
       }
     }
 
@@ -123,18 +116,21 @@ namespace ROS2
       lock (LoggerMutex)
       {
         if (_logLevel > level) return;
-        callback = Ros2csLogger.LevelCallbacks[level];
+        callback = Ros2csLogger.LevelCallbacks[(int)level];
       }
 
       // Threshold and callback are a snapshot: later LogLevel changes do not cancel a message already accepted.
       // Invoke application callbacks outside the console lock so custom loggers cannot block formatting.
-      try
+      if (callback != null)
       {
-        callback?.Invoke("[ROS2CS] " + message);
-      }
-      catch (Exception e)
-      {
-        Console.Error.WriteLine("[ROS2CS] Logger callback failed: " + e);
+        try
+        {
+          callback.Invoke("[ROS2CS] " + message);
+        }
+        catch (Exception e)
+        {
+          Console.Error.WriteLine("[ROS2CS] Logger callback failed: " + e);
+        }
       }
 
       lock (LoggerMutex)
@@ -142,14 +138,14 @@ namespace ROS2
         ConsoleColor prevForeground = Console.ForegroundColor;
         try
         {
-          Console.ForegroundColor = Ros2csLogger.LevelColors[level];
-          Console.WriteLine(
-            "[" +
-            DateTime.Now.ToString("HH:mm:ss.ffffff") +
-            "][" +
-            Ros2csLogger.LevelNames[level] +
-            "] " +
-            message);
+          Console.ForegroundColor = Ros2csLogger.LevelColors[(int)level];
+          Console.WriteLine(string.Concat(
+            "[",
+            DateTime.Now.ToString("HH:mm:ss.ffffff"),
+            "][",
+            Ros2csLogger.LevelNames[(int)level],
+            "] ",
+            message));
         }
         finally
         {
@@ -176,6 +172,19 @@ namespace ROS2
     public void LogDebug(String message)
     {
       Log(LogLevel.DEBUG, message);
+    }
+
+    public void LogDebug(Func<string> messageFactory)
+    {
+      if (_logLevel > LogLevel.DEBUG)
+      {
+        return;
+      }
+      if (messageFactory == null)
+      {
+        throw new ArgumentNullException(nameof(messageFactory));
+      }
+      Log(LogLevel.DEBUG, messageFactory());
     }
   }
 }

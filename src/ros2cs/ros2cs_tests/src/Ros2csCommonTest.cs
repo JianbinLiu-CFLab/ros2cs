@@ -37,6 +37,32 @@ namespace ROS2.Test
         }
 
         [Test]
+        public void FilteredDebugFactoryIsNotEvaluated()
+        {
+            Ros2csLogger.LogLevel = LogLevel.INFO;
+            bool factoryEvaluated = false;
+
+            Ros2csLogger.GetInstance().LogDebug(() =>
+            {
+                factoryEvaluated = true;
+                return "debug message";
+            });
+
+            Assert.That(factoryEvaluated, Is.False);
+        }
+
+        [Test]
+        public void EnabledDebugFactoryIsEvaluated()
+        {
+            string callbackMessage = null;
+            Ros2csLogger.SetCallback(LogLevel.DEBUG, message => callbackMessage = (string)message);
+
+            Ros2csLogger.GetInstance().LogDebug(() => "debug message");
+
+            Assert.That(callbackMessage, Is.EqualTo("[ROS2CS] debug message"));
+        }
+
+        [Test]
         public void LoaderSettingsCanBeReplacedAtomically()
         {
             GlobalVariables.SetLoaderSettings(true, "libdependency.dylib", "/tmp/ros2cs/");

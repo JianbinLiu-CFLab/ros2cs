@@ -5,6 +5,7 @@
 # - Added explicit parallel worker selection with ROS2CS_PARALLEL_WORKERS override.
 # - Added optional compiler launcher support through ROS2CS_COMPILER_LAUNCHER or ccache auto-detection.
 # - Added optional short colcon build base support through --build-base or ROS2CS_BUILD_BASE.
+# - Defaulted Linux/macOS builds to Ninja and made the colcon event handler configurable.
 
 set -euo pipefail
 
@@ -28,6 +29,7 @@ MSG="Build started."
 STANDALONE=OFF
 PARALLEL_WORKERS="${ROS2CS_PARALLEL_WORKERS:-}"
 BUILD_BASE="${ROS2CS_BUILD_BASE:-}"
+EVENT_HANDLER="${ROS2CS_EVENT_HANDLER:-console_cohesion+}"
 
 # Worker count is a throughput policy; build correctness must not depend on a specific value.
 if [ -z "$PARALLEL_WORKERS" ]; then
@@ -95,6 +97,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 CMAKE_ARGS=(
+  -G Ninja
   -DCMAKE_BUILD_TYPE=Release
   -DSTANDALONE_BUILD="$STANDALONE"
   -DBUILD_TESTING="$TESTS"
@@ -115,12 +118,12 @@ if [ -n "$BUILD_BASE" ]; then
   MSG="$MSG (build base: $BUILD_BASE)"
 fi
 
-MSG="$MSG (workers: $PARALLEL_WORKERS)"
+MSG="$MSG (workers: $PARALLEL_WORKERS, generator: Ninja, event handler: $EVENT_HANDLER)"
 
 echo "$MSG"
 colcon "${COLCON_ARGS[@]}" \
 --parallel-workers "$PARALLEL_WORKERS" \
 --merge-install \
---event-handlers console_direct+ \
+--event-handlers "$EVENT_HANDLER" \
 --cmake-args \
 "${CMAKE_ARGS[@]}"
