@@ -60,10 +60,8 @@ Windows 11 is an expected target but was not the OS used for the current local v
   - You can build tests by adding `--with-tests` argument
 - To test your build please check main readme [Testing section](README.md#testing)
 
-Current local validation commands are recorded in:
-
-- `D:\ros2unity\plan\ros2cs\06-ros2cs-jazzy-build-test-validation-report.md`
-- `D:\ros2unity\plan\ros2cs\07-ros2cs-src-workspace-build-test-validation.md`
+Record validation commands, exit codes, and key output in your local release or
+maintenance notes before making platform support claims.
 
 ### Standalone version (Windows)
 
@@ -104,6 +102,7 @@ This indicates colcon/CMake tried to infer a Visual Studio generator from a Visu
 colcon build --cmake-args -G Ninja
 ```
 
-When using the local Jazzy wrapper, `D:\ros2unity\tools\Enter-Ros2JazzyEnv.py` sets `CMAKE_GENERATOR=Ninja` by default. Explicit `--cmake-args -G Ninja` is still recommended in reproducible command logs.
+Set `CMAKE_GENERATOR=Ninja` in the sourced ROS 2 / MSVC environment, or pass
+`--cmake-args -G Ninja` explicitly in reproducible command logs.
 
 **If no solution of your problem is present in the section above, please make sure to check out `ROS2 For Unity` [Troubleshooting section](https://github.com/RobotecAI/ros2-for-unity/blob/master/README-WINDOWS.md#build-troubleshooting)**

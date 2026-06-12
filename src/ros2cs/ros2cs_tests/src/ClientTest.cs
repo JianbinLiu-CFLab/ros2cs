@@ -15,6 +15,7 @@
 
 // Modifications by Jianbin Liu:
 // - Added disposed client availability coverage.
+// - Added synchronous call reentry guard coverage.
 
 using System;
 using System.Linq;
@@ -108,6 +109,34 @@ namespace ROS2.Test
                 Volatile.Write(ref spinDone, true);
                 Assert.That(spinTask.Wait(TimeSpan.FromSeconds(1)), Is.True);
             }
+        }
+
+        [Test]
+        public void ClientCallFromSpinCallbackThrows()
+        {
+            using var service = Node.CreateService<AddTwoInts_Request, AddTwoInts_Response>(
+                SERVICE_NAME,
+                HandleRequest
+            );
+            using var publisher = Node.CreatePublisher<std_msgs.msg.Int32>("client_reentry_topic");
+            InvalidOperationException callException = null;
+            bool callbackTriggered = false;
+            Node.CreateSubscription<std_msgs.msg.Int32>(
+                "client_reentry_topic",
+                msg =>
+                {
+                    callbackTriggered = true;
+                    callException = Assert.Throws<InvalidOperationException>(
+                        () => Client.Call(CreateRequest(1, 2), TimeSpan.FromMilliseconds(100)));
+                });
+
+            using var publishedMsg = new std_msgs.msg.Int32();
+            publishedMsg.Data = 1;
+            publisher.Publish(publishedMsg);
+            SpinUntil(() => callbackTriggered, "Timed out waiting for reentry test callback.");
+
+            Assert.That(callException, Is.Not.Null);
+            Assert.That(callException.Message, Does.Contain("Synchronous Client.Call cannot be used from a spin callback"));
         }
 
         [Test]

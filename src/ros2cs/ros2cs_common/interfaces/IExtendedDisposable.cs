@@ -16,10 +16,15 @@ using System;
 
 namespace ROS2
 {
-  /// <summary> Extended Disposable interface to enable dispose check </summary>
-  /// <description> Use instead of IDisposable </description>
+  /// <summary>Extended disposable interface to expose object disposal state.</summary>
+  /// <remarks>
+  /// Implementations should document any thread-safety guarantees for <see cref="IsDisposed"/>.
+  /// Callers must not assume that checking <see cref="IsDisposed"/> makes a later operation safe
+  /// from races with another thread disposing the object.
+  /// </remarks>
   public interface IExtendedDisposable : IDisposable
   {
+    /// <summary>Whether this instance has been disposed.</summary>
     bool IsDisposed { get; }
   }
 

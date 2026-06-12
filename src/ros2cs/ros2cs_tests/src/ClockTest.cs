@@ -17,6 +17,7 @@
 // Modifications by Jianbin Liu:
 // - Added negative nanosecond normalization and overflow coverage.
 // - Split pure RosTime conversion tests away from ROS-initialized Clock tests.
+// - Added clock lifecycle coverage across shutdown, reinit, and dispose.
 
 using System;
 using NUnit.Framework;
@@ -54,6 +55,38 @@ namespace ROS2.Test
             using var clock = new Clock();
             RosTime timeNow = clock.Now;
             Assert.That(timeNow.sec, Is.GreaterThan(0));
+        }
+
+        [Test]
+        public void ClockGetNowAfterShutdown()
+        {
+            using var clock = new Clock();
+            Ros2cs.Shutdown();
+
+            RosTime timeNow = clock.Now;
+
+            Assert.That(timeNow.sec, Is.GreaterThan(0));
+        }
+
+        [Test]
+        public void ClockGetNowAfterShutdownAndReinit()
+        {
+            using var clock = new Clock();
+            Ros2cs.Shutdown();
+            Ros2cs.Init();
+
+            RosTime timeNow = clock.Now;
+
+            Assert.That(timeNow.sec, Is.GreaterThan(0));
+        }
+
+        [Test]
+        public void ClockGetNowAfterDisposeThrows()
+        {
+            var clock = new Clock();
+            clock.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => { var _ = clock.Now; });
         }
     }
 

@@ -1,3 +1,6 @@
+# Legacy distro file - not maintained on JianbinLiu-CFLab/main.
+# Use ros2_jazzy.repos for the active maintenance line.
+
 repositories:
   ros2/rosidl_defaults:
     type: git
@@ -34,4 +37,5 @@ repositories:
   external/build_tools/ament_cmake_export_assemblies:
     type: git
     url: https://github.com/RobotecAI/ament_cmake_export_assemblies
+    # Historical upstream tracking branch retained for this legacy distro file.
     version: master

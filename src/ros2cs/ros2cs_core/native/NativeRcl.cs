@@ -16,6 +16,7 @@
 // Modifications by Jianbin Liu:
 // - Retained native library handles while rcl delegates are in use.
 // - Exposed rcl_init_options_fini for native lifecycle tests.
+// - Corrected bool and argv marshalling for rcl ABI compatibility.
 
 using System;
 using System.Runtime.InteropServices;
@@ -80,6 +81,7 @@ namespace ROS2
         typeof(ShutdownType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    [return: MarshalAs(UnmanagedType.I1)]
     internal delegate bool ContextIsValidType(ref rcl_context_t context);
     internal static ContextIsValidType
         rcl_context_is_valid =
@@ -89,7 +91,7 @@ namespace ROS2
         typeof(ContextIsValidType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    internal delegate int InitType(int argc, [In, Out] string[] argv, ref rcl_init_options_t option, ref rcl_context_t context);
+    internal delegate int InitType(int argc, [In] string[] argv, ref rcl_init_options_t option, ref rcl_context_t context);
     internal static InitType
         rcl_init =
         (InitType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
@@ -315,6 +317,7 @@ namespace ROS2
         typeof(SubscriptionFiniType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    [return: MarshalAs(UnmanagedType.I1)]
     internal delegate bool SubscriptionIsValidType(ref rcl_subscription_t subscription);
     internal static SubscriptionIsValidType
         rcl_subscription_is_valid =

@@ -17,6 +17,7 @@
 // - Made singleton initialization and logger callbacks thread-safe.
 // - Serialized console formatting to reduce interleaved log noise.
 // - Added PascalCase callback registration while retaining the legacy method.
+// - Isolated application logger callback exceptions from ros2cs callers.
 
 using System;
 using System.Collections.Generic;
@@ -127,7 +128,14 @@ namespace ROS2
 
       // Threshold and callback are a snapshot: later LogLevel changes do not cancel a message already accepted.
       // Invoke application callbacks outside the console lock so custom loggers cannot block formatting.
-      callback?.Invoke("[ROS2CS] " + message);
+      try
+      {
+        callback?.Invoke("[ROS2CS] " + message);
+      }
+      catch (Exception e)
+      {
+        Console.Error.WriteLine("[ROS2CS] Logger callback failed: " + e);
+      }
 
       lock (LoggerMutex)
       {

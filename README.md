@@ -18,19 +18,24 @@ For the JianbinLiu-CFLab fork, `main` is the maintained integration line.
 
 The upstream RobotecAI repository and its historical branches remain the original source and licensing history, but they are no longer used as the active integration target for this Jazzy/R2FU line. Upstream changes should be reviewed and cherry-picked deliberately rather than merged blindly.
 
-Downstream projects should consume:
+Downstream projects should use the latest public maintenance preview for a
+stable, reproducible pin:
+
+```text
+https://github.com/JianbinLiu-CFLab/ros2cs.git
+version: v0.5.0-jazzy-preview.1
+```
+
+Use `main` only when intentionally tracking current development:
 
 ```text
 https://github.com/JianbinLiu-CFLab/ros2cs.git
 version: main
 ```
 
-The latest public maintenance preview is:
+Release notes and artifacts:
 
-```text
-v0.5.0-jazzy-preview.1
-https://github.com/JianbinLiu-CFLab/ros2cs/releases/tag/v0.5.0-jazzy-preview.1
-```
+- https://github.com/JianbinLiu-CFLab/ros2cs/releases/tag/v0.5.0-jazzy-preview.1
 
 ### Features
 
@@ -75,6 +80,7 @@ Historical/project ROS2 distribution targets:
 - Humble
 - Galactic
 - Foxy
+- Rolling (repository file present, unmaintained on this fork)
 
 ### Flavours
 

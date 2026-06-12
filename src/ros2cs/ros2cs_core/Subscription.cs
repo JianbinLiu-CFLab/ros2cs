@@ -16,6 +16,8 @@
 // Modifications by Jianbin Liu:
 // - Added node-owned disposal path and options cleanup.
 // - Added safe message disposal and take-failure handling.
+// - Propagates native subscription option finalization failures during explicit disposal.
+// - Made disposal state volatile for node/entity visibility.
 
 using System;
 using System.Collections.Generic;
@@ -34,7 +36,7 @@ namespace ROS2
     private string topic;
 
     public bool IsDisposed { get { return disposed; } }
-    private bool disposed = false;
+    private volatile bool disposed = false;
 
     // Keep the owning node reference so fini calls always use the current native node handle.
     private readonly Node node;
@@ -154,10 +156,22 @@ namespace ROS2
           topic,
           subscriptionOptions));
       }
-      catch
+      catch (Exception initException)
       {
-        NativeRclInterface.rclcs_subscription_dispose_options(subscriptionOptions);
-        subscriptionOptions = IntPtr.Zero;
+        List<Exception> exceptions = new List<Exception> { initException };
+        try
+        {
+          Utils.CheckReturnEnum(NativeRclInterface.rclcs_subscription_dispose_options(subscriptionOptions));
+        }
+        catch (Exception disposeException)
+        {
+          exceptions.Add(disposeException);
+        }
+        finally
+        {
+          subscriptionOptions = IntPtr.Zero;
+        }
+        Utils.ThrowCollectedExceptions(exceptions);
         throw;
       }
     }
@@ -219,7 +233,7 @@ namespace ROS2
           {
             if (subscriptionOptions != IntPtr.Zero)
             {
-              NativeRclInterface.rclcs_subscription_dispose_options(subscriptionOptions);
+              Utils.CheckReturnEnum(NativeRclInterface.rclcs_subscription_dispose_options(subscriptionOptions));
             }
           }
           catch (Exception e)

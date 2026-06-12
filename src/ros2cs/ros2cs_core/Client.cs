@@ -18,6 +18,7 @@
 // - Reworked client handle and options ownership.
 // - Added response cleanup and spin callback reentry guard.
 // - Added timeout-capable synchronous calls and removed exception-driven cancellation lookup.
+// - Made disposal state volatile for node/entity visibility.
 
 using System;
 using System.Collections;
@@ -77,7 +78,7 @@ namespace ROS2
 
     /// <inheritdoc/>
     public bool IsDisposed { get { return disposed; } }
-    private bool disposed = false;
+    private volatile bool disposed = false;
 
     /// <summary>
     /// Internal constructor for Client

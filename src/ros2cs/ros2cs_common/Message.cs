@@ -16,12 +16,17 @@ using System;
 
 namespace ROS2
 {
-  /// <summary> Basic Message interface, only exposing Dispose method <summary>
+  /// <summary>Basic message interface, exposing disposal for native-backed generated messages.</summary>
+  /// <remarks>
+  /// The caller that creates a message owns disposal. Generated messages must be explicitly disposed
+  /// and must not declare finalizers that call native message destroy functions during process or
+  /// Unity domain teardown.
+  /// </remarks>
   public interface Message : IExtendedDisposable
   {
   }
 
-  /// <summary> Convenience interface to manipulate headers <summary>
+  /// <summary> Convenience interface to manipulate headers </summary>
   public interface MessageWithHeader : Message
   {
     void SetHeaderFrame(string frameID);

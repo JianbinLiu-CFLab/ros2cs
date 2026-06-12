@@ -18,6 +18,7 @@
 // - Added calling convention metadata for rclcs init delegate.
 // - Corrected internal default-node-options delegate spelling.
 // - Shared the ros2cs native wrapper handle with rmw wrapper bindings.
+// - Surfaced native option-dispose return codes where rcl fini can fail.
 
 using System;
 using System.Runtime.InteropServices;
@@ -80,7 +81,7 @@ namespace ROS2
         typeof(NodeCreateDefaultOptionsType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    internal delegate void NodeDisposeOptionsType(IntPtr options);
+    internal delegate int NodeDisposeOptionsType(IntPtr options);
     internal static NodeDisposeOptionsType
         rclcs_node_dispose_options =
         (NodeDisposeOptionsType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
@@ -98,7 +99,7 @@ namespace ROS2
         typeof(SubscriptionCreateOptionsType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    internal delegate void SubscriptionDisposeOptionsType(IntPtr options);
+    internal delegate int SubscriptionDisposeOptionsType(IntPtr options);
     internal static SubscriptionDisposeOptionsType
         rclcs_subscription_dispose_options =
         (SubscriptionDisposeOptionsType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(

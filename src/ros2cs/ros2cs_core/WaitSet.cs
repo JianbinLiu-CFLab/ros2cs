@@ -17,6 +17,7 @@
 // - Made wait set lifetime disposable.
 // - Added disposed-state checks for spin and entity registration.
 // - Removed the unused wrapper Clear method; resizing is the active spin path.
+// - Removed the unused unbounded wait overload.
 
 using System;
 
@@ -31,6 +32,10 @@ namespace ROS2
   }
 
   /// <summary>Disposable wrapper around rcl_wait_set_t used by Ros2cs spinning.</summary>
+  /// <remarks>
+  /// Ros2cs serializes public spin/shutdown paths with its wait-set mutex. This wrapper keeps
+  /// its own mutex as a local ownership guard for finalizer cleanup and future internal callers.
+  /// </remarks>
   internal class WaitSet : IDisposable
   {
     internal ulong SubscriptionCount {get { return Handle.size_of_subscriptions.ToUInt64(); }}
@@ -247,11 +252,6 @@ namespace ROS2
           return AddResult.SUCCESS;
         }
       }
-    }
-
-    internal bool Wait()
-    {
-      return Wait(TimeSpan.FromTicks(-1));
     }
 
     internal bool Wait(TimeSpan timeout)

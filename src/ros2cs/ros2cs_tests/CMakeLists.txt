@@ -5,6 +5,7 @@
 # - Updated the C# test target framework to .NET 8.
 # - Preserved the final newline for consistent generated build files.
 # - Added a generated message finalizer child-process probe.
+# - Added isolated ros2cs_common primitive coverage.
 #
 
 cmake_minimum_required(VERSION 3.6)
@@ -46,6 +47,7 @@ if(BUILD_TESTING)
     src/MessagesTest.cs
     src/NodeTest.cs
     src/NativeMethodsTest.cs
+    src/Ros2csCommonTest.cs
     src/ClientTest.cs
     src/ServiceTest.cs
     src/SubscriptionTest.cs
