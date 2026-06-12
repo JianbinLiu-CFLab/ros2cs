@@ -15,6 +15,7 @@
 
 # Modifications by Jianbin Liu:
 # - Fixed int8 sequence marshaling to use a byte-compatible native representation.
+# - Returned an explicit generator success status.
 
 from rosidl_cmake import generate_files
 from rosidl_generator_c import idl_type_to_c
@@ -53,6 +54,8 @@ def generate_cs(generator_arguments_file, typesupport_impls, cs_build_tool):
     for type_support in type_support_impl_by_filename.keys():
         typemapping = { 'idl_typesupport.c.em': type_support }
         generate_files(generator_arguments_file, typemapping)
+
+    return 0
 
 
 def escape_string(s):

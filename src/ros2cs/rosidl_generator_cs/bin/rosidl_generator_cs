@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import argparse
+import importlib.util
 import os
 import sys
 
@@ -29,10 +30,12 @@ except ImportError:
         rosidl_generator_cs_root, 'rosidl_generator_cs', '__init__.py')
     if not os.path.exists(rosidl_generator_cs_module):
         raise
-    from importlib.machinery import SourceFileLoader
-
-    loader = SourceFileLoader('rosidl_generator_cs', rosidl_generator_cs_module)
-    rosidl_generator_cs = loader.load_module()
+    spec = importlib.util.spec_from_file_location('rosidl_generator_cs', rosidl_generator_cs_module)
+    if spec is None or spec.loader is None:
+        raise ImportError('Unable to load rosidl_generator_cs from ' + rosidl_generator_cs_module)
+    rosidl_generator_cs = importlib.util.module_from_spec(spec)
+    sys.modules['rosidl_generator_cs'] = rosidl_generator_cs
+    spec.loader.exec_module(rosidl_generator_cs)
     generate_cs = rosidl_generator_cs.generate_cs
 
 
@@ -49,7 +52,7 @@ def main(argv=sys.argv[1:]):
     parser.add_argument(
         '--cs-build-tool',
         required=True,
-        help='CS build tool to be used for compiling. Mono or DotNetCore')
+        help='CS build tool to be used for compiling. DotNetCore')
     args = parser.parse_args(argv)
 
     return generate_cs(args.generator_arguments_file, args.typesupport_impls.split(';'), args.cs_build_tool)
