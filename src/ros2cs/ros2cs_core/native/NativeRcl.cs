@@ -154,6 +154,24 @@ namespace ROS2
         typeof(NodeGetNamespaceType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate int CountPublishersType(ref rcl_node_t node, string topic_name, ref UIntPtr count);
+    internal static CountPublishersType
+        rcl_count_publishers =
+        (CountPublishersType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
+        nativeRCL,
+        "rcl_count_publishers"),
+        typeof(CountPublishersType));
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate int CountSubscribersType(ref rcl_node_t node, string topic_name, ref UIntPtr count);
+    internal static CountSubscribersType
+        rcl_count_subscribers =
+        (CountSubscribersType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
+        nativeRCL,
+        "rcl_count_subscribers"),
+        typeof(CountSubscribersType));
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     // Keep the historical misspelled delegate type names: friend test assemblies bind field signatures to these types.
     internal delegate rcl_client_t GetZeroInitiazizedClientType();
     internal static GetZeroInitiazizedClientType

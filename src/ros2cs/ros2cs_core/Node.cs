@@ -271,17 +271,45 @@ namespace ROS2
       exceptions.Add(exception);
     }
 
-    /// <summary>Reject entity creation when the owning node or global context is no longer live.</summary>
-    private void ThrowIfCannotCreateEntity(string entityKind)
+    /// <summary>Reject node operations when the owning node or global context is no longer live.</summary>
+    private void ThrowIfNodeNotUsable(string operationDescription)
     {
       if (disposed)
       {
-        throw new ObjectDisposedException(nameof(Node), "Cannot create " + entityKind + " as the node is already disposed");
+        throw new ObjectDisposedException(nameof(Node), "Cannot " + operationDescription + " as the node is already disposed");
       }
       if (!Ros2cs.Ok())
       {
-        logger.LogWarning("Cannot create " + entityKind + " as shutdown was called");
+        logger.LogWarning("Cannot " + operationDescription + " as shutdown was called");
         throw new NotInitializedException();
+      }
+    }
+
+    /// <summary> Count publishers currently visible for a topic in this node's local ROS graph cache. </summary>
+    /// <see cref="INode.CountPublishers"/>
+    public int CountPublishers(string topicName)
+    {
+      lock (mutex)
+      {
+        ThrowIfNodeNotUsable("query publisher count");
+
+        UIntPtr count = UIntPtr.Zero;
+        Utils.CheckReturnEnum(NativeRcl.rcl_count_publishers(ref nodeHandle, topicName, ref count));
+        return checked((int)count.ToUInt64());
+      }
+    }
+
+    /// <summary> Count subscribers currently visible for a topic in this node's local ROS graph cache. </summary>
+    /// <see cref="INode.CountSubscribers"/>
+    public int CountSubscribers(string topicName)
+    {
+      lock (mutex)
+      {
+        ThrowIfNodeNotUsable("query subscriber count");
+
+        UIntPtr count = UIntPtr.Zero;
+        Utils.CheckReturnEnum(NativeRcl.rcl_count_subscribers(ref nodeHandle, topicName, ref count));
+        return checked((int)count.ToUInt64());
       }
     }
 
@@ -291,7 +319,7 @@ namespace ROS2
     {
       lock (mutex)
       {
-        ThrowIfCannotCreateEntity("client");
+        ThrowIfNodeNotUsable("create client");
 
         Client<I, O> client = new Client<I, O>(topic, this, qos);
         clients.Add(client);
@@ -328,7 +356,7 @@ namespace ROS2
     {
       lock (mutex)
       {
-        ThrowIfCannotCreateEntity("service");
+        ThrowIfNodeNotUsable("create service");
 
         Service<I, O> service = new Service<I, O>(topic, this, callback, qos);
         services.Add(service);
@@ -366,7 +394,7 @@ namespace ROS2
     {
       lock (mutex)
       {
-        ThrowIfCannotCreateEntity("publisher");
+        ThrowIfNodeNotUsable("create publisher");
 
         Publisher<T> publisher = new Publisher<T>(topic, this, qos);
         publishers.Add(publisher);
@@ -381,7 +409,7 @@ namespace ROS2
     {
       lock (mutex)
       {
-        ThrowIfCannotCreateEntity("subscription");
+        ThrowIfNodeNotUsable("create subscription");
 
         Subscription<T> subscription = new Subscription<T>(topic, this, callback, qos);
         subscriptions.Add(subscription);

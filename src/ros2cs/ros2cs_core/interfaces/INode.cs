@@ -30,6 +30,18 @@ namespace ROS2
     /// <summary> Node name as given in Ros2cs.CreateNode </summary>
     string Name {get;}
 
+    /// <summary> Count publishers currently visible for a topic in this node's local ROS graph cache. </summary>
+    /// <description> The ROS graph is updated asynchronously by DDS; callers may need to poll after endpoint creation or teardown. </description>
+    /// <param name="topicName"> Fully qualified topic name passed through to rcl. Naming restrictions of ros2 apply and violation results in an exception. </param>
+    /// <returns> Number of visible publishers for the topic. </returns>
+    int CountPublishers(string topicName);
+
+    /// <summary> Count subscribers currently visible for a topic in this node's local ROS graph cache. </summary>
+    /// <description> The ROS graph is updated asynchronously by DDS; callers may need to poll after endpoint creation or teardown. </description>
+    /// <param name="topicName"> Fully qualified topic name passed through to rcl. Naming restrictions of ros2 apply and violation results in an exception. </param>
+    /// <returns> Number of visible subscribers for the topic. </returns>
+    int CountSubscribers(string topicName);
+
     /// <summary> Create a client for this node for a given topic, qos and message type </summary>
     /// <description> Can only be called in an initialized Ros2cs state. </description>
     /// <param name="topic"> Topic for the client. Naming restrictions of ros2 apply and violation results in an exception </param>

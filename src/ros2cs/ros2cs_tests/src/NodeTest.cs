@@ -20,7 +20,9 @@
 
 using System;
 using System.Reflection;
+using System.Threading;
 using NUnit.Framework;
+using NUnit.Framework.Constraints;
 using example_interfaces.srv;
 
 namespace ROS2.Test
@@ -30,6 +32,9 @@ namespace ROS2.Test
     {
         INode node;
         string TEST_NODE = "my_node";
+        const string GRAPH_TEST_TOPIC = "/graph_discovery_test_topic";
+        static readonly TimeSpan GraphTimeout = TimeSpan.FromSeconds(5);
+        static readonly TimeSpan GraphPollInterval = TimeSpan.FromMilliseconds(100);
 
         [SetUp]
         public void SetUp()
@@ -81,6 +86,34 @@ namespace ROS2.Test
             node.Dispose();
 
             Assert.Throws<ObjectDisposedException>(() => node.CreatePublisher<std_msgs.msg.Bool>("test_topic"));
+        }
+
+        [Test]
+        public void CountPublishersAndSubscribersTrackGraphEndpoints()
+        {
+            Assert.That(node.CountPublishers(GRAPH_TEST_TOPIC), Is.EqualTo(0));
+            Assert.That(node.CountSubscribers(GRAPH_TEST_TOPIC), Is.EqualTo(0));
+
+            using (node.CreatePublisher<std_msgs.msg.Bool>(GRAPH_TEST_TOPIC))
+            {
+                WaitForGraphCount(() => node.CountPublishers(GRAPH_TEST_TOPIC), Is.GreaterThanOrEqualTo(1));
+            }
+            WaitForGraphCount(() => node.CountPublishers(GRAPH_TEST_TOPIC), Is.EqualTo(0));
+
+            using (node.CreateSubscription<std_msgs.msg.Bool>(GRAPH_TEST_TOPIC, msg => { }))
+            {
+                WaitForGraphCount(() => node.CountSubscribers(GRAPH_TEST_TOPIC), Is.GreaterThanOrEqualTo(1));
+            }
+            WaitForGraphCount(() => node.CountSubscribers(GRAPH_TEST_TOPIC), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void CountPublishersAndSubscribersAfterDisposeThrow()
+        {
+            node.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => node.CountPublishers(GRAPH_TEST_TOPIC));
+            Assert.Throws<ObjectDisposedException>(() => node.CountSubscribers(GRAPH_TEST_TOPIC));
         }
 
         [Test]
@@ -215,6 +248,21 @@ namespace ROS2.Test
                     field.GetRequiredCustomModifiers(),
                     Does.Contain(typeof(System.Runtime.CompilerServices.IsVolatile)),
                     childType.FullName);
+            }
+        }
+
+        private static void WaitForGraphCount(Func<int> readCount, IResolveConstraint expected)
+        {
+            DateTime deadline = DateTime.UtcNow + GraphTimeout;
+            int count = readCount();
+            while (!expected.Resolve().ApplyTo(count).IsSuccess)
+            {
+                if (DateTime.UtcNow >= deadline)
+                {
+                    Assert.That(count, expected);
+                }
+                Thread.Sleep(GraphPollInterval);
+                count = readCount();
             }
         }
     }

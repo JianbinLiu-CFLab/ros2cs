@@ -262,6 +262,23 @@ namespace ROS2.TestNativeMethods
             string nodeNamespaceFromRcl = Utils.PtrToString(NativeRcl.rcl_node_get_namespace(ref node));
             Assert.That("/ns", Is.EqualTo(nodeNamespaceFromRcl));
         }
+
+        [Test]
+        public void CountPublishersAndSubscribersOnEmptyTopic()
+        {
+            UIntPtr count = UIntPtr.Zero;
+            TestUtils.AssertRetOk(NativeRcl.rcl_count_publishers(
+                ref node,
+                "/native_graph_count_empty_topic",
+                ref count));
+            Assert.That(count, Is.EqualTo(UIntPtr.Zero));
+
+            TestUtils.AssertRetOk(NativeRcl.rcl_count_subscribers(
+                ref node,
+                "/native_graph_count_empty_topic",
+                ref count));
+            Assert.That(count, Is.EqualTo(UIntPtr.Zero));
+        }
     }
 
     [TestFixture]
