@@ -98,19 +98,9 @@ void @(msg_typename)_native_write_field_@(member.name)(void *message_handle, @(g
 {
   @(msg_typename) *ros_message = (@(msg_typename) *)message_handle;
 @[    if  isinstance(member.type, AbstractString)]@
-  if (ros_message->@(member.name).data)
-  { // reinitializing string if message is being reused
-    rosidl_runtime_c__String__fini(&ros_message->@(member.name));
-    rosidl_runtime_c__String__init(&ros_message->@(member.name));
-  }
   rosidl_runtime_c__String__assign(
     &ros_message->@(member.name), value);
 @[    elif isinstance(member.type, AbstractWString)]@
-  if (ros_message->@(member.name).data)
-  { // reinitializing string if message is being reused
-    rosidl_runtime_c__U16String__fini(&ros_message->@(member.name));
-    rosidl_runtime_c__U16String__init(&ros_message->@(member.name));
-  }
   rosidl_runtime_c__U16String__assign(
     &ros_message->@(member.name), value);
 @[    else]@
@@ -145,7 +135,13 @@ bool @(msg_typename)_native_write_field_@(member.name)(@(get_c_type(member.type.
   }
   if (size_changed)
   {
-    if (!rosidl_runtime_c__@(member.type.value_type.typename)__Sequence__init(&ros_message->@(member.name), size))
+    if (size == 0)
+    {
+      ros_message->@(member.name).data = NULL;
+      ros_message->@(member.name).size = 0;
+      ros_message->@(member.name).capacity = 0;
+    }
+    else if (!rosidl_runtime_c__@(member.type.value_type.typename)__Sequence__init(&ros_message->@(member.name), size))
       return false;
   }
   @(get_c_type(member.type.value_type)) *dest = ros_message->@(member.name).data;
@@ -185,36 +181,16 @@ bool @(msg_typename)_native_write_field_@(member.name)(@(get_c_type(member.type.
   if (index < 0 || index >= @(member.type.size))
       return false;
 @[      if isinstance(member.type.value_type, AbstractString)]@
-  if (ros_message->@(member.name)[index].data)
-  { // reinitializing string if message is being reused
-    rosidl_runtime_c__String__fini(&ros_message->@(member.name)[index]);
-    rosidl_runtime_c__String__init(&ros_message->@(member.name)[index]);
-  }
   rosidl_runtime_c__String__assign(&ros_message->@(member.name)[index], value);
 @[      elif isinstance(member.type.value_type, AbstractWString)]@
-  if (ros_message->@(member.name)[index].data)
-  { // reinitializing string if message is being reused
-    rosidl_runtime_c__U16String__fini(&ros_message->@(member.name)[index]);
-    rosidl_runtime_c__U16String__init(&ros_message->@(member.name)[index]);
-  }
   rosidl_runtime_c__U16String__assign(&ros_message->@(member.name)[index], value);
 @[      end if]@
 @[    elif isinstance(member.type, AbstractSequence)]@
   if (index < 0 || (size_t)index >= ros_message->@(member.name).size)
       return false;
 @[      if isinstance(member.type.value_type, AbstractString)]@
-  if (ros_message->@(member.name).data[index].data)
-  { // reinitializing string if message is being reused
-    rosidl_runtime_c__String__fini(&ros_message->@(member.name).data[index]);
-    rosidl_runtime_c__String__init(&ros_message->@(member.name).data[index]);
-  }
   rosidl_runtime_c__String__assign(&ros_message->@(member.name).data[index], value);
 @[      elif isinstance(member.type.value_type, AbstractWString)]@
-  if (ros_message->@(member.name).data[index].data)
-  { // reinitializing string if message is being reused
-    rosidl_runtime_c__U16String__fini(&ros_message->@(member.name).data[index]);
-    rosidl_runtime_c__U16String__init(&ros_message->@(member.name).data[index]);
-  }
   rosidl_runtime_c__U16String__assign(&ros_message->@(member.name).data[index], value);
 @[      end if]@
 @[    end if]@
@@ -319,7 +295,13 @@ bool @(msg_typename)_native_init_sequence_@(member.name)(void *message_handle, i
   }
   if (size_changed)
   {
-    if (!@(n_type)__Sequence__init(&ros_message->@(member.name), size))
+    if (size == 0)
+    {
+      ros_message->@(member.name).data = NULL;
+      ros_message->@(member.name).size = 0;
+      ros_message->@(member.name).capacity = 0;
+    }
+    else if (!@(n_type)__Sequence__init(&ros_message->@(member.name), size))
       return false;
   }
   return true;

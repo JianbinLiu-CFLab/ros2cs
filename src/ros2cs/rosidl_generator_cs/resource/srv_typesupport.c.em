@@ -41,7 +41,11 @@ ROSIDL_GENERATOR_C_EXPORT
 void * @(msg_typename)_native_get_type_support()
 {
     // Request and Response wrappers intentionally return the service-level type support handle.
-    return (void *)ROSIDL_GET_SRV_TYPE_SUPPORT(@(package_name), @(include_parts[1]), @(service.namespaced_type.name));
+    static const void * ts = 0;
+    if (!ts) {
+        ts = (const void *)ROSIDL_GET_SRV_TYPE_SUPPORT(@(package_name), @(include_parts[1]), @(service.namespaced_type.name));
+    }
+    return (void *)ts;
 }
 
 ROSIDL_GENERATOR_C_EXPORT

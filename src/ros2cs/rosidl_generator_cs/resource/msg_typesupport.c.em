@@ -30,7 +30,11 @@ includes[key + '.h'] = '#include <%s.h>' % key
 ROSIDL_GENERATOR_C_EXPORT
 void * @(msg_typename)_native_get_type_support()
 {
-    return (void *)ROSIDL_GET_MSG_TYPE_SUPPORT(@(package_name), @(include_parts[1]), @(message.structure.namespaced_type.name));
+    static const void * ts = 0;
+    if (!ts) {
+        ts = (const void *)ROSIDL_GET_MSG_TYPE_SUPPORT(@(package_name), @(include_parts[1]), @(message.structure.namespaced_type.name));
+    }
+    return (void *)ts;
 }
 
 ROSIDL_GENERATOR_C_EXPORT
