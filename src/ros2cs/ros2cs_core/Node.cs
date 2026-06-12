@@ -25,6 +25,7 @@
 using System;
 using System.Linq;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 
 namespace ROS2
 {
@@ -311,6 +312,66 @@ namespace ROS2
         Utils.CheckReturnEnum(NativeRcl.rcl_count_subscribers(ref nodeHandle, topicName, ref count));
         return checked((int)count.ToUInt64());
       }
+    }
+
+    /// <summary> Get topic names and type names currently visible in this node's local ROS graph cache. </summary>
+    /// <see cref="INode.GetTopicNamesAndTypes"/>
+    public IReadOnlyList<TopicNamesAndTypes> GetTopicNamesAndTypes(bool noDemangle = false)
+    {
+      IntPtr result = IntPtr.Zero;
+      lock (mutex)
+      {
+        ThrowIfNodeNotUsable("query topic names and types");
+        Utils.CheckReturnEnum(NativeRclInterface.rclcs_get_topic_names_and_types(
+          ref nodeHandle,
+          noDemangle,
+          out result));
+      }
+
+      try
+      {
+        return MarshalTopicNamesAndTypes(result);
+      }
+      finally
+      {
+        NativeRclInterface.rclcs_dispose_topic_names_and_types(result);
+      }
+    }
+
+    /// <summary>Copy flattened native graph data into managed immutable snapshots.</summary>
+    private static IReadOnlyList<TopicNamesAndTypes> MarshalTopicNamesAndTypes(IntPtr result)
+    {
+      if (result == IntPtr.Zero)
+      {
+        return new List<TopicNamesAndTypes>().AsReadOnly();
+      }
+
+      rclcs_topic_names_and_types_t nativeResult =
+        Marshal.PtrToStructure<rclcs_topic_names_and_types_t>(result);
+      int topicCount = checked((int)nativeResult.size.ToUInt64());
+      List<TopicNamesAndTypes> topics = new List<TopicNamesAndTypes>(topicCount);
+      int typeArraySize = Marshal.SizeOf<rclcs_string_array_t>();
+
+      for (int i = 0; i < topicCount; i++)
+      {
+        IntPtr namePtr = Marshal.ReadIntPtr(nativeResult.names, i * IntPtr.Size);
+        string topicName = Marshal.PtrToStringAnsi(namePtr) ?? String.Empty;
+
+        IntPtr typeArrayPtr = IntPtr.Add(nativeResult.types, i * typeArraySize);
+        rclcs_string_array_t nativeTypes =
+          Marshal.PtrToStructure<rclcs_string_array_t>(typeArrayPtr);
+        int typeCount = checked((int)nativeTypes.size.ToUInt64());
+        string[] types = new string[typeCount];
+        for (int j = 0; j < typeCount; j++)
+        {
+          IntPtr typePtr = Marshal.ReadIntPtr(nativeTypes.data, j * IntPtr.Size);
+          types[j] = Marshal.PtrToStringAnsi(typePtr) ?? String.Empty;
+        }
+
+        topics.Add(new TopicNamesAndTypes(topicName, Array.AsReadOnly(types)));
+      }
+
+      return topics.AsReadOnly();
     }
 
     /// <summary> Create a client for this node for a given topic, qos and message type </summary>

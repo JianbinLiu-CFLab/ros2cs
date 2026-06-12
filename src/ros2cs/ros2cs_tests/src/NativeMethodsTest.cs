@@ -279,6 +279,30 @@ namespace ROS2.TestNativeMethods
                 ref count));
             Assert.That(count, Is.EqualTo(UIntPtr.Zero));
         }
+
+        [Test]
+        public void GetTopicNamesAndTypesReturnsOkAndNonNull()
+        {
+            IntPtr result = IntPtr.Zero;
+            try
+            {
+                TestUtils.AssertRetOk(NativeRclInterface.rclcs_get_topic_names_and_types(
+                    ref node,
+                    false,
+                    out result));
+                Assert.That(result, Is.Not.EqualTo(IntPtr.Zero));
+            }
+            finally
+            {
+                NativeRclInterface.rclcs_dispose_topic_names_and_types(result);
+            }
+        }
+
+        [Test]
+        public void DisposeTopicNamesAndTypesAcceptsNull()
+        {
+            Assert.DoesNotThrow(() => NativeRclInterface.rclcs_dispose_topic_names_and_types(IntPtr.Zero));
+        }
     }
 
     [TestFixture]
