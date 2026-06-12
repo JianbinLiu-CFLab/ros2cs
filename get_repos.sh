@@ -6,6 +6,13 @@
 
 set -euo pipefail
 
+SCRIPT_SOURCE="${BASH_SOURCE[0]}"
+case "$SCRIPT_SOURCE" in
+    */*) SCRIPT_DIR="${SCRIPT_SOURCE%/*}" ;;
+    *) SCRIPT_DIR="." ;;
+esac
+SCRIPT_DIR="$(cd "$SCRIPT_DIR" && pwd)"
+
 if [ -z "${ROS_DISTRO:-}" ]; then
     echo "Can't detect ROS2 version. Source your ros2 distro first."
     exit 1
@@ -16,25 +23,35 @@ if [[ ! "$ROS_DISTRO" =~ ^[a-z][a-z0-9_]*$ ]]; then
     exit 1
 fi
 
-if [[ $# -gt 1 || ( $# -eq 1 && "$1" != "--get-custom-messages" ) ]]; then
-    echo "Unknown option: ${1:-}"
-    exit 1
-fi
+GET_CUSTOM_MESSAGES=0
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --get-custom-messages)
+            GET_CUSTOM_MESSAGES=1
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
 
-repos_file="ros2_${ROS_DISTRO}.repos"
+repos_file="${SCRIPT_DIR}/ros2_${ROS_DISTRO}.repos"
 if [[ ! -f "$repos_file" ]]; then
     echo "Can't find repos file: '$repos_file'."
     exit 1
 fi
 
 echo "Detected ROS2 ${ROS_DISTRO}. Getting required repos from '$repos_file'"
-vcs import src < "$repos_file"
+vcs import "${SCRIPT_DIR}/src" < "$repos_file"
 
-if [ "${1:-}" = "--get-custom-messages" ]; then
-    if [[ ! -f "custom_messages.repos" ]]; then
-        echo "Can't find custom repos file: 'custom_messages.repos'."
+if [ "$GET_CUSTOM_MESSAGES" -eq 1 ]; then
+    custom_repos_file="${SCRIPT_DIR}/custom_messages.repos"
+    if [[ ! -f "$custom_repos_file" ]]; then
+        echo "Can't find custom repos file: '$custom_repos_file'."
         exit 1
     fi
-    echo -e "\nGetting custom messages from 'custom_messages.repos'."
-    vcs import src < "custom_messages.repos"
+    echo -e "\nGetting custom messages from '$custom_repos_file'."
+    vcs import "${SCRIPT_DIR}/src" < "$custom_repos_file"
 fi

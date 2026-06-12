@@ -8,6 +8,8 @@
     build with tests
 .PARAMETER standalone
     standalone build
+.PARAMETER build_base
+    Optional colcon build base directory. Can also be set with ROS2CS_BUILD_BASE.
 
 Modifications Copyright (c) 2026 Jianbin Liu.
 
@@ -15,10 +17,12 @@ Modifications by Jianbin Liu:
 - Defaulted Windows builds to Ninja for ROS 2 Jazzy/MSVC stability and speed.
 - Added explicit parallel worker selection with ROS2CS_PARALLEL_WORKERS override.
 - Added optional compiler launcher support through ROS2CS_COMPILER_LAUNCHER or sccache auto-detection.
+- Added optional short colcon build base support through -build_base or ROS2CS_BUILD_BASE.
 #>
 Param (
     [Parameter(Mandatory=$false)][switch]$with_tests=$false,
-    [Parameter(Mandatory=$false)][switch]$standalone=$false
+    [Parameter(Mandatory=$false)][switch]$standalone=$false,
+    [Parameter(Mandatory=$false)][string]$build_base=$Env:ROS2CS_BUILD_BASE
 )
 
 $ErrorActionPreference = 'Stop'
@@ -83,8 +87,14 @@ if (-not [string]::IsNullOrWhiteSpace($compilerLauncher)) {
     $msg += " (compiler launcher: $compilerLauncher)"
 }
 
-$colconArgs = @(
-    "build",
+$colconArgs = @("build")
+
+if (-not [string]::IsNullOrWhiteSpace($build_base)) {
+    $colconArgs += @("--build-base", "$build_base")
+    $msg += " (build base: $build_base)"
+}
+
+$colconArgs += @(
     "--parallel-workers", "$parallelWorkers",
     "--merge-install",
     "--event-handlers", "console_direct+",
