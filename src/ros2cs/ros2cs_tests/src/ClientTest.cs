@@ -194,9 +194,13 @@ namespace ROS2.Test
                     SERVICE_NAME,
                     HandleRequest
                 );
-                Assert.That(Client.IsServiceAvailable(), Is.True);
+                SpinUntil(
+                    () => Client.IsServiceAvailable(),
+                    "Timed out waiting for service to become available.");
             }
-            Assert.That(Client.IsServiceAvailable(), Is.False);
+            SpinUntil(
+                () => !Client.IsServiceAvailable(),
+                "Timed out waiting for service to become unavailable.");
         }
 
         [Test]
