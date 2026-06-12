@@ -48,6 +48,7 @@ namespace ROS2
   {
     /// <summary>Number of nanoseconds in one second, used for lossless normalization.</summary>
     private const long NanosecondsPerSecond = 1000000000L;
+    private static readonly rcl_allocator_t DefaultAllocator = NativeRcl.rcutils_get_default_allocator();
     // Serializes native clock reads with disposal/finalizer cleanup.
     private readonly object mutex = new object();
     internal IntPtr handle;
@@ -99,7 +100,7 @@ namespace ROS2
 
     public Clock()
     {
-      rcl_allocator_t allocator = NativeRcl.rcutils_get_default_allocator();
+      rcl_allocator_t allocator = DefaultAllocator;
       handle = NativeRclInterface.rclcs_ros_clock_create(ref allocator);
       if (handle == IntPtr.Zero)
       {
