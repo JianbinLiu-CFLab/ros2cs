@@ -1,10 +1,11 @@
-# ROS2CS - Ubuntu 20.04 and Ubuntu 22.04
+# ROS2CS - Ubuntu 20.04 / 22.04 / 24.04 (legacy - not recently verified)
 
 > Modifications Copyright (c) 2026 Jianbin Liu.
 >
 > Modifications by Jianbin Liu:
 > - Marked Ubuntu instructions as legacy / not recently verified for the current Jazzy maintenance branch.
 > - Noted the .NET 8 tests/examples target framework change without rewriting the Ubuntu flow.
+> - Refreshed SDK and ROS sourcing examples to avoid stale .NET 6 / Foxy copy-paste paths.
 
 ## Current verification status
 
@@ -17,7 +18,9 @@ The current target framework split is:
 - `ros2cs_common`, `ros2cs_core`, and generated message assemblies: `netstandard2.0`.
 - `ros2cs_tests` and `ros2cs_examples`: `net8.0`.
 
-The older `.NET 6.0` references below are retained as historical setup context and need refresh before claiming Ubuntu support for this branch.
+The Ubuntu flow below still needs a fresh build/test run before claiming support
+for this branch, but the SDK and ROS sourcing commands now match the current
+target framework split.
 
 ## Building
 
@@ -27,7 +30,7 @@ The older `.NET 6.0` references below are retained as historical setup context a
 
 - ROS2 installed on the system, along with `test-msgs`, `cyclonedds` and `fastrtps` packages
 - vcstool package - [see here](https://github.com/dirk-thomas/vcstool)
-- .NET 6.0 sdk - [see here](https://www.microsoft.com/net/learn/get-started)
+- .NET 8 SDK - [see here](https://www.microsoft.com/net/learn/get-started)
 
 
 ```bash
@@ -46,11 +49,11 @@ wget https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-mi
 sudo dpkg -i packages-microsoft-prod.deb
 rm packages-microsoft-prod.deb
 
-# install .NET core 6.0 SDK
+# Install .NET 8 SDK
 sudo apt-get update; \
   sudo apt-get install -y apt-transport-https && \
   sudo apt-get update && \
-  sudo apt-get install -y dotnet-sdk-6.0
+  sudo apt-get install -y dotnet-sdk-8.0
 ```
 
 **Optional**
@@ -66,8 +69,7 @@ sudo apt install patchelf
 - Clone this project
 - Source your ROS2 installation
   ```bash
-  # Change foxy to whatever version you are using
-  source /opt/ros/foxy/setup.bash
+  source /opt/ros/${ROS_DISTRO}/setup.bash
   ```
 - Navigate to the top project folder and pull required repositories
   ```bash

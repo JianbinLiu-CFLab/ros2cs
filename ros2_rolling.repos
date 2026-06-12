@@ -1,3 +1,7 @@
+# Unmaintained on JianbinLiu-CFLab/main.
+# This file tracks upstream Rolling/HEAD-style branches and is not verified for
+# the active Jazzy maintenance line.
+
 repositories:
   ros2/rosidl_defaults:
     type: git
@@ -18,6 +22,7 @@ repositories:
   ros2/geometry2:
     type: git
     url: https://github.com/ros2/geometry2.git
+    # geometry2 uses the upstream ros2 branch for Rolling.
     version: ros2
   ros2/test_interface_files:
     type: git
@@ -30,4 +35,5 @@ repositories:
   external/build_tools/ament_cmake_export_assemblies:
     type: git
     url: https://github.com/RobotecAI/ament_cmake_export_assemblies
+    # Historical upstream tracking branch retained for this unmaintained file.
     version: master
