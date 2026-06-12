@@ -18,6 +18,7 @@
 // - Added spin callback tracking to prevent synchronous call reentry.
 // - Serialized wait set access and reduced reconnect/spin noise.
 // - Suppressed the static shutdown finalizer after explicit Shutdown.
+// - Clarified context and wait-set lifecycle invariants.
 
 using System;
 using System.Linq;
@@ -39,13 +40,14 @@ namespace ROS2
     private static readonly object mutex = new object();
     // Guards native context validation/finalization without participating in node lock ordering.
     private static readonly object contextMutex = new object();
-    // Wait set access is serialized separately so shutdown cannot race a spin wait.
+    // Wait set access is serialized separately so shutdown waits for at most the active SpinOnce timeout.
     private static readonly object waitSetMutex = new object();
     [ThreadStatic]
     // Tracks callback execution per spinning thread to reject deadlock-prone synchronous client calls.
     private static int spinCallbackDepth;
     private static volatile bool initialized = false;  // for most part equivalent to rcl::ok()
-    // Prevents rcl_context_fini from running twice across explicit shutdown and finalization.
+    // true before first Init() so FiniContext() is a no-op in the pre-init state.
+    // After Init(), it prevents rcl_context_fini from running twice across shutdown/finalization.
     private static bool contextFinalized = true;
     private static rcl_context_t global_context;  // a simplification, we only use global default context
     private static rcl_allocator_t default_allocator;
@@ -175,11 +177,6 @@ namespace ROS2
     /// </description>
     public static bool Ok()
     {
-      if (!initialized)
-      {
-        return false;
-      }
-
       lock (contextMutex)
       {
         return initialized && !contextFinalized && NativeRcl.rcl_context_is_valid(ref global_context);
@@ -280,7 +277,8 @@ namespace ROS2
     /// application layer since it runs in a blocking infinite loop. Will return when some work is
     /// executed (a callback for each subscription that received a message) or after a timeout.
     /// Note that you don't need to spin if you are only publishing (like in ros2) </description>
-    /// <remarks> Only subscriptions are executed currently, no timers or other executables </remarks>
+    /// <remarks> Only subscriptions are executed currently, no timers or other executables.
+    /// Shutdown waits for an in-flight spin wait to return, so shutdown latency can be up to timeoutSec. </remarks>
     /// <param name="node"> A node to spin on </param>
     /// <param name="timoutSec"> Maximum time to wait for execution item (e. g. subscription) </param>
     public static void Spin(INode node, double timeoutSec = 0.1)
@@ -290,7 +288,8 @@ namespace ROS2
     }
 
     /// <summary> Spin overload for multiple nodes </summary>
-    /// <remarks> This overload saves on implicit List creation </remarks>
+    /// <remarks> This overload saves on implicit List creation. Shutdown waits for an in-flight
+    /// spin wait to return, so shutdown latency can be up to timeoutSec. </remarks>
     /// <see cref="Spin(INode,double)"/>
     public static void Spin(List<INode> nodes, double timeoutSec = 0.1)
     {
@@ -315,7 +314,8 @@ namespace ROS2
     }
 
     /// <summary> SpinOnce overload for multiple nodes </summary>
-    /// <remarks> This overload saves on implicit List creation </remarks>
+    /// <remarks> This overload saves on implicit List creation. Shutdown waits for an in-flight
+    /// spin wait to return, so shutdown latency can be up to timeoutSec. </remarks>
     /// <returns> Whether the wait set was populated and waited on. Timeout with entities returns true. </returns>
     /// <see cref="SpinOnce(INode,double)"/>
     public static bool SpinOnce(List<INode> nodes, double timeoutSec = 0.1)

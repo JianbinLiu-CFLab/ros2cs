@@ -4,6 +4,7 @@
 //
 // Modifications by Jianbin Liu:
 // - Audited init/shutdown regression tests after lifecycle hardening.
+// - Added lifecycle stress coverage and clarified spin timeout semantics.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -69,6 +70,20 @@ namespace ROS2.Test
         }
 
         [Test]
+        public void InitShutdownStress()
+        {
+            for (int i = 0; i < 50; ++i)
+            {
+                Ros2cs.Init();
+                Assert.That(Ros2cs.Ok(), Is.True);
+                Ros2cs.Shutdown();
+                Assert.That(Ros2cs.Ok(), Is.False);
+            }
+
+            Assert.That(Ros2cs.Ok(), Is.False);
+        }
+
+        [Test]
         public void DoubleInit()
         {
             Ros2cs.Init();
@@ -109,6 +124,7 @@ namespace ROS2.Test
                     "subscription_test_topic",
                     (msg) => { throw new InvalidOperationException("subscription callback was triggered"); }
                 );
+                // True means the non-empty wait set was populated and waited on; no message is expected here.
                 Assert.That(Ros2cs.SpinOnce(node), Is.True);
             }
             finally

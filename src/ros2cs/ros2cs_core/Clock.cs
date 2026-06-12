@@ -17,6 +17,7 @@
 // Modifications by Jianbin Liu:
 // - Added nanosecond normalization helper for negative time values.
 // - Added safe clock creation validation and disposal handling.
+// - Documented context-independent ROS clock behavior.
 
 using System;
 using System.Collections.Generic;
@@ -38,6 +39,11 @@ namespace ROS2
   }
 
   /// <summary> A clock class which queries an internal rcl clock and exposes RosTime </summary>
+  /// <remarks>
+  /// Clock owns a standalone rcl_clock_t and is not registered with the global Ros2cs context.
+  /// It can continue returning time across Ros2cs Shutdown/Init cycles until disposed. The ROS clock
+  /// uses ROS 2 clock semantics: without an active simulation clock source, it falls back to system time.
+  /// </remarks>
   public class Clock : IExtendedDisposable
   {
     /// <summary>Number of nanoseconds in one second, used for lossless normalization.</summary>
