@@ -27,6 +27,7 @@ from rosidl_parser.definition import AbstractWString
 from rosidl_parser.definition import AbstractNestedType
 from rosidl_parser.definition import AbstractSequence
 from rosidl_parser.definition import Array
+from rosidl_parser.definition import BoundedSequence
 }@
 
 #include <stdlib.h>
@@ -75,6 +76,7 @@ ROSIDL_GENERATOR_C_EXPORT
 {
   @(msg_typename) *ros_message = (@(msg_typename) *)message_handle;
 @[    if  isinstance(member.type, AbstractGenericString)]@
+  // Returned string pointers are borrowed and valid only until the field is written or the message is destroyed.
   return ros_message->@(member.name).data;
 @[    else]@
   return ros_message->@(member.name);
@@ -119,11 +121,17 @@ ROSIDL_GENERATOR_C_EXPORT
 bool @(msg_typename)_native_write_field_@(member.name)(@(get_c_type(member.type.value_type)) *value, int size, void *message_handle)
 {
   @(msg_typename) *ros_message = (@(msg_typename) *)message_handle;
+  if (size < 0)
+    return false;
 @[    if isinstance(member.type, Array)]@
   if (size != @(member.type.size))
     return false;
   @(get_c_type(member.type.value_type)) *dest = ros_message->@(member.name);
 @[    elif isinstance(member.type, AbstractSequence)]@
+@[      if isinstance(member.type, BoundedSequence)]@
+  if ((size_t)size > @(member.type.maximum_size))
+    return false;
+@[      end if]@
   size_t previous_sequence_size = ros_message->@(member.name).size;
   bool size_changed = previous_sequence_size != (size_t)size;
   if (size_changed && previous_sequence_size != 0)
@@ -137,6 +145,8 @@ bool @(msg_typename)_native_write_field_@(member.name)(@(get_c_type(member.type.
   }
   @(get_c_type(member.type.value_type)) *dest = ros_message->@(member.name).data;
 @[    end if]@
+  if (size == 0)
+    return true;
   memcpy(dest, value, sizeof(@(get_c_type(member.type.value_type)))*size);
   return true;
 }
@@ -169,7 +179,7 @@ bool @(msg_typename)_native_write_field_@(member.name)(@(get_c_type(member.type.
 {
   @(msg_typename) *ros_message = (@(msg_typename) *)message_handle;
 @[    if isinstance(member.type, Array)]@
-  if (index >= @(member.type.size))
+  if (index < 0 || index >= @(member.type.size))
       return false;
 @[      if isinstance(member.type.value_type, AbstractString)]@
   if (ros_message->@(member.name)[index].data)
@@ -187,6 +197,8 @@ bool @(msg_typename)_native_write_field_@(member.name)(@(get_c_type(member.type.
   rosidl_runtime_c__U16String__assign(&ros_message->@(member.name)[index], value);
 @[      end if]@
 @[    elif isinstance(member.type, AbstractSequence)]@
+  if (index < 0 || (size_t)index >= ros_message->@(member.name).size)
+      return false;
 @[      if isinstance(member.type.value_type, AbstractString)]@
   if (ros_message->@(member.name).data[index].data)
   { // reinitializing string if message is being reused
@@ -215,8 +227,14 @@ ROSIDL_GENERATOR_C_EXPORT
 {
   @(msg_typename) *ros_message = (@(msg_typename) *)message_handle;
 @[    if isinstance(member.type, Array)]@
+  if (index < 0 || index >= @(member.type.size))
+      return NULL;
+  // Returned string pointers are borrowed and valid only until the field is written or the message is destroyed.
   return ros_message->@(member.name)[index].data;
 @[    elif isinstance(member.type, AbstractSequence)]@
+  if (index < 0 || (size_t)index >= ros_message->@(member.name).size)
+      return NULL;
+  // Returned string pointers are borrowed and valid only until the field is written or the message is destroyed.
   return ros_message->@(member.name).data[index].data;
 @[    end if]@
 }
@@ -249,9 +267,13 @@ void * @(msg_typename)_native_get_nested_message_handle_@(member.name)(void *mes
 {
   @(msg_typename) *ros_message = (@(msg_typename) *)message_handle;
 @[    if isinstance(member.type, Array)]@
-  @(n_type) *nested_message = &(ros_message->@(member.name)[index]); //TODO - assert size!
+  if (index < 0 || index >= @(member.type.size))
+    return NULL;
+  @(n_type) *nested_message = &(ros_message->@(member.name)[index]);
 @[    elif isinstance(member.type, AbstractSequence)]@
-  @(n_type) *nested_message = &(ros_message->@(member.name).data[index]); //TODO - assert size!
+  if (index < 0 || (size_t)index >= ros_message->@(member.name).size)
+    return NULL;
+  @(n_type) *nested_message = &(ros_message->@(member.name).data[index]);
 @[    end if]@
   return (void *)nested_message;
 }
@@ -272,6 +294,8 @@ int @(msg_typename)_native_get_array_size_@(member.name)(void *message_handle)
 ROSIDL_GENERATOR_C_EXPORT
 bool @(msg_typename)_native_init_sequence_@(member.name)(void *message_handle, int size)
 {
+  if (size < 0)
+    return false;
 @[    if isinstance(member.type, Array)]@
   //TODO - remove this function call for Arrays altogether
   (void)message_handle; //TODO - message handle not used
@@ -280,6 +304,10 @@ bool @(msg_typename)_native_init_sequence_@(member.name)(void *message_handle, i
   return true;
 @[    else]@
   @(msg_typename) *ros_message = (@(msg_typename) *)message_handle;
+@[      if isinstance(member.type, BoundedSequence)]@
+  if ((size_t)size > @(member.type.maximum_size))
+    return false;
+@[      end if]@
   size_t previous_sequence_size = ros_message->@(member.name).size;
   bool size_changed = previous_sequence_size != (size_t)size;
   if (size_changed && previous_sequence_size != 0)

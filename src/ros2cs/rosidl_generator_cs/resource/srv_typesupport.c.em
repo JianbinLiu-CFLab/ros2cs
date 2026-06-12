@@ -40,6 +40,7 @@ includes[key + '.h'] = '#include <%s.h>' % key
 ROSIDL_GENERATOR_C_EXPORT
 void * @(msg_typename)_native_get_type_support()
 {
+    // Request and Response wrappers intentionally return the service-level type support handle.
     return (void *)ROSIDL_GET_SRV_TYPE_SUPPORT(@(package_name), @(include_parts[1]), @(service.namespaced_type.name));
 }
 
@@ -52,6 +53,9 @@ void *@(msg_typename)_native_create_native_message()
 
 ROSIDL_GENERATOR_C_EXPORT
 void @(msg_typename)_native_destroy_native_message(void *raw_ros_message) {
+  if (!raw_ros_message) {
+    return;
+  }
   @(msg_typename) *ros_message = (@(msg_typename) *)raw_ros_message;
   @(msg_typename)__destroy(ros_message);
 }
