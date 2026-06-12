@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+using System;
 using NUnit.Framework;
 
 namespace ROS2.Test
@@ -36,7 +37,17 @@ namespace ROS2.Test
         public void CreateNode()
         {
             string nodeName = "create_node_test";
-            Ros2cs.CreateNode(nodeName).Dispose();
+            using var node = Ros2cs.CreateNode(nodeName);
+
+            Assert.That(node.Name, Is.EqualTo(nodeName));
+        }
+
+        [Test]
+        public void CreateNodeDuplicateNameThrows()
+        {
+            using var node = Ros2cs.CreateNode("duplicate_node_test");
+
+            Assert.Throws<InvalidOperationException>(() => Ros2cs.CreateNode("duplicate_node_test"));
         }
     }
 }

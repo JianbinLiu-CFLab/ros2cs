@@ -41,7 +41,10 @@ namespace ROS2.Test
         [TearDown]
         public void TearDown()
         {
-            node.Dispose();
+            if (!node.IsDisposed)
+            {
+                node.Dispose();
+            }
             Ros2cs.Shutdown();
         }
 

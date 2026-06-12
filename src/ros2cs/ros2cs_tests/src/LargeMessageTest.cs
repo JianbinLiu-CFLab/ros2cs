@@ -52,16 +52,27 @@ namespace ROS2.Test
         public void SubscriptionTriggerCallback()
         {
             bool callbackTriggered = false;
+            double[] receivedData = null;
             subscriptionNode.CreateSubscription<std_msgs.msg.Float64MultiArray>(
-                "subscription_test_topic", (msg) => { callbackTriggered = true; });
+                "subscription_test_topic", (msg) =>
+                {
+                    callbackTriggered = true;
+                    receivedData = msg.Data;
+                });
 
             using var largeMsg = new std_msgs.msg.Float64MultiArray();
             largeMsg.Data = new double[1024];
+            largeMsg.Data[0] = 3.14;
+            largeMsg.Data[1023] = -42.5;
 
             publisher.Publish(largeMsg);
             Ros2cs.SpinOnce(subscriptionNode, 0.1);
 
             Assert.That(callbackTriggered, Is.True);
+            Assert.That(receivedData, Is.Not.Null);
+            Assert.That(receivedData.Length, Is.EqualTo(1024));
+            Assert.That(receivedData[0], Is.EqualTo(3.14));
+            Assert.That(receivedData[1023], Is.EqualTo(-42.5));
         }
     }
 }

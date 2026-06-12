@@ -194,9 +194,13 @@ namespace ROS2.Test
                     SERVICE_NAME,
                     HandleRequest
                 );
-                Assert.That(Client.IsServiceAvailable(), Is.True);
+                SpinUntil(
+                    () => Client.IsServiceAvailable(),
+                    "Timed out waiting for service to become available.");
             }
-            Assert.That(Client.IsServiceAvailable(), Is.False);
+            SpinUntil(
+                () => !Client.IsServiceAvailable(),
+                "Timed out waiting for service to become unavailable.");
         }
 
         [Test]
@@ -250,7 +254,8 @@ namespace ROS2.Test
                 HandleRequest
             );
             Task[] tasks = Enumerable
-                .Repeat(this.CreateRequest(3, 4), 3)
+                .Range(0, 3)
+                .Select(i => this.CreateRequest(i, 100 - i))
                 .Select(request => this.Client.CallAsync(request))
                 .ToArray();
 

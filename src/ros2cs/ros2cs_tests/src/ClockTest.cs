@@ -27,6 +27,8 @@ namespace ROS2.Test
     [TestFixture]
     public class ClockTest
     {
+        private const int RecentUnixTimeFloor = 1700000000;
+
         [SetUp]
         public void SetUp()
         {
@@ -54,7 +56,7 @@ namespace ROS2.Test
         {
             using var clock = new Clock();
             RosTime timeNow = clock.Now;
-            Assert.That(timeNow.sec, Is.GreaterThan(0));
+            Assert.That(timeNow.sec, Is.GreaterThan(RecentUnixTimeFloor));
         }
 
         [Test]
@@ -65,7 +67,7 @@ namespace ROS2.Test
 
             RosTime timeNow = clock.Now;
 
-            Assert.That(timeNow.sec, Is.GreaterThan(0));
+            Assert.That(timeNow.sec, Is.GreaterThan(RecentUnixTimeFloor));
         }
 
         [Test]
@@ -77,7 +79,7 @@ namespace ROS2.Test
 
             RosTime timeNow = clock.Now;
 
-            Assert.That(timeNow.sec, Is.GreaterThan(0));
+            Assert.That(timeNow.sec, Is.GreaterThan(RecentUnixTimeFloor));
         }
 
         [Test]

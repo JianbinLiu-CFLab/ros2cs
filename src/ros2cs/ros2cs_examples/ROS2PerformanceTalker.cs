@@ -94,7 +94,7 @@ namespace Examples
     {
       using var runtime = new ROS2ExampleRuntime();
       using var clock = new Clock();
-      INode node = Ros2cs.CreateNode("perf_talker");
+      using INode node = Ros2cs.CreateNode("perf_talker");
       using var qos = new QualityOfServiceProfile(QosPresetProfile.SENSOR_DATA);
       using IPublisher<sensor_msgs.msg.PointCloud2> pc_pub = node.CreatePublisher<sensor_msgs.msg.PointCloud2>("perf_chatter", qos);
 

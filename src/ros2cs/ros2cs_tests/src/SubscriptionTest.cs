@@ -46,6 +46,14 @@ namespace ROS2.Test
             Ros2cs.Shutdown();
         }
 
+        private void AllowEndpointDiscovery()
+        {
+            for (int i = 0; i < 5; i++)
+            {
+                Ros2cs.SpinOnce(node, 0.1);
+            }
+        }
+
         [Test]
         public void SubscriptionTriggerCallback()
         {
@@ -138,6 +146,7 @@ namespace ROS2.Test
             int count = 0;
             node.CreateSubscription<std_msgs.msg.Int32>("subscription_test_topic",
                                                         (msg) => { count += 1; });
+            AllowEndpointDiscovery();
 
             using var published_msg = new std_msgs.msg.Int32();
             published_msg.Data = 42;
@@ -166,6 +175,7 @@ namespace ROS2.Test
             node.CreateSubscription<std_msgs.msg.Int32>("subscription_test_topic",
                                                         (msg) => { count += 1; },
                                                         qosProfile);
+            AllowEndpointDiscovery();
 
             using var published_msg = new std_msgs.msg.Int32();
             published_msg.Data = 42;

@@ -44,6 +44,7 @@ namespace Examples
     public static example_interfaces.srv.AddTwoInts_Response recv_callback( example_interfaces.srv.AddTwoInts_Request msg )
     {
       Console.WriteLine ("Incoming Service Request A=" + msg.A + " B=" + msg.B);
+      // The service framework owns and disposes the returned response.
       var response = new example_interfaces.srv.AddTwoInts_Response();
       response.Sum = msg.A + msg.B;
       return response;
