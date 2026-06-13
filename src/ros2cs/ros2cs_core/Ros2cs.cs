@@ -20,6 +20,7 @@
 // - Suppressed the static shutdown finalizer after explicit Shutdown.
 // - Clarified context and wait-set lifecycle invariants.
 // - Pruned directly disposed nodes before enforcing name uniqueness.
+// - Added opt-in node options without changing the default CreateNode overload.
 
 using System;
 using System.Linq;
@@ -212,16 +213,36 @@ namespace ROS2
       destructorFinalizerSuppressed = true;
     }
 
-    /// <summary> Create a ros2 (rcl) node </summary>
+    /// <summary> Create a ros2 (rcl) node using default node options. </summary>
     /// <description> Creates a node in the global context and adds it to an internal collection.
     /// Checks for name uniqueness. Throws if name is not unique or Ok() is not true. </description>
-    /// <remarks> Note that node options are not exposed. Default node options are used.
-    /// This can be extended by exposing desired configurations and adding a library call to set
-    /// them in the native code. </remarks>
     /// <param name="nodeName"> A valid node name, which will be first checked for uniqueness,
     /// then validated inside rcl according to naming rules (will throw exception if invalid). </param>
     /// <returns> INode interface, which can be used to create subs and pubs </returns>
     public static INode CreateNode(string nodeName)
+    {
+      return CreateNodeCore(nodeName, NodeOptions.Default);
+    }
+
+    /// <summary> Create a ros2 (rcl) node using explicit node options. </summary>
+    /// <description> Creates a node in the global context and adds it to an internal collection.
+    /// Checks for name uniqueness. Throws if name is not unique or Ok() is not true. </description>
+    /// <param name="nodeName"> A valid node name, which will be first checked for uniqueness,
+    /// then validated inside rcl according to naming rules (will throw exception if invalid). </param>
+    /// <param name="options"> Options applied to native node defaults before creation. </param>
+    /// <returns> INode interface, which can be used to create subs and pubs </returns>
+    public static INode CreateNode(string nodeName, NodeOptions options)
+    {
+      if (options == null)
+      {
+        throw new ArgumentNullException(nameof(options));
+      }
+
+      return CreateNodeCore(nodeName, options);
+    }
+
+    /// <summary>Shared node creation path for default and explicit node options.</summary>
+    private static INode CreateNodeCore(string nodeName, NodeOptions options)
     {
       lock (mutex)
       {
@@ -240,7 +261,7 @@ namespace ROS2
           }
         }
 
-        var new_node = new Node(nodeName, ref global_context);
+        var new_node = new Node(nodeName, ref global_context, options);
         nodes.Add(new_node);
         return new_node;
       }

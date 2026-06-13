@@ -25,6 +25,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using ROS2.Internal;
 
@@ -51,6 +52,7 @@ namespace ROS2
     IReadOnlyDictionary<long, Task> IClientBase.PendingRequests {get { return (IReadOnlyDictionary<long, Task>)this.PendingRequests; }}
 
     private string topic;
+    private static readonly TimeSpan GraphPollInterval = TimeSpan.FromMilliseconds(100);
 
     /// <inheritdoc/>
     public object Mutex { get { return mutex; } }
@@ -239,6 +241,32 @@ namespace ROS2
           ref available
         ));
         return available;
+      }
+    }
+
+    /// <inheritdoc/>
+    public bool TryWaitForService(TimeSpan timeout)
+    {
+      if (timeout < TimeSpan.Zero)
+      {
+        throw new ArgumentOutOfRangeException(nameof(timeout));
+      }
+
+      DateTime deadline = DateTime.UtcNow + timeout;
+      while (true)
+      {
+        if (IsServiceAvailable())
+        {
+          return true;
+        }
+
+        TimeSpan remaining = deadline - DateTime.UtcNow;
+        if (remaining <= TimeSpan.Zero)
+        {
+          return false;
+        }
+
+        Thread.Sleep(remaining < GraphPollInterval ? remaining : GraphPollInterval);
       }
     }
 

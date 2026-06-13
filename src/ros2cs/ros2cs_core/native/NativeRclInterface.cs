@@ -19,6 +19,7 @@
 // - Corrected internal default-node-options delegate spelling.
 // - Shared the ros2cs native wrapper handle with rmw wrapper bindings.
 // - Surfaced native option-dispose return codes where rcl fini can fail.
+// - Added node option setter bindings that keep rcl_node_options_t layout in native code.
 
 using System;
 using System.Runtime.InteropServices;
@@ -79,6 +80,17 @@ namespace ROS2
         nativeROS2CS,
         "rclcs_node_create_default_options"),
         typeof(NodeCreateDefaultOptionsType));
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate int NodeOptionsSetEnableRosoutType(
+        IntPtr options,
+        [MarshalAs(UnmanagedType.I1)] bool enableRosout);
+    internal static NodeOptionsSetEnableRosoutType
+        rclcs_node_options_set_enable_rosout =
+        (NodeOptionsSetEnableRosoutType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
+        nativeROS2CS,
+        "rclcs_node_options_set_enable_rosout"),
+        typeof(NodeOptionsSetEnableRosoutType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate int NodeDisposeOptionsType(IntPtr options);

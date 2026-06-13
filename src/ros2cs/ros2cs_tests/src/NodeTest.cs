@@ -17,6 +17,7 @@
 // Modifications by Jianbin Liu:
 // - Added coverage for disposed node create-entity behavior.
 // - Added node-owned entity disposal and stale-node pruning coverage.
+// - Added opt-in NodeOptions creation coverage.
 
 using System;
 using System.Collections.Generic;
@@ -36,6 +37,9 @@ namespace ROS2.Test
         const string GRAPH_TEST_TOPIC = "/graph_discovery_test_topic";
         const string GRAPH_NAMES_TYPES_TOPIC = "/graph_names_and_types_test_topic";
         const string GRAPH_NAMES_TYPES_EXPECTED_TYPE = "std_msgs/msg/Bool";
+        const string GRAPH_WAIT_PUBLISHER_TOPIC = "/graph_wait_publisher_topic";
+        const string GRAPH_WAIT_SUBSCRIBER_TOPIC = "/graph_wait_subscriber_topic";
+        const string GRAPH_WAIT_MISSING_TOPIC = "/graph_wait_missing_topic";
         static readonly TimeSpan GraphTimeout = TimeSpan.FromSeconds(5);
         static readonly TimeSpan GraphPollInterval = TimeSpan.FromMilliseconds(100);
 
@@ -133,6 +137,36 @@ namespace ROS2.Test
         }
 
         [Test]
+        public void TryWaitForPublisherReturnsTrueWhenPublisherAppears()
+        {
+            using var observer = Ros2cs.CreateNode("graph_wait_publisher_observer");
+            using var publisherNode = Ros2cs.CreateNode("graph_wait_publisher_node");
+            using var publisher = publisherNode.CreatePublisher<std_msgs.msg.String>(GRAPH_WAIT_PUBLISHER_TOPIC);
+
+            Assert.That(observer.TryWaitForPublisher(GRAPH_WAIT_PUBLISHER_TOPIC, GraphTimeout), Is.True);
+        }
+
+        [Test]
+        public void TryWaitForSubscriberReturnsTrueWhenSubscriberAppears()
+        {
+            using var observer = Ros2cs.CreateNode("graph_wait_subscriber_observer");
+            using var subscriberNode = Ros2cs.CreateNode("graph_wait_subscriber_node");
+            using var subscription = subscriberNode.CreateSubscription<std_msgs.msg.String>(
+                GRAPH_WAIT_SUBSCRIBER_TOPIC,
+                msg => { });
+
+            Assert.That(observer.TryWaitForSubscriber(GRAPH_WAIT_SUBSCRIBER_TOPIC, GraphTimeout), Is.True);
+        }
+
+        [Test]
+        public void TryWaitForPublisherReturnsFalseOnTimeout()
+        {
+            Assert.That(
+                node.TryWaitForPublisher(GRAPH_WAIT_MISSING_TOPIC, TimeSpan.FromMilliseconds(100)),
+                Is.False);
+        }
+
+        [Test]
         public void GetTopicNamesAndTypesReturnsListForFreshNode()
         {
             IReadOnlyList<TopicNamesAndTypes> topics = node.GetTopicNamesAndTypes();
@@ -167,6 +201,33 @@ namespace ROS2.Test
             node = Ros2cs.CreateNode(TEST_NODE);
 
             Assert.That(node.Name, Is.EqualTo(TEST_NODE));
+        }
+
+        [Test]
+        public void ExistingCreateNodeOverloadPreservesDefaultOptions()
+        {
+            Assert.That(node.Name, Is.EqualTo(TEST_NODE));
+
+            using var publisher = node.CreatePublisher<std_msgs.msg.Bool>("node_options_default_topic");
+            Assert.That(publisher.IsDisposed, Is.False);
+        }
+
+        [Test]
+        public void CreateNodeWithLightweightOptionsCanCreateAndDispose()
+        {
+            using var lightweightNode = Ros2cs.CreateNode(
+                "lightweight_node_options",
+                new NodeOptions { EnableRosout = false });
+
+            Assert.That(lightweightNode.Name, Is.EqualTo("lightweight_node_options"));
+            using var publisher = lightweightNode.CreatePublisher<std_msgs.msg.Bool>("lightweight_node_options_topic");
+            Assert.That(publisher.IsDisposed, Is.False);
+        }
+
+        [Test]
+        public void CreateNodeWithNullOptionsThrows()
+        {
+            Assert.Throws<ArgumentNullException>(() => Ros2cs.CreateNode("null_node_options", null));
         }
 
         [Test]

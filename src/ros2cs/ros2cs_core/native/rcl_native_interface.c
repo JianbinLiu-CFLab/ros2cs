@@ -20,6 +20,7 @@
 // - Finalizes rcl init options when rcl_init fails.
 // - Finalizes node options before freeing their wrapper allocation.
 // - Surfaced option finalization return codes and guarded null option disposals.
+// - Added node option setter wrappers to avoid managed rcl_node_options_t layout coupling.
 
 #include <rcl/error_handling.h>
 #include <rcl/graph.h>
@@ -77,6 +78,17 @@ rcl_node_options_t * rclcs_node_create_default_options()
   }
   *default_node_options_handle = rcl_node_get_default_options();
   return default_node_options_handle;
+}
+
+ROSIDL_GENERATOR_C_EXPORT
+int rclcs_node_options_set_enable_rosout(rcl_node_options_t * node_options_handle, bool enable_rosout)
+{
+  if (node_options_handle == NULL)
+  {
+    return RCL_RET_INVALID_ARGUMENT;
+  }
+  node_options_handle->enable_rosout = enable_rosout;
+  return RCL_RET_OK;
 }
 
 ROSIDL_GENERATOR_C_EXPORT

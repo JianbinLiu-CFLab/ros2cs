@@ -82,6 +82,14 @@ namespace ROS2
     bool IsServiceAvailable();
 
     /// <summary>
+    /// Wait up to the given timeout for the service to become available
+    /// </summary>
+    /// <remarks>Polls <see cref="IsServiceAvailable"/> and returns false on timeout.</remarks>
+    /// <param name="timeout">Maximum time to wait for service graph discovery</param>
+    /// <returns><see cref="true"/> if the service became available before timeout</returns>
+    bool TryWaitForService(TimeSpan timeout);
+
+    /// <summary>
     /// Send a Request to a Service and wait for a Response
     /// </summary>
     /// <remarks>The provided message can be modified or disposed after this call</remarks>

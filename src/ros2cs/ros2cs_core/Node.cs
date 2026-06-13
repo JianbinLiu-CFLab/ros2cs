@@ -21,11 +21,13 @@
 // - Removed redundant DestroyNode alias in favor of Dispose.
 // - Made node disposal state volatile for child entity shutdown visibility.
 // - Propagates native node option finalization failures during explicit disposal.
+// - Added opt-in node options while keeping default creation behavior unchanged.
 
 using System;
 using System.Linq;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace ROS2
 {
@@ -84,6 +86,7 @@ namespace ROS2
     private HashSet<IClientBase> clients;
     private HashSet<IServiceBase> services;
     private readonly object mutex = new object();
+    private static readonly TimeSpan GraphPollInterval = TimeSpan.FromMilliseconds(100);
     // Child entities read this outside node.mutex while holding their own mutex. Volatile preserves
     // visibility after rcl_node_fini without reversing the node -> child disposal lock order.
     private volatile bool disposed = false;
@@ -95,7 +98,21 @@ namespace ROS2
     /// <param name="nodeName"> unique, non-namespaced node name </param>
     /// <param name="context"> (rcl) context for the node. Global context is passed to this method </param>
     internal Node(string nodeName, ref rcl_context_t context)
+      : this(nodeName, ref context, NodeOptions.Default)
     {
+    }
+
+    /// <summary> Node constructor </summary>
+    /// <description> Nodes are created through CreateNode method of Ros2cs class </description>
+    /// <param name="nodeName"> unique, non-namespaced node name </param>
+    /// <param name="context"> (rcl) context for the node. Global context is passed to this method </param>
+    /// <param name="options"> managed node options applied to native defaults before rcl_node_init </param>
+    internal Node(string nodeName, ref rcl_context_t context, NodeOptions options)
+    {
+      if (options == null)
+      {
+        throw new ArgumentNullException(nameof(options));
+      }
       name = nodeName;
       string nodeNamespace = "/";
       subscriptions = new HashSet<ISubscriptionBase>();
@@ -111,6 +128,9 @@ namespace ROS2
       }
       try
       {
+        Utils.CheckReturnEnum(NativeRclInterface.rclcs_node_options_set_enable_rosout(
+          defaultNodeOptions,
+          options.EnableRosout));
         Utils.CheckReturnEnum(NativeRcl.rcl_node_init(ref nodeHandle, nodeName, nodeNamespace, ref context, defaultNodeOptions));
       }
       catch (Exception initException)
@@ -311,6 +331,46 @@ namespace ROS2
         UIntPtr count = UIntPtr.Zero;
         Utils.CheckReturnEnum(NativeRcl.rcl_count_subscribers(ref nodeHandle, topicName, ref count));
         return checked((int)count.ToUInt64());
+      }
+    }
+
+    /// <summary> Wait up to a bounded timeout for a publisher to become visible for a topic. </summary>
+    /// <see cref="INode.TryWaitForPublisher"/>
+    public bool TryWaitForPublisher(string topicName, TimeSpan timeout)
+    {
+      return TryWaitForGraphCondition(() => CountPublishers(topicName) > 0, timeout);
+    }
+
+    /// <summary> Wait up to a bounded timeout for a subscriber to become visible for a topic. </summary>
+    /// <see cref="INode.TryWaitForSubscriber"/>
+    public bool TryWaitForSubscriber(string topicName, TimeSpan timeout)
+    {
+      return TryWaitForGraphCondition(() => CountSubscribers(topicName) > 0, timeout);
+    }
+
+    /// <summary>Poll a ROS graph condition until it succeeds or the timeout elapses.</summary>
+    private static bool TryWaitForGraphCondition(Func<bool> condition, TimeSpan timeout)
+    {
+      if (timeout < TimeSpan.Zero)
+      {
+        throw new ArgumentOutOfRangeException(nameof(timeout));
+      }
+
+      DateTime deadline = DateTime.UtcNow + timeout;
+      while (true)
+      {
+        if (condition())
+        {
+          return true;
+        }
+
+        TimeSpan remaining = deadline - DateTime.UtcNow;
+        if (remaining <= TimeSpan.Zero)
+        {
+          return false;
+        }
+
+        Thread.Sleep(remaining < GraphPollInterval ? remaining : GraphPollInterval);
       }
     }
 
