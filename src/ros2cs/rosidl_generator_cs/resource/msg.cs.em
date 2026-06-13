@@ -351,7 +351,7 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
 @[  elif isinstance(member.type, AbstractGenericString)]@
     @(get_field_name(member.type, member.name, message_class)) = "";
 @[  elif isinstance(member.type, AbstractSequence)]@
-    @(get_field_name(member.type, member.name, message_class)) = Array.Empty<@(get_dotnet_type(member.type.value_type))>();
+    @(get_field_name(member.type, member.name, message_class)) = System.Array.Empty<@(get_dotnet_type(member.type.value_type))>();
 @[  elif isinstance(member.type, Array)]@
     @(get_field_name(member.type, member.name, message_class)) = new @(get_dotnet_type(member.type.value_type))[@(member.type.size)];
 @[  end if]@
