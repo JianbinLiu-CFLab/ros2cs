@@ -102,6 +102,10 @@ Please follow the OS-specific instructions for your build:
 - [Ubuntu Instructions](README-UBUNTU.md) - legacy, not recently verified for this Jazzy maintenance branch
 - [Windows Instructions](README-WINDOWS.md) - current validation target is Windows 10 LTSC + Jazzy
 
+Windows build profiles for full validation, daily core/test iteration, and
+generator/template iteration are documented in
+[README-WINDOWS.md](README-WINDOWS.md#build-profiles).
+
 ## Testing
 
 Make sure your NuGet repositories can resolve the test dependencies used by `ros2cs_tests` (currently NUnit-based). You can call `dotnet nuget list source` to see your current sources for NuGet packages. Please note that `Microsoft Visual Studio Offline Packages` are usually insufficient. You can fix it by adding `nuget.org` repository: `dotnet nuget add source --name nuget.org https://api.nuget.org/v3/index.json`.

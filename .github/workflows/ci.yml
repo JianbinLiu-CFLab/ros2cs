@@ -15,6 +15,7 @@ jobs:
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: "1"
       DOTNET_NOLOGO: "1"
+      SCCACHE_DIR: /github/home/.cache/sccache
 
     steps:
       - name: Checkout ros2cs
@@ -25,12 +26,28 @@ jobs:
       - name: Install workflow dependencies
         run: |
           apt-get update
-          apt-get install -y python3-vcstool
+          apt-get install -y python3-vcstool sccache
 
       - name: Install .NET 10 SDK
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('ros2cs_ws/src/ros2cs/**/*.cmake', 'ros2cs_ws/src/ros2cs/**/*.cs', 'ros2cs_ws/src/ros2cs/**/*.xml') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Cache sccache compiler outputs
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/sccache
+          key: sccache-${{ runner.os }}-jazzy-${{ hashFiles('ros2cs_ws/src/ros2cs/ros2_jazzy.repos', 'ros2cs_ws/src/ros2cs/**/CMakeLists.txt', 'ros2cs_ws/src/ros2cs/**/*.cmake', 'ros2cs_ws/src/ros2cs/**/package.xml') }}
+          restore-keys: |
+            sccache-${{ runner.os }}-jazzy-
 
       - name: Import source dependencies
         working-directory: ros2cs_ws
@@ -47,10 +64,18 @@ jobs:
         working-directory: ros2cs_ws
         run: |
           . /opt/ros/jazzy/setup.sh
+          sccache --zero-stats
           colcon build \
             --packages-up-to ros2cs_tests \
             --merge-install \
-            --event-handlers console_direct+
+            --event-handlers console_direct+ \
+            --cmake-args \
+              -DCMAKE_C_COMPILER_LAUNCHER=sccache \
+              -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+
+      - name: Show sccache stats
+        if: always()
+        run: sccache --show-stats
 
       - name: Run ros2cs tests
         working-directory: ros2cs_ws
