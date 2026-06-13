@@ -107,6 +107,7 @@ set(CS_SOURCES
   Client.cs
   Service.cs
   Node.cs
+  NodeOptions.cs
   Publisher.cs
   QualityOfServiceProfile.cs
   Ros2cs.cs

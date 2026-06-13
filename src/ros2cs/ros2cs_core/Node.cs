@@ -21,6 +21,7 @@
 // - Removed redundant DestroyNode alias in favor of Dispose.
 // - Made node disposal state volatile for child entity shutdown visibility.
 // - Propagates native node option finalization failures during explicit disposal.
+// - Added opt-in node options while keeping default creation behavior unchanged.
 
 using System;
 using System.Linq;
@@ -97,7 +98,21 @@ namespace ROS2
     /// <param name="nodeName"> unique, non-namespaced node name </param>
     /// <param name="context"> (rcl) context for the node. Global context is passed to this method </param>
     internal Node(string nodeName, ref rcl_context_t context)
+      : this(nodeName, ref context, NodeOptions.Default)
     {
+    }
+
+    /// <summary> Node constructor </summary>
+    /// <description> Nodes are created through CreateNode method of Ros2cs class </description>
+    /// <param name="nodeName"> unique, non-namespaced node name </param>
+    /// <param name="context"> (rcl) context for the node. Global context is passed to this method </param>
+    /// <param name="options"> managed node options applied to native defaults before rcl_node_init </param>
+    internal Node(string nodeName, ref rcl_context_t context, NodeOptions options)
+    {
+      if (options == null)
+      {
+        throw new ArgumentNullException(nameof(options));
+      }
       name = nodeName;
       string nodeNamespace = "/";
       subscriptions = new HashSet<ISubscriptionBase>();
@@ -113,6 +128,9 @@ namespace ROS2
       }
       try
       {
+        Utils.CheckReturnEnum(NativeRclInterface.rclcs_node_options_set_enable_rosout(
+          defaultNodeOptions,
+          options.EnableRosout));
         Utils.CheckReturnEnum(NativeRcl.rcl_node_init(ref nodeHandle, nodeName, nodeNamespace, ref context, defaultNodeOptions));
       }
       catch (Exception initException)

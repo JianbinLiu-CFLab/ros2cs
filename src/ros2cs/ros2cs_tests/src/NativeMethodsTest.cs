@@ -186,6 +186,21 @@ namespace ROS2.TestNativeMethods
         }
 
         [Test]
+        public void NodeOptionsSetEnableRosout()
+        {
+            IntPtr defaultNodeOptions = NativeRclInterface.rclcs_node_create_default_options();
+            Assert.That(defaultNodeOptions, Is.Not.EqualTo(IntPtr.Zero));
+            try
+            {
+                TestUtils.AssertRetOk(NativeRclInterface.rclcs_node_options_set_enable_rosout(defaultNodeOptions, false));
+            }
+            finally
+            {
+                TestUtils.AssertRetOk(NativeRclInterface.rclcs_node_dispose_options(defaultNodeOptions));
+            }
+        }
+
+        [Test]
         public void NodeDisposeOptionsAcceptsNull()
         {
             TestUtils.AssertRetOk(NativeRclInterface.rclcs_node_dispose_options(IntPtr.Zero));

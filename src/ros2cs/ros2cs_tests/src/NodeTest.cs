@@ -17,6 +17,7 @@
 // Modifications by Jianbin Liu:
 // - Added coverage for disposed node create-entity behavior.
 // - Added node-owned entity disposal and stale-node pruning coverage.
+// - Added opt-in NodeOptions creation coverage.
 
 using System;
 using System.Collections.Generic;
@@ -200,6 +201,33 @@ namespace ROS2.Test
             node = Ros2cs.CreateNode(TEST_NODE);
 
             Assert.That(node.Name, Is.EqualTo(TEST_NODE));
+        }
+
+        [Test]
+        public void ExistingCreateNodeOverloadPreservesDefaultOptions()
+        {
+            Assert.That(node.Name, Is.EqualTo(TEST_NODE));
+
+            using var publisher = node.CreatePublisher<std_msgs.msg.Bool>("node_options_default_topic");
+            Assert.That(publisher.IsDisposed, Is.False);
+        }
+
+        [Test]
+        public void CreateNodeWithLightweightOptionsCanCreateAndDispose()
+        {
+            using var lightweightNode = Ros2cs.CreateNode(
+                "lightweight_node_options",
+                new NodeOptions { EnableRosout = false });
+
+            Assert.That(lightweightNode.Name, Is.EqualTo("lightweight_node_options"));
+            using var publisher = lightweightNode.CreatePublisher<std_msgs.msg.Bool>("lightweight_node_options_topic");
+            Assert.That(publisher.IsDisposed, Is.False);
+        }
+
+        [Test]
+        public void CreateNodeWithNullOptionsThrows()
+        {
+            Assert.Throws<ArgumentNullException>(() => Ros2cs.CreateNode("null_node_options", null));
         }
 
         [Test]

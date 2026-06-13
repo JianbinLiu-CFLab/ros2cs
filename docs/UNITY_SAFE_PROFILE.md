@@ -32,6 +32,24 @@ and downstream R2FU packages.
 - Add graph convenience APIs without changing existing message behavior.
 - Keep lightweight runtime behavior opt-in.
 
+## Lightweight Node Options
+
+`NodeOptions` defaults preserve the existing ros2cs node behavior. The existing
+`Ros2cs.CreateNode(string nodeName)` overload continues to create nodes with the
+default ROS 2 node options used by ros2cs before this profile work.
+
+For minimal Unity runtime profiles where rosout is not needed, callers may opt
+in explicitly:
+
+```csharp
+INode node = Ros2cs.CreateNode(
+  "unity_lightweight_node",
+  new NodeOptions { EnableRosout = false });
+```
+
+This is a ROS-visible tradeoff and should not be used as an implicit default for
+R2FU or generated-message workflows.
+
 ## Not A Replacement Track
 
 The Unity-safe profile does not replace ros2cs generated message support. It is
