@@ -24,7 +24,7 @@ stable, reproducible pin:
 
 ```text
 https://github.com/JianbinLiu-CFLab/ros2cs.git
-version: v0.5.0-jazzy-preview.1
+version: v0.6.0-jazzy-preview.1
 ```
 
 Use `main` only when intentionally tracking current development:
@@ -36,7 +36,7 @@ version: main
 
 Release notes and artifacts:
 
-- https://github.com/JianbinLiu-CFLab/ros2cs/releases/tag/v0.5.0-jazzy-preview.1
+- https://github.com/JianbinLiu-CFLab/ros2cs/releases/tag/v0.6.0-jazzy-preview.1
 
 ### Features
 
