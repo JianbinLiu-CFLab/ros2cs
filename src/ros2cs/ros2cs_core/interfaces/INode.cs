@@ -42,6 +42,20 @@ namespace ROS2
     /// <returns> Number of visible subscribers for the topic. </returns>
     int CountSubscribers(string topicName);
 
+    /// <summary> Wait up to a bounded timeout for a publisher to become visible for a topic. </summary>
+    /// <description> Polls this node's local ROS graph cache and returns false on timeout. The topic name is passed through to rcl without normalization. Throws the same node usability exceptions as CountPublishers. </description>
+    /// <param name="topicName"> Topic name passed through to rcl. </param>
+    /// <param name="timeout"> Maximum time to wait. </param>
+    /// <returns> Whether at least one publisher became visible before timeout. </returns>
+    bool TryWaitForPublisher(string topicName, TimeSpan timeout);
+
+    /// <summary> Wait up to a bounded timeout for a subscriber to become visible for a topic. </summary>
+    /// <description> Polls this node's local ROS graph cache and returns false on timeout. The topic name is passed through to rcl without normalization. Throws the same node usability exceptions as CountSubscribers. </description>
+    /// <param name="topicName"> Topic name passed through to rcl. </param>
+    /// <param name="timeout"> Maximum time to wait. </param>
+    /// <returns> Whether at least one subscriber became visible before timeout. </returns>
+    bool TryWaitForSubscriber(string topicName, TimeSpan timeout);
+
     /// <summary> Get topic names and type names currently visible in this node's local ROS graph cache. </summary>
     /// <description> The ROS graph is updated asynchronously by DDS; callers may need to poll after endpoint creation or teardown. </description>
     /// <param name="noDemangle"> Whether rcl should skip ROS topic name demangling. Defaults to false to match ROS graph tooling. </param>
