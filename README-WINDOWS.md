@@ -58,8 +58,28 @@ Windows 11 is an expected target but was not the OS used for the current local v
   - It will use `vcstool` to download required ROS2 packages. By default, this will get repositories as set in `${ROS_DISTRO}`.
 - Build package (`build.ps1`)
   - It invokes `colcon_build` with `--merge-install` argument to simplify libraries installation
-  - You can build tests by adding `--with-tests` argument
+  - You can build tests by adding `-with_tests` argument
 - To test your build please check main readme [Testing section](README.md#testing)
+
+### Build profiles
+
+Use `.\build.ps1 -with_tests` for full validation or first builds. It uses Ninja,
+parallel workers, and optional compiler launcher support.
+
+For daily ros2cs core/test iteration after dependencies are already built:
+
+```powershell
+colcon build --packages-select ros2cs_core ros2cs_tests --merge-install
+```
+
+For generator/template changes:
+
+```powershell
+colcon build --packages-select rosidl_generator_cs std_msgs test_msgs example_interfaces ros2cs_tests --merge-install
+```
+
+Avoid deleting `build/`, `install/`, or using CMake clean flags unless the
+dependency graph or CMake cache is actually stale.
 
 Record validation commands, exit codes, and key output in your local release or
 maintenance notes before making platform support claims.
