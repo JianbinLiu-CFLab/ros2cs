@@ -106,6 +106,10 @@ Windows build profiles for full validation, daily core/test iteration, and
 generator/template iteration are documented in
 [README-WINDOWS.md](README-WINDOWS.md#build-profiles).
 
+See [docs/UNITY_SAFE_PROFILE.md](docs/UNITY_SAFE_PROFILE.md) for the Unity-safe
+compatibility boundary used when adding rclnet-inspired hardening without
+replacing ros2cs generated-message support.
+
 ## Testing
 
 Make sure your NuGet repositories can resolve the test dependencies used by `ros2cs_tests` (currently NUnit-based). You can call `dotnet nuget list source` to see your current sources for NuGet packages. Please note that `Microsoft Visual Studio Offline Packages` are usually insufficient. You can fix it by adding `nuget.org` repository: `dotnet nuget add source --name nuget.org https://api.nuget.org/v3/index.json`.
