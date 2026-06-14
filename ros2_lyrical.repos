@@ -1,0 +1,58 @@
+# Modifications Copyright (c) 2026 Jianbin Liu.
+#
+# Modifications by Jianbin Liu:
+# - Add a ROS 2 Lyrical preview repository set parallel to the Jazzy maintenance line.
+# - Keep rosidl_python on the JianbinLiu-CFLab fork so shortened Python extension target support can be carried forward.
+# - Preserve verified build-tool pins used by the Jazzy Windows build.
+
+repositories:
+  # Upstream Lyrical branches. These track the ROS 2 Lyrical preview line.
+  ros2/rosidl_defaults:
+    type: git
+    url: https://github.com/ros2/rosidl_defaults.git
+    version: lyrical
+  ros2/rosidl_core:
+    type: git
+    url: https://github.com/ros2/rosidl_core.git
+    version: lyrical
+  ros2/rosidl_dynamic_typesupport_fastrtps:
+    type: git
+    url: https://github.com/ros2/rosidl_dynamic_typesupport_fastrtps.git
+    version: lyrical
+  ros2/rosidl_python:
+    type: git
+    url: https://github.com/JianbinLiu-CFLab/rosidl_python.git
+    version: lyrical
+  ros2/common_interfaces:
+    type: git
+    url: https://github.com/ros2/common_interfaces.git
+    version: lyrical
+  ros2/example_interfaces:
+    type: git
+    url: https://github.com/ros2/example_interfaces.git
+    version: lyrical
+  ros2/unique_identifier_msgs:
+    type: git
+    url: https://github.com/ros2/unique_identifier_msgs.git
+    version: lyrical
+  ros2/rcl_interfaces:
+    type: git
+    url: https://github.com/ros2/rcl_interfaces.git
+    version: lyrical
+  ros2/geometry2:
+    type: git
+    url: https://github.com/ros2/geometry2.git
+    version: lyrical
+  ros2/test_interface_files:
+    type: git
+    url: https://github.com/ros2/test_interface_files.git
+    version: lyrical
+  # Build-tool inputs pinned to verified commits.
+  external/build_tools/dotnet_cmake_module:
+    type: git
+    url: https://github.com/JianbinLiu-CFLab/dotnet_cmake_module.git
+    version: f64cee9b55fcb14079b7f298375d8ad426318c06
+  external/build_tools/ament_cmake_export_assemblies:
+    type: git
+    url: https://github.com/RobotecAI/ament_cmake_export_assemblies
+    version: 5a7411c1744d266717da9f292053165102b442c3

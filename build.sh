@@ -5,22 +5,24 @@
 # - Added explicit parallel worker selection with ROS2CS_PARALLEL_WORKERS override.
 # - Added optional compiler launcher support through ROS2CS_COMPILER_LAUNCHER or ccache auto-detection.
 # - Added optional short colcon build base support through --build-base or ROS2CS_BUILD_BASE.
+# - Added optional colcon install base support through --install-base or ROS2CS_INSTALL_BASE.
 # - Defaulted Linux/macOS builds to Ninja and made the colcon event handler configurable.
 
 set -euo pipefail
 
 display_usage() {
     echo "Usage: "
-    echo "build.sh [--with-tests] [--standalone] [--build-base PATH]"
+    echo "build.sh [--with-tests] [--standalone] [--build-base PATH] [--install-base PATH]"
     echo ""
     echo "Options:"
     echo "--with-tests - build with tests."
     echo "--standalone - standalone version"
     echo "--build-base PATH - optional colcon build base directory."
+    echo "--install-base PATH - optional colcon install base directory."
 }
 
 if [ -z "${ROS_DISTRO:-}" ]; then
-    echo "Source your ros2 distro first (foxy, galactic, humble, jazzy or rolling are supported)"
+    echo "Source your ros2 distro first (foxy, galactic, humble, jazzy, lyrical or rolling are supported)"
     exit 1
 fi
 
@@ -29,6 +31,7 @@ MSG="Build started."
 STANDALONE=OFF
 PARALLEL_WORKERS="${ROS2CS_PARALLEL_WORKERS:-}"
 BUILD_BASE="${ROS2CS_BUILD_BASE:-}"
+INSTALL_BASE="${ROS2CS_INSTALL_BASE:-}"
 EVENT_HANDLER="${ROS2CS_EVENT_HANDLER:-console_cohesion+}"
 
 # Worker count is a throughput policy; build correctness must not depend on a specific value.
@@ -84,6 +87,15 @@ while [[ $# -gt 0 ]]; do
       BUILD_BASE="$2"
       shift 2
       ;;
+    -i|--install-base)
+      if [ $# -lt 2 ] || [ -z "$2" ]; then
+        echo "--install-base requires a non-empty path"
+        display_usage
+        exit 1
+      fi
+      INSTALL_BASE="$2"
+      shift 2
+      ;;
     -h|--help)
       display_usage
       exit 0
@@ -104,6 +116,10 @@ CMAKE_ARGS=(
   -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-rpath,'\$ORIGIN',-rpath=.,--disable-new-dtags"
 )
 
+if [ -n "${COLCON_PYTHON_EXECUTABLE:-}" ]; then
+  CMAKE_ARGS+=("-DPython3_EXECUTABLE:FILEPATH=${COLCON_PYTHON_EXECUTABLE}")
+fi
+
 if [ -n "$COMPILER_LAUNCHER" ]; then
   CMAKE_ARGS+=(
     -DCMAKE_C_COMPILER_LAUNCHER="$COMPILER_LAUNCHER"
@@ -116,6 +132,11 @@ COLCON_ARGS=(build)
 if [ -n "$BUILD_BASE" ]; then
   COLCON_ARGS+=(--build-base "$BUILD_BASE")
   MSG="$MSG (build base: $BUILD_BASE)"
+fi
+
+if [ -n "$INSTALL_BASE" ]; then
+  COLCON_ARGS+=(--install-base "$INSTALL_BASE")
+  MSG="$MSG (install base: $INSTALL_BASE)"
 fi
 
 MSG="$MSG (workers: $PARALLEL_WORKERS, generator: Ninja, event handler: $EVENT_HANDLER)"

@@ -59,13 +59,68 @@ function(configure_csharp_c_extension_library _library_name)
   )
 endfunction()
 
+function(ros2cs_target_dependencies target)
+  if(COMMAND ament_target_dependencies)
+    ament_target_dependencies(${target} ${ARGN})
+    return()
+  endif()
+
+  foreach(_pkg_name ${ARGN})
+    if(NOT ${_pkg_name}_FOUND)
+      message(FATAL_ERROR "Package '${_pkg_name}' was not found before linking ${target}")
+    endif()
+
+    set(_dependency_targets "")
+    foreach(_candidate ${${_pkg_name}_TARGETS} ${${_pkg_name}_INTERFACES})
+      if(TARGET "${_candidate}")
+        list(APPEND _dependency_targets "${_candidate}")
+      endif()
+    endforeach()
+
+    if(_dependency_targets)
+      target_link_libraries(${target} ${_dependency_targets})
+    else()
+      target_compile_definitions(${target} PUBLIC ${${_pkg_name}_DEFINITIONS})
+      target_include_directories(${target} PUBLIC ${${_pkg_name}_INCLUDE_DIRS})
+
+      set(_dependency_libraries "")
+      foreach(_library ${${_pkg_name}_LIBRARIES})
+        if(NOT "${${_pkg_name}_LIBRARY_DIRS}" STREQUAL "")
+          if(NOT IS_ABSOLUTE ${_library} OR NOT EXISTS ${_library})
+            unset(_resolved_library CACHE)
+            find_library(
+              _resolved_library
+              NAMES ${_library}
+              PATHS ${${_pkg_name}_LIBRARY_DIRS}
+              NO_DEFAULT_PATH
+            )
+            if(_resolved_library)
+              set(_library ${_resolved_library})
+            endif()
+          endif()
+        endif()
+        list(APPEND _dependency_libraries ${_library})
+      endforeach()
+
+      if(_dependency_libraries)
+        target_link_libraries(${target} ${_dependency_libraries})
+      endif()
+
+      set(_dependency_link_flags ${${_pkg_name}_LINK_FLAGS})
+      foreach(_link_flag IN LISTS _dependency_link_flags)
+        set_property(TARGET ${target} APPEND_STRING PROPERTY LINK_FLAGS " ${_link_flag} ")
+      endforeach()
+    endif()
+  endforeach()
+endfunction()
+
 add_library(
   ros2cs_native SHARED
   native/rcl_native_interface.c
   native/rmw_native_interface.c
 )
 
-ament_target_dependencies(ros2cs_native
+ros2cs_target_dependencies(ros2cs_native
   "rcl"
   "rcutils"
   "rmw"
@@ -413,6 +468,17 @@ if(STANDALONE_BUILD)
     yaml-cpp
     tinyxml2
   )
+
+  if(WIN32)
+    # These are provided by the Windows runtime as plain third-party DLLs rather
+    # than ROS CMake packages in newer pixi-based distros such as Lyrical.
+    list(REMOVE_ITEM ros2_standalone_libs
+      FastRTPS
+      spdlog
+      yaml-cpp
+      tinyxml2
+    )
+  endif()
   
   if(UNIX AND NOT ros2_distro STREQUAL "foxy")
     if(ros2_distro STREQUAL "galactic")
@@ -444,6 +510,7 @@ if(STANDALONE_BUILD)
     foreach(third_party_lib ${third_party_standalone_libs})
       get_standalone_third_party_dependencies(${third_party_lib})
     endforeach()
+    get_standalone_third_party_dependencies(fastcdr fastcdr-2.3.dll fastcdr-2.2.dll)
     install_standalone_third_party()
   endif()
 endif()

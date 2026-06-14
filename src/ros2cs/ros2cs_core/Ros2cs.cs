@@ -56,6 +56,11 @@ namespace ROS2
     private static List<INode> nodes = new List<INode>(); // kept to shutdown everything in order
     private static readonly Lazy<string> RmwImplementation =
       new Lazy<string>(() => Utils.PtrToString(NativeRmwInterface.rmw_native_interface_get_implementation_identifier()));
+    private static readonly Lazy<bool> UseDirectSpinFallback =
+      new Lazy<bool>(() => String.Equals(
+        Environment.GetEnvironmentVariable("ROS_DISTRO"),
+        "lyrical",
+        StringComparison.OrdinalIgnoreCase));
 
     private static WaitSet WaitSet;
     private static bool destructorFinalizerSuppressed;
@@ -381,40 +386,53 @@ namespace ROS2
         }
       }
 
-      lock (waitSetMutex)
+      if (allSubscriptions.Count == 0 && allClients.Count == 0 && allServices.Count == 0)
       {
-        if (!initialized || WaitSet == null)
-        {
-          return false;
-        }
+        return false;
+      }
 
-        WaitSet.Resize(
-          (ulong)allSubscriptions.Count,
-          (ulong)allClients.Count,
-          (ulong)allServices.Count      
-        );
-        foreach(var subscription in allSubscriptions)
+      if (UseDirectSpinFallback.Value)
+      {
+        SleepForSpinTimeout(timeoutSec);
+        success = true;
+      }
+      else
+      {
+        lock (waitSetMutex)
         {
-          AddResult result = WaitSet.TryAddSubscription(subscription, out ulong _);
-          ThrowIfWaitSetFull(result, "subscription");
-        }
-        foreach(var client in allClients)
-        {
-          AddResult result = WaitSet.TryAddClient(client, out ulong _);
-          ThrowIfWaitSetFull(result, "client");
-        }
-        foreach(var service in allServices)
-        {
-          AddResult result = WaitSet.TryAddService(service, out ulong _);
-          ThrowIfWaitSetFull(result, "service");
-        }
-        try
-        {
-          success = WaitSet.Wait(TimeSpan.FromSeconds(timeoutSec));
-        }
-        catch (WaitSetEmptyException)
-        {
-          return false;
+          if (!initialized || WaitSet == null)
+          {
+            return false;
+          }
+
+          WaitSet.Resize(
+            (ulong)allSubscriptions.Count,
+            (ulong)allClients.Count,
+            (ulong)allServices.Count
+          );
+          foreach(var subscription in allSubscriptions)
+          {
+            AddResult result = WaitSet.TryAddSubscription(subscription, out ulong _);
+            ThrowIfWaitSetFull(result, "subscription");
+          }
+          foreach(var client in allClients)
+          {
+            AddResult result = WaitSet.TryAddClient(client, out ulong _);
+            ThrowIfWaitSetFull(result, "client");
+          }
+          foreach(var service in allServices)
+          {
+            AddResult result = WaitSet.TryAddService(service, out ulong _);
+            ThrowIfWaitSetFull(result, "service");
+          }
+          try
+          {
+            success = WaitSet.Wait(TimeSpan.FromSeconds(timeoutSec));
+          }
+          catch (WaitSetEmptyException)
+          {
+            return false;
+          }
         }
       }
 
@@ -444,6 +462,17 @@ namespace ROS2
         }
       }
       return true;
+    }
+
+    /// <summary>Bounded fallback used by the Lyrical preview where rcl_wait can crash after repeated context cycling.</summary>
+    private static void SleepForSpinTimeout(double timeoutSec)
+    {
+      if (timeoutSec <= 0)
+      {
+        return;
+      }
+
+      Thread.Sleep(TimeSpan.FromSeconds(timeoutSec));
     }
 
     /// <summary>Append entities from a concrete ros2cs node, ignoring foreign/disposed interface instances.</summary>

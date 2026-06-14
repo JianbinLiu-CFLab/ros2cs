@@ -248,7 +248,11 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
     MessageTypeSupportPreload();
 
     // Keep the generated native typesupport library loaded while delegates point into it.
-    native_library = NativeLibraryHandle.LoadLibrary(dllLoadUtils, "@(package_name)_@(message_class_lower)__rosidl_typesupport_c");
+    try {
+      native_library = NativeLibraryHandle.LoadLibrary(dllLoadUtils, "@(package_name)_@(message_class_lower)__rosidl_typesupport_c");
+    } catch (UnsatisfiedLinkError) {
+      native_library = NativeLibraryHandle.LoadLibrary(dllLoadUtils, "@(package_name)_@(message_class_lower)__rosidl_typesupport_fastrtps_c");
+    }
     IntPtr nativelibrary = native_library.Handle;
     IntPtr native_get_typesupport_ptr = dllLoadUtils.GetProcAddress(nativelibrary, "@(c_full_name)_native_get_type_support");
     @(message_class).native_get_typesupport = (NativeGetTypeSupportType)Marshal.GetDelegateForFunctionPointer(
