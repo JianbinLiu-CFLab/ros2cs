@@ -15,9 +15,10 @@
 
 // Modifications by Jianbin Liu:
 // - Made singleton initialization and logger callbacks thread-safe.
-// - Serialized console formatting to reduce interleaved log noise.
+// - Serialized console writes to reduce interleaved log noise.
 // - Added PascalCase callback registration while retaining the legacy method.
 // - Isolated application logger callback exceptions from ros2cs callers.
+// - Made console logging tolerant of headless runtimes without a valid console handle.
 
 using System;
 
@@ -72,14 +73,6 @@ namespace ROS2
       null,
     };
 
-    private static readonly ConsoleColor[] LevelColors = new ConsoleColor[]
-    {
-      ConsoleColor.Green,
-      ConsoleColor.White,
-      ConsoleColor.Yellow,
-      ConsoleColor.Red,
-    };
-
     /// <summary> Set a callback for an application layer logger </summary>
     /// <description> Can be useful to standardize logging between Ros2cs and
     /// an application (e. g. in Unity3D) which is using it </description>
@@ -107,6 +100,36 @@ namespace ROS2
       return Instance.Value;
     }
 
+    private static void TryWriteConsoleError(string message)
+    {
+      try
+      {
+        Console.Error.WriteLine(message);
+      }
+      catch
+      {
+      }
+    }
+
+    private static void TryWriteConsoleLine(LogLevel level, string message)
+    {
+      string line = string.Concat(
+        "[",
+        DateTime.Now.ToString("HH:mm:ss.ffffff"),
+        "][",
+        Ros2csLogger.LevelNames[(int)level],
+        "] ",
+        message);
+
+      try
+      {
+        Console.WriteLine(line);
+      }
+      catch
+      {
+      }
+    }
+
     /// <summary> Log a given message with a set level </summary>
     /// <param name="level"> Log level as in LogLevel enum </param>
     /// <param name="message"> Message to log </param>
@@ -129,28 +152,13 @@ namespace ROS2
         }
         catch (Exception e)
         {
-          Console.Error.WriteLine("[ROS2CS] Logger callback failed: " + e);
+          TryWriteConsoleError("[ROS2CS] Logger callback failed: " + e);
         }
       }
 
       lock (LoggerMutex)
       {
-        ConsoleColor prevForeground = Console.ForegroundColor;
-        try
-        {
-          Console.ForegroundColor = Ros2csLogger.LevelColors[(int)level];
-          Console.WriteLine(string.Concat(
-            "[",
-            DateTime.Now.ToString("HH:mm:ss.ffffff"),
-            "][",
-            Ros2csLogger.LevelNames[(int)level],
-            "] ",
-            message));
-        }
-        finally
-        {
-          Console.ForegroundColor = prevForeground;
-        }
+        TryWriteConsoleLine(level, message);
       }
     }
 
