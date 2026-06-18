@@ -52,7 +52,7 @@ repositories:
   external/build_tools/dotnet_cmake_module:
     type: git
     url: https://github.com/JianbinLiu-CFLab/dotnet_cmake_module.git
-    version: f64cee90133be62cbb369a7aaf08b161a06da5ed
+    version: f64cee9b55fcb14079b7f298375d8ad426318c06
   external/build_tools/ament_cmake_export_assemblies:
     type: git
     url: https://github.com/RobotecAI/ament_cmake_export_assemblies
