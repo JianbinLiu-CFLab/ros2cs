@@ -249,9 +249,22 @@ namespace ROS2
     {
       lock (mutex)
       {
-        targetSubscriptions.AddRange(subscriptions);
-        targetClients.AddRange(clients);
-        targetServices.AddRange(services);
+        AppendLiveEntities(subscriptions, targetSubscriptions);
+        AppendLiveEntities(clients, targetClients);
+        AppendLiveEntities(services, targetServices);
+      }
+    }
+
+    /// <summary>Copy only live child entities into a spin-local snapshot.</summary>
+    private static void AppendLiveEntities<T>(IEnumerable<T> source, List<T> target)
+      where T : class, IExtendedDisposable
+    {
+      foreach (T entity in source)
+      {
+        if (!entity.IsDisposed)
+        {
+          target.Add(entity);
+        }
       }
     }
 

@@ -56,9 +56,10 @@ namespace ROS2
     private static List<INode> nodes = new List<INode>(); // kept to shutdown everything in order
     private static readonly Lazy<string> RmwImplementation =
       new Lazy<string>(() => Utils.PtrToString(NativeRmwInterface.rmw_native_interface_get_implementation_identifier()));
-
+    private const string DirectSpinFallbackEnvVar = "ROS2CS_SPIN_FALLBACK";
     private static WaitSet WaitSet;
     private static bool destructorFinalizerSuppressed;
+    private static int directSpinFallbackLogged;
 
     /// <summary>Whether the current thread is executing subscription/client/service callbacks.</summary>
     internal static bool IsInSpinCallback
@@ -381,40 +382,60 @@ namespace ROS2
         }
       }
 
+      if (allSubscriptions.Count == 0 && allClients.Count == 0 && allServices.Count == 0)
+      {
+        return false;
+      }
+
       lock (waitSetMutex)
       {
-        if (!initialized || WaitSet == null)
+        if (!initialized)
         {
           return false;
         }
 
-        WaitSet.Resize(
-          (ulong)allSubscriptions.Count,
-          (ulong)allClients.Count,
-          (ulong)allServices.Count      
-        );
-        foreach(var subscription in allSubscriptions)
+        string directSpinFallbackReason;
+        if (UseDirectSpinFallback(out directSpinFallbackReason))
         {
-          AddResult result = WaitSet.TryAddSubscription(subscription, out ulong _);
-          ThrowIfWaitSetFull(result, "subscription");
+          LogDirectSpinFallbackOnce(directSpinFallbackReason);
+          SleepForSpinTimeout(timeoutSec);
+          success = true;
         }
-        foreach(var client in allClients)
+        else
         {
-          AddResult result = WaitSet.TryAddClient(client, out ulong _);
-          ThrowIfWaitSetFull(result, "client");
-        }
-        foreach(var service in allServices)
-        {
-          AddResult result = WaitSet.TryAddService(service, out ulong _);
-          ThrowIfWaitSetFull(result, "service");
-        }
-        try
-        {
-          success = WaitSet.Wait(TimeSpan.FromSeconds(timeoutSec));
-        }
-        catch (WaitSetEmptyException)
-        {
-          return false;
+          if (WaitSet == null)
+          {
+            return false;
+          }
+
+          WaitSet.Resize(
+            (ulong)allSubscriptions.Count,
+            (ulong)allClients.Count,
+            (ulong)allServices.Count
+          );
+          foreach(var subscription in allSubscriptions)
+          {
+            AddResult result = WaitSet.TryAddSubscription(subscription, out ulong _);
+            ThrowIfWaitSetFull(result, "subscription");
+          }
+          foreach(var client in allClients)
+          {
+            AddResult result = WaitSet.TryAddClient(client, out ulong _);
+            ThrowIfWaitSetFull(result, "client");
+          }
+          foreach(var service in allServices)
+          {
+            AddResult result = WaitSet.TryAddService(service, out ulong _);
+            ThrowIfWaitSetFull(result, "service");
+          }
+          try
+          {
+            success = WaitSet.Wait(TimeSpan.FromSeconds(timeoutSec));
+          }
+          catch (WaitSetEmptyException)
+          {
+            return false;
+          }
         }
       }
 
@@ -444,6 +465,65 @@ namespace ROS2
         }
       }
       return true;
+    }
+
+    /// <summary>Bounded fallback used by the Lyrical preview where rcl_wait can crash after repeated context cycling.</summary>
+    private static void SleepForSpinTimeout(double timeoutSec)
+    {
+      if (timeoutSec <= 0)
+      {
+        return;
+      }
+
+      Thread.Sleep(TimeSpan.FromSeconds(timeoutSec));
+    }
+
+    /// <summary>Use a bounded direct take loop when explicitly requested or for known preview distro instability.</summary>
+    private static bool UseDirectSpinFallback(out string reason)
+    {
+      string configuredFallback = Environment.GetEnvironmentVariable(DirectSpinFallbackEnvVar);
+      if (IsTruthy(configuredFallback))
+      {
+        reason = DirectSpinFallbackEnvVar + "=" + configuredFallback;
+        return true;
+      }
+      if (IsFalsy(configuredFallback))
+      {
+        reason = null;
+        return false;
+      }
+
+      bool lyrical = String.Equals(
+        Environment.GetEnvironmentVariable("ROS_DISTRO"),
+        "lyrical",
+        StringComparison.OrdinalIgnoreCase);
+      reason = lyrical ? "ROS_DISTRO=lyrical" : null;
+      return lyrical;
+    }
+
+    /// <summary>Emit the direct spin fallback mode once so preview behavior is visible in logs.</summary>
+    private static void LogDirectSpinFallbackOnce(string reason)
+    {
+      if (Interlocked.Exchange(ref directSpinFallbackLogged, 1) == 0)
+      {
+        Ros2csLogger.GetInstance().LogWarning(
+          reason + " detected; using direct spin fallback without rcl_wait. " +
+          "Shutdown remains serialized, but callback delivery is bounded by the spin timeout.");
+      }
+    }
+
+    private static bool IsTruthy(string value)
+    {
+      return String.Equals(value, "direct", StringComparison.OrdinalIgnoreCase) ||
+        String.Equals(value, "true", StringComparison.OrdinalIgnoreCase) ||
+        String.Equals(value, "1", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsFalsy(string value)
+    {
+      return String.Equals(value, "waitset", StringComparison.OrdinalIgnoreCase) ||
+        String.Equals(value, "false", StringComparison.OrdinalIgnoreCase) ||
+        String.Equals(value, "0", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Append entities from a concrete ros2cs node, ignoring foreign/disposed interface instances.</summary>

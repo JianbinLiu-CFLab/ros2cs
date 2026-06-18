@@ -40,6 +40,7 @@ if(BUILD_TESTING)
   )
 
   set(TESTS_SRC
+    src/AssemblyInfo.cs
     src/ClockTest.cs
     src/CreateNodeTest.cs
     src/InitShutdownTest.cs

@@ -251,6 +251,7 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
     MessageTypeSupportPreload();
 
     // Keep the generated native typesupport library loaded while delegates point into it.
+    // This must be the ros2cs native overlay; the plain FastRTPS typesupport library does not export _native_* symbols.
     native_library = NativeLibraryHandle.LoadLibrary(dllLoadUtils, "@(package_name)_srv_@(service_class_lower)__rosidl_typesupport_c");
     IntPtr nativelibrary = native_library.Handle;
     IntPtr native_get_typesupport_ptr = dllLoadUtils.GetProcAddress(nativelibrary, "@(c_full_name)_native_get_type_support");

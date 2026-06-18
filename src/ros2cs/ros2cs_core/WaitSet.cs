@@ -129,6 +129,7 @@ namespace ROS2
           (UIntPtr)clientCount,
           (UIntPtr)serviceCount,
           (UIntPtr)0));
+        Utils.CheckReturnEnum(NativeRcl.rcl_wait_set_clear(ref Handle));
       }
     }
 

@@ -25,6 +25,11 @@ Current GREEN evidence for this maintenance branch is:
 
 Windows 11 is an expected target but was not the OS used for the current local validation. Older ROS 2 distributions in this README are legacy context unless fresh evidence is added.
 
+ROS 2 Lyrical is available as a preview probe line through `ros2_lyrical.repos`
+and `D:\ros2unity\tools\Enter-Ros2LyricalEnv.py`. It is not a replacement for
+the Jazzy maintenance preview until the Lyrical build, test, R2FU artifact, and
+Unity smoke plans have passed.
+
 ### Prerequisites
 
 *  ROS2 installed on the system. For this maintenance branch, the verified target is ROS 2 Jazzy.
@@ -53,6 +58,7 @@ Windows 11 is an expected target but was not the OS used for the current local v
 - Source your ROS2 installation.
   - Legacy example: `C:\dev\ros2_foxy\local_setup.ps1`
   - Current maintenance target: ROS 2 Jazzy.
+  - Preview probe target: ROS 2 Lyrical via `D:\ros2unity\tools\Enter-Ros2LyricalEnv.py`.
 - Navigate to the top project folder and pull required repositories (`get_repos.ps1`)
   - You can run script with `--get-custom-messages` argument to fetch extra messages from `custom_messages.repos` file.
   - It will use `vcstool` to download required ROS2 packages. By default, this will get repositories as set in `${ROS_DISTRO}`.

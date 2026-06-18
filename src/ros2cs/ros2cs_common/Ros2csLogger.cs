@@ -15,11 +15,13 @@
 
 // Modifications by Jianbin Liu:
 // - Made singleton initialization and logger callbacks thread-safe.
-// - Serialized console formatting to reduce interleaved log noise.
+// - Serialized console writes to reduce interleaved log noise.
 // - Added PascalCase callback registration while retaining the legacy method.
 // - Isolated application logger callback exceptions from ros2cs callers.
+// - Made console logging tolerant of headless runtimes without a valid console handle.
 
 using System;
+using System.IO;
 
 namespace ROS2
 {
@@ -37,7 +39,7 @@ namespace ROS2
     private Ros2csLogger() { }
     // Lazy<T> gives thread-safe singleton creation without a manual double-check lock.
     private static readonly Lazy<Ros2csLogger> Instance = new Lazy<Ros2csLogger>(() => new Ros2csLogger());
-    // Protects mutable log level, callbacks, and console color writes.
+    // Protects mutable callbacks and console writes.
     private static readonly object LoggerMutex = new object();
     private static volatile LogLevel _logLevel;
 
@@ -72,14 +74,6 @@ namespace ROS2
       null,
     };
 
-    private static readonly ConsoleColor[] LevelColors = new ConsoleColor[]
-    {
-      ConsoleColor.Green,
-      ConsoleColor.White,
-      ConsoleColor.Yellow,
-      ConsoleColor.Red,
-    };
-
     /// <summary> Set a callback for an application layer logger </summary>
     /// <description> Can be useful to standardize logging between Ros2cs and
     /// an application (e. g. in Unity3D) which is using it </description>
@@ -107,6 +101,51 @@ namespace ROS2
       return Instance.Value;
     }
 
+    private static void TryWriteConsoleError(string message)
+    {
+      try
+      {
+        Console.Error.WriteLine(message);
+      }
+      catch (IOException)
+      {
+      }
+      catch (ObjectDisposedException)
+      {
+      }
+      catch (InvalidOperationException)
+      {
+      }
+    }
+
+    private static string FormatConsoleLine(LogLevel level, string message)
+    {
+      return string.Concat(
+        "[",
+        DateTime.Now.ToString("HH:mm:ss.ffffff"),
+        "][",
+        Ros2csLogger.LevelNames[(int)level],
+        "] ",
+        message);
+    }
+
+    private static void TryWriteConsoleLine(string line)
+    {
+      try
+      {
+        Console.WriteLine(line);
+      }
+      catch (IOException)
+      {
+      }
+      catch (ObjectDisposedException)
+      {
+      }
+      catch (InvalidOperationException)
+      {
+      }
+    }
+
     /// <summary> Log a given message with a set level </summary>
     /// <param name="level"> Log level as in LogLevel enum </param>
     /// <param name="message"> Message to log </param>
@@ -129,28 +168,14 @@ namespace ROS2
         }
         catch (Exception e)
         {
-          Console.Error.WriteLine("[ROS2CS] Logger callback failed: " + e);
+          TryWriteConsoleError("[ROS2CS] Logger callback failed: " + e);
         }
       }
 
+      string line = FormatConsoleLine(level, message);
       lock (LoggerMutex)
       {
-        ConsoleColor prevForeground = Console.ForegroundColor;
-        try
-        {
-          Console.ForegroundColor = Ros2csLogger.LevelColors[(int)level];
-          Console.WriteLine(string.Concat(
-            "[",
-            DateTime.Now.ToString("HH:mm:ss.ffffff"),
-            "][",
-            Ros2csLogger.LevelNames[(int)level],
-            "] ",
-            message));
-        }
-        finally
-        {
-          Console.ForegroundColor = prevForeground;
-        }
+        TryWriteConsoleLine(line);
       }
     }
 

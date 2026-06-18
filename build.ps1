@@ -10,6 +10,8 @@
     standalone build
 .PARAMETER build_base
     Optional colcon build base directory. Can also be set with ROS2CS_BUILD_BASE.
+.PARAMETER install_base
+    Optional colcon install base directory. Can also be set with ROS2CS_INSTALL_BASE.
 
 Modifications Copyright (c) 2026 Jianbin Liu.
 
@@ -18,12 +20,14 @@ Modifications by Jianbin Liu:
 - Added explicit parallel worker selection with ROS2CS_PARALLEL_WORKERS override.
 - Added optional compiler launcher support through ROS2CS_COMPILER_LAUNCHER or sccache auto-detection.
 - Added optional short colcon build base support through -build_base or ROS2CS_BUILD_BASE.
+- Added optional colcon install base support through -install_base or ROS2CS_INSTALL_BASE.
 - Added ROS2CS_EVENT_HANDLER override and defaulted colcon output to console_cohesion+.
 #>
 Param (
     [Parameter(Mandatory=$false)][switch]$with_tests=$false,
     [Parameter(Mandatory=$false)][switch]$standalone=$false,
-    [Parameter(Mandatory=$false)][string]$build_base=$Env:ROS2CS_BUILD_BASE
+    [Parameter(Mandatory=$false)][string]$build_base=$Env:ROS2CS_BUILD_BASE,
+    [Parameter(Mandatory=$false)][string]$install_base=$Env:ROS2CS_INSTALL_BASE
 )
 
 $ErrorActionPreference = 'Stop'
@@ -57,7 +61,7 @@ function Get-CompilerLauncher {
 }
 
 if ([string]::IsNullOrEmpty($Env:ROS_DISTRO)) {
-    Write-Host "Source your ros2 distro first (foxy, galactic, humble, jazzy or rolling are supported)" -ForegroundColor Red
+    Write-Host "Source your ros2 distro first (foxy, galactic, humble, jazzy, lyrical or rolling are supported)" -ForegroundColor Red
     exit 1
 }
 
@@ -87,6 +91,10 @@ $cmakeArgs = @(
     "-DBUILD_TESTING=$tests_switch"
 )
 
+if (-not [string]::IsNullOrWhiteSpace($Env:COLCON_PYTHON_EXECUTABLE)) {
+    $cmakeArgs += "-DPython3_EXECUTABLE:FILEPATH=$Env:COLCON_PYTHON_EXECUTABLE"
+}
+
 if (-not [string]::IsNullOrWhiteSpace($compilerLauncher)) {
     $cmakeArgs += "-DCMAKE_C_COMPILER_LAUNCHER=$compilerLauncher"
     $cmakeArgs += "-DCMAKE_CXX_COMPILER_LAUNCHER=$compilerLauncher"
@@ -98,6 +106,11 @@ $colconArgs = @("build")
 if (-not [string]::IsNullOrWhiteSpace($build_base)) {
     $colconArgs += @("--build-base", "$build_base")
     $msg += " (build base: $build_base)"
+}
+
+if (-not [string]::IsNullOrWhiteSpace($install_base)) {
+    $colconArgs += @("--install-base", "$install_base")
+    $msg += " (install base: $install_base)"
 }
 
 $colconArgs += @(
