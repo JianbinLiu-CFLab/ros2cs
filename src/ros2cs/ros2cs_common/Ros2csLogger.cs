@@ -21,6 +21,7 @@
 // - Made console logging tolerant of headless runtimes without a valid console handle.
 
 using System;
+using System.IO;
 
 namespace ROS2
 {
@@ -38,7 +39,7 @@ namespace ROS2
     private Ros2csLogger() { }
     // Lazy<T> gives thread-safe singleton creation without a manual double-check lock.
     private static readonly Lazy<Ros2csLogger> Instance = new Lazy<Ros2csLogger>(() => new Ros2csLogger());
-    // Protects mutable log level, callbacks, and console color writes.
+    // Protects mutable callbacks and console writes.
     private static readonly object LoggerMutex = new object();
     private static volatile LogLevel _logLevel;
 
@@ -106,26 +107,41 @@ namespace ROS2
       {
         Console.Error.WriteLine(message);
       }
-      catch
+      catch (IOException)
+      {
+      }
+      catch (ObjectDisposedException)
+      {
+      }
+      catch (InvalidOperationException)
       {
       }
     }
 
-    private static void TryWriteConsoleLine(LogLevel level, string message)
+    private static string FormatConsoleLine(LogLevel level, string message)
     {
-      string line = string.Concat(
+      return string.Concat(
         "[",
         DateTime.Now.ToString("HH:mm:ss.ffffff"),
         "][",
         Ros2csLogger.LevelNames[(int)level],
         "] ",
         message);
+    }
 
+    private static void TryWriteConsoleLine(string line)
+    {
       try
       {
         Console.WriteLine(line);
       }
-      catch
+      catch (IOException)
+      {
+      }
+      catch (ObjectDisposedException)
+      {
+      }
+      catch (InvalidOperationException)
       {
       }
     }
@@ -156,9 +172,10 @@ namespace ROS2
         }
       }
 
+      string line = FormatConsoleLine(level, message);
       lock (LoggerMutex)
       {
-        TryWriteConsoleLine(level, message);
+        TryWriteConsoleLine(line);
       }
     }
 

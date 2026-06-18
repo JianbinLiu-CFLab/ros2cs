@@ -56,14 +56,10 @@ namespace ROS2
     private static List<INode> nodes = new List<INode>(); // kept to shutdown everything in order
     private static readonly Lazy<string> RmwImplementation =
       new Lazy<string>(() => Utils.PtrToString(NativeRmwInterface.rmw_native_interface_get_implementation_identifier()));
-    private static readonly Lazy<bool> UseDirectSpinFallback =
-      new Lazy<bool>(() => String.Equals(
-        Environment.GetEnvironmentVariable("ROS_DISTRO"),
-        "lyrical",
-        StringComparison.OrdinalIgnoreCase));
-
+    private const string DirectSpinFallbackEnvVar = "ROS2CS_SPIN_FALLBACK";
     private static WaitSet WaitSet;
     private static bool destructorFinalizerSuppressed;
+    private static int directSpinFallbackLogged;
 
     /// <summary>Whether the current thread is executing subscription/client/service callbacks.</summary>
     internal static bool IsInSpinCallback
@@ -391,16 +387,23 @@ namespace ROS2
         return false;
       }
 
-      if (UseDirectSpinFallback.Value)
+      lock (waitSetMutex)
       {
-        SleepForSpinTimeout(timeoutSec);
-        success = true;
-      }
-      else
-      {
-        lock (waitSetMutex)
+        if (!initialized)
         {
-          if (!initialized || WaitSet == null)
+          return false;
+        }
+
+        string directSpinFallbackReason;
+        if (UseDirectSpinFallback(out directSpinFallbackReason))
+        {
+          LogDirectSpinFallbackOnce(directSpinFallbackReason);
+          SleepForSpinTimeout(timeoutSec);
+          success = true;
+        }
+        else
+        {
+          if (WaitSet == null)
           {
             return false;
           }
@@ -473,6 +476,54 @@ namespace ROS2
       }
 
       Thread.Sleep(TimeSpan.FromSeconds(timeoutSec));
+    }
+
+    /// <summary>Use a bounded direct take loop when explicitly requested or for known preview distro instability.</summary>
+    private static bool UseDirectSpinFallback(out string reason)
+    {
+      string configuredFallback = Environment.GetEnvironmentVariable(DirectSpinFallbackEnvVar);
+      if (IsTruthy(configuredFallback))
+      {
+        reason = DirectSpinFallbackEnvVar + "=" + configuredFallback;
+        return true;
+      }
+      if (IsFalsy(configuredFallback))
+      {
+        reason = null;
+        return false;
+      }
+
+      bool lyrical = String.Equals(
+        Environment.GetEnvironmentVariable("ROS_DISTRO"),
+        "lyrical",
+        StringComparison.OrdinalIgnoreCase);
+      reason = lyrical ? "ROS_DISTRO=lyrical" : null;
+      return lyrical;
+    }
+
+    /// <summary>Emit the direct spin fallback mode once so preview behavior is visible in logs.</summary>
+    private static void LogDirectSpinFallbackOnce(string reason)
+    {
+      if (Interlocked.Exchange(ref directSpinFallbackLogged, 1) == 0)
+      {
+        Ros2csLogger.GetInstance().LogWarning(
+          reason + " detected; using direct spin fallback without rcl_wait. " +
+          "Shutdown remains serialized, but callback delivery is bounded by the spin timeout.");
+      }
+    }
+
+    private static bool IsTruthy(string value)
+    {
+      return String.Equals(value, "direct", StringComparison.OrdinalIgnoreCase) ||
+        String.Equals(value, "true", StringComparison.OrdinalIgnoreCase) ||
+        String.Equals(value, "1", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsFalsy(string value)
+    {
+      return String.Equals(value, "waitset", StringComparison.OrdinalIgnoreCase) ||
+        String.Equals(value, "false", StringComparison.OrdinalIgnoreCase) ||
+        String.Equals(value, "0", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Append entities from a concrete ros2cs node, ignoring foreign/disposed interface instances.</summary>
