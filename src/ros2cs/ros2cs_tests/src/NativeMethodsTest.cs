@@ -25,8 +25,10 @@ using NUnit.Framework;
 using System;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Threading;
 using ROS2.Test;
 using ROS2.Internal;
+using example_interfaces.srv;
 
 namespace ROS2.TestNativeMethods
 {
@@ -102,6 +104,23 @@ namespace ROS2.TestNativeMethods
 
             Assert.That(writerGuid, Is.Null);
             Assert.That(Marshal.SizeOf<rcl_rmw_request_id_t>(), Is.EqualTo(24));
+        }
+
+        [Test]
+        public void NativeLayoutSizesMatchRclHeaders()
+        {
+            Assert.That(
+                Marshal.SizeOf<rcl_node_t>(),
+                Is.EqualTo(checked((int)NativeRclInterface.rclcs_sizeof_rcl_node_t().ToUInt64())));
+            Assert.That(
+                Marshal.SizeOf<rcl_context_t>(),
+                Is.EqualTo(checked((int)NativeRclInterface.rclcs_sizeof_rcl_context_t().ToUInt64())));
+            Assert.That(
+                Marshal.SizeOf<rcl_wait_set_t>(),
+                Is.EqualTo(checked((int)NativeRclInterface.rclcs_sizeof_rcl_wait_set_t().ToUInt64())));
+            Assert.That(
+                Marshal.SizeOf<rcl_rmw_request_id_t>(),
+                Is.EqualTo(checked((int)NativeRclInterface.rclcs_sizeof_rcl_rmw_request_id_t().ToUInt64())));
         }
 
         [Test]
@@ -222,7 +241,7 @@ namespace ROS2.TestNativeMethods
 
         public static void ShutdownNode(ref rcl_node_t node, IntPtr nodeOptions)
         {
-            NativeRcl.rcl_node_fini(ref node);
+            TestUtils.AssertRetOk(NativeRcl.rcl_node_fini(ref node));
             if (nodeOptions != IntPtr.Zero)
             {
                 TestUtils.AssertRetOk(NativeRclInterface.rclcs_node_dispose_options(nodeOptions));
@@ -314,6 +333,82 @@ namespace ROS2.TestNativeMethods
         public void DisposeTopicNamesAndTypesAcceptsNull()
         {
             Assert.DoesNotThrow(() => NativeRclInterface.rclcs_dispose_topic_names_and_types(IntPtr.Zero));
+        }
+
+        [Test]
+        public void ServiceServerIsAvailableMarshalsBoolOutput()
+        {
+            rcl_client_t client = NativeRcl.rcl_get_zero_initialized_client();
+            rcl_service_t service = NativeRcl.rcl_get_zero_initialized_service();
+            IntPtr clientOptions = IntPtr.Zero;
+            IntPtr serviceOptions = IntPtr.Zero;
+            bool clientInitialized = false;
+            bool serviceInitialized = false;
+
+            using (QualityOfServiceProfile qos = new QualityOfServiceProfile(QosPresetProfile.SERVICES_DEFAULT))
+            using (AddTwoInts_Request request = new AddTwoInts_Request())
+            {
+                MessageInternals requestInternals = request;
+                IntPtr typeSupportHandle = requestInternals.TypeSupportHandle;
+                clientOptions = NativeRclInterface.rclcs_client_create_options(qos.handle);
+                serviceOptions = NativeRclInterface.rclcs_service_create_options(qos.handle);
+                Assert.That(clientOptions, Is.Not.EqualTo(IntPtr.Zero));
+                Assert.That(serviceOptions, Is.Not.EqualTo(IntPtr.Zero));
+                try
+                {
+                    TestUtils.AssertRetOk(NativeRcl.rcl_service_init(
+                        ref service,
+                        ref node,
+                        typeSupportHandle,
+                        "native_service_available_test",
+                        serviceOptions));
+                    serviceInitialized = true;
+
+                    TestUtils.AssertRetOk(NativeRcl.rcl_client_init(
+                        ref client,
+                        ref node,
+                        typeSupportHandle,
+                        "native_service_available_test",
+                        clientOptions));
+                    clientInitialized = true;
+
+                    bool isAvailable = false;
+                    DateTime deadline = DateTime.UtcNow.AddSeconds(2);
+                    do
+                    {
+                        TestUtils.AssertRetOk(NativeRcl.rcl_service_server_is_available(
+                            ref node,
+                            ref client,
+                            ref isAvailable));
+                        if (isAvailable)
+                        {
+                            break;
+                        }
+                        Thread.Sleep(10);
+                    } while (DateTime.UtcNow < deadline);
+
+                    Assert.That(isAvailable, Is.True);
+                }
+                finally
+                {
+                    if (clientInitialized)
+                    {
+                        TestUtils.AssertRetOk(NativeRcl.rcl_client_fini(ref client, ref node));
+                    }
+                    if (serviceInitialized)
+                    {
+                        TestUtils.AssertRetOk(NativeRcl.rcl_service_fini(ref service, ref node));
+                    }
+                    if (clientOptions != IntPtr.Zero)
+                    {
+                        NativeRclInterface.rclcs_client_dispose_options(clientOptions);
+                    }
+                    if (serviceOptions != IntPtr.Zero)
+                    {
+                        NativeRclInterface.rclcs_service_dispose_options(serviceOptions);
+                    }
+                }
+            }
         }
     }
 

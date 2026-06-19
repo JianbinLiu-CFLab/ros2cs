@@ -28,11 +28,11 @@
 #include <rcl/rcl.h>
 #include <rcl/time.h>
 #include <rcutils/allocator.h>
-#include <rcutils/strdup.h>
 #include <rcutils/types.h>
 #include <rmw/qos_profiles.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 
 typedef struct rclcs_string_array_s
 {
@@ -65,7 +65,35 @@ int rclcs_init(rcl_context_t *context, rcl_allocator_t allocator)
   }
 
   ret = rcl_init_options_fini(&init_options);
+  if (ret != RCL_RET_OK)
+  {
+    rcl_shutdown(context);
+  }
   return ret;
+}
+
+ROSIDL_GENERATOR_C_EXPORT
+size_t rclcs_sizeof_rcl_node_t()
+{
+  return sizeof(rcl_node_t);
+}
+
+ROSIDL_GENERATOR_C_EXPORT
+size_t rclcs_sizeof_rcl_context_t()
+{
+  return sizeof(rcl_context_t);
+}
+
+ROSIDL_GENERATOR_C_EXPORT
+size_t rclcs_sizeof_rcl_wait_set_t()
+{
+  return sizeof(rcl_wait_set_t);
+}
+
+ROSIDL_GENERATOR_C_EXPORT
+size_t rclcs_sizeof_rcl_rmw_request_id_t()
+{
+  return sizeof(rcl_rmw_request_id_t);
 }
 
 ROSIDL_GENERATOR_C_EXPORT
@@ -244,12 +272,18 @@ void rclcs_dispose_topic_names_and_types(rclcs_topic_names_and_types_t * result)
 
   for (size_t i = 0; i < result->size; i++)
   {
-    free(result->names[i]);
-    for (size_t j = 0; j < result->types[i].size; j++)
+    if (result->names != NULL)
     {
-      free(result->types[i].data[j]);
+      free(result->names[i]);
     }
-    free(result->types[i].data);
+    if (result->types != NULL)
+    {
+      for (size_t j = 0; j < result->types[i].size; j++)
+      {
+        free(result->types[i].data[j]);
+      }
+      free(result->types[i].data);
+    }
   }
 
   free(result->names);

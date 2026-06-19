@@ -44,7 +44,7 @@ namespace ROS2
     public IntPtr state;
   }
 
-  /// <summary>Managed mirror of rcl_arguments_t with explicit native field order.</summary>
+  /// <summary>Documentation-only mirror of rcl_arguments_t. Current P/Invoke uses IntPtr for this type.</summary>
   [StructLayout(LayoutKind.Sequential)]
   public struct rcl_arguments_t
   {
@@ -61,7 +61,7 @@ namespace ROS2
     private ulong instance_id_storage;
   }
 
-  /// <summary>Managed mirror of rcl_error_string_t with explicit native field order.</summary>
+  /// <summary>Documentation-only mirror of rcl_error_string_t. Current P/Invoke marshals copied strings as IntPtr.</summary>
   [StructLayout(LayoutKind.Sequential)]
   public struct rcl_error_string_t
   {
@@ -76,6 +76,7 @@ namespace ROS2
   }
 
   /// <summary>Managed mirror of rcl_node_t with explicit native field order.</summary>
+  /// <remarks>Jazzy and Lyrical define rcl_node_t as context plus impl pointers.</remarks>
   [StructLayout(LayoutKind.Sequential)]
   public struct rcl_node_t
   {
@@ -142,7 +143,7 @@ namespace ROS2
     private IntPtr impl;
   }
 
-  /// <summary>Managed mirror of rcl_clock_t with explicit native field order.</summary>
+  /// <summary>Documentation-only mirror of rcl_clock_t. Managed clock ownership uses an opaque IntPtr wrapper.</summary>
   [StructLayout(LayoutKind.Sequential)]
   public struct rcl_clock_t
   {
