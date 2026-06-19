@@ -68,6 +68,17 @@ namespace ROS2.TestNativeMethods
             InitRcl(ref context);
             ShutdownRcl(ref context);
         }
+
+        [Test]
+        public void NativeInterfaceInitShutdownFinalize()
+        {
+            rcl_context_t context = NativeRcl.rcl_get_zero_initialized_context();
+            rcl_allocator_t allocator = NativeRcl.rcutils_get_default_allocator();
+
+            TestUtils.AssertRetOk(NativeRclInterface.rclcs_init(ref context, allocator));
+            Assert.That(NativeRcl.rcl_context_is_valid(ref context), Is.True);
+            ShutdownRcl(ref context);
+        }
     }
 
     [TestFixture]
@@ -194,6 +205,7 @@ namespace ROS2.TestNativeMethods
         public void GetZeroInitializedNode()
         {
             rcl_node_t node = NativeRcl.rcl_get_zero_initialized_node();
+            Assert.That(node, Is.EqualTo(default(rcl_node_t)));
         }
 
         [Test]
@@ -336,6 +348,43 @@ namespace ROS2.TestNativeMethods
         }
 
         [Test]
+        public void GetZeroInitializedClientAndService()
+        {
+            rcl_client_t client = NativeRcl.rcl_get_zero_initialized_client();
+            rcl_service_t service = NativeRcl.rcl_get_zero_initialized_service();
+
+            Assert.That(client, Is.EqualTo(default(rcl_client_t)));
+            Assert.That(service, Is.EqualTo(default(rcl_service_t)));
+        }
+
+        [Test]
+        public void ClientAndServiceCreateOptions()
+        {
+            using (QualityOfServiceProfile qos = new QualityOfServiceProfile(QosPresetProfile.SERVICES_DEFAULT))
+            {
+                IntPtr clientOptions = NativeRclInterface.rclcs_client_create_options(qos.handle);
+                IntPtr serviceOptions = NativeRclInterface.rclcs_service_create_options(qos.handle);
+                try
+                {
+                    Assert.That(clientOptions, Is.Not.EqualTo(IntPtr.Zero));
+                    Assert.That(serviceOptions, Is.Not.EqualTo(IntPtr.Zero));
+                }
+                finally
+                {
+                    NativeRclInterface.rclcs_client_dispose_options(clientOptions);
+                    NativeRclInterface.rclcs_service_dispose_options(serviceOptions);
+                }
+            }
+        }
+
+        [Test]
+        public void ClientAndServiceDisposeOptionsAcceptNull()
+        {
+            Assert.DoesNotThrow(() => NativeRclInterface.rclcs_client_dispose_options(IntPtr.Zero));
+            Assert.DoesNotThrow(() => NativeRclInterface.rclcs_service_dispose_options(IntPtr.Zero));
+        }
+
+        [Test]
         public void ServiceServerIsAvailableMarshalsBoolOutput()
         {
             rcl_client_t client = NativeRcl.rcl_get_zero_initialized_client();
@@ -410,6 +459,189 @@ namespace ROS2.TestNativeMethods
                 }
             }
         }
+
+        [Test]
+        public void ClientServiceRequestResponseNativeRoundtrip()
+        {
+            rcl_client_t client = NativeRcl.rcl_get_zero_initialized_client();
+            rcl_service_t service = NativeRcl.rcl_get_zero_initialized_service();
+            IntPtr clientOptions = IntPtr.Zero;
+            IntPtr serviceOptions = IntPtr.Zero;
+            bool clientInitialized = false;
+            bool serviceInitialized = false;
+
+            using (QualityOfServiceProfile qos = new QualityOfServiceProfile(QosPresetProfile.SERVICES_DEFAULT))
+            using (AddTwoInts_Request request = new AddTwoInts_Request { A = 4, B = 5 })
+            using (AddTwoInts_Request takenRequest = new AddTwoInts_Request())
+            using (AddTwoInts_Response response = new AddTwoInts_Response())
+            using (AddTwoInts_Response takenResponse = new AddTwoInts_Response())
+            {
+                MessageInternals requestInternals = request;
+                IntPtr typeSupportHandle = requestInternals.TypeSupportHandle;
+                clientOptions = NativeRclInterface.rclcs_client_create_options(qos.handle);
+                serviceOptions = NativeRclInterface.rclcs_service_create_options(qos.handle);
+                Assert.That(clientOptions, Is.Not.EqualTo(IntPtr.Zero));
+                Assert.That(serviceOptions, Is.Not.EqualTo(IntPtr.Zero));
+                try
+                {
+                    TestUtils.AssertRetOk(NativeRcl.rcl_service_init(
+                        ref service,
+                        ref node,
+                        typeSupportHandle,
+                        "native_client_service_roundtrip_test",
+                        serviceOptions));
+                    serviceInitialized = true;
+
+                    TestUtils.AssertRetOk(NativeRcl.rcl_client_init(
+                        ref client,
+                        ref node,
+                        typeSupportHandle,
+                        "native_client_service_roundtrip_test",
+                        clientOptions));
+                    clientInitialized = true;
+
+                    AssertClientAndServiceCanBeAddedToWaitSet(ref client, ref service);
+                    AssertServiceAvailable(ref client);
+
+                    long sequenceNumber = 0;
+                    request.WriteNativeMessage();
+                    TestUtils.AssertRetOk(NativeRcl.rcl_send_request(
+                        ref client,
+                        requestInternals.Handle,
+                        ref sequenceNumber));
+
+                    rcl_rmw_request_id_t requestHeader = default(rcl_rmw_request_id_t);
+                    MessageInternals takenRequestInternals = takenRequest;
+                    AssertEventuallyReturns(
+                        () => NativeRcl.rcl_take_request(
+                            ref service,
+                            ref requestHeader,
+                            takenRequestInternals.Handle),
+                        RCLReturnEnum.RCL_RET_SERVICE_TAKE_FAILED);
+                    takenRequest.ReadNativeMessage();
+                    Assert.That(takenRequest.A, Is.EqualTo(4));
+                    Assert.That(takenRequest.B, Is.EqualTo(5));
+
+                    response.Sum = takenRequest.A + takenRequest.B;
+                    MessageInternals responseInternals = response;
+                    response.WriteNativeMessage();
+                    TestUtils.AssertRetOk(NativeRcl.rcl_send_response(
+                        ref service,
+                        ref requestHeader,
+                        responseInternals.Handle));
+
+                    rcl_rmw_request_id_t responseHeader = default(rcl_rmw_request_id_t);
+                    MessageInternals takenResponseInternals = takenResponse;
+                    AssertEventuallyReturns(
+                        () => NativeRcl.rcl_take_response(
+                            ref client,
+                            ref responseHeader,
+                            takenResponseInternals.Handle),
+                        RCLReturnEnum.RCL_RET_CLIENT_TAKE_FAILED);
+                    Assert.That(responseHeader.sequence_number, Is.EqualTo(sequenceNumber));
+                    takenResponse.ReadNativeMessage();
+                    Assert.That(takenResponse.Sum, Is.EqualTo(9));
+                }
+                finally
+                {
+                    if (clientInitialized)
+                    {
+                        TestUtils.AssertRetOk(NativeRcl.rcl_client_fini(ref client, ref node));
+                    }
+                    if (serviceInitialized)
+                    {
+                        TestUtils.AssertRetOk(NativeRcl.rcl_service_fini(ref service, ref node));
+                    }
+                    if (clientOptions != IntPtr.Zero)
+                    {
+                        NativeRclInterface.rclcs_client_dispose_options(clientOptions);
+                    }
+                    if (serviceOptions != IntPtr.Zero)
+                    {
+                        NativeRclInterface.rclcs_service_dispose_options(serviceOptions);
+                    }
+                }
+            }
+        }
+
+        private static void AssertEventuallyReturns(Func<int> nativeCall, RCLReturnEnum retryCode)
+        {
+            DateTime deadline = DateTime.UtcNow.AddSeconds(2);
+            RCLReturnEnum ret;
+            do
+            {
+                ret = (RCLReturnEnum)nativeCall();
+                if (ret == RCLReturnEnum.RCL_RET_OK)
+                {
+                    return;
+                }
+                if (ret != retryCode)
+                {
+                    Assert.That(ret, Is.EqualTo(RCLReturnEnum.RCL_RET_OK), Utils.PopRclErrorString());
+                }
+                Thread.Sleep(10);
+            } while (DateTime.UtcNow < deadline);
+
+            Assert.That(ret, Is.EqualTo(RCLReturnEnum.RCL_RET_OK), Utils.PopRclErrorString());
+        }
+
+        private void AssertServiceAvailable(ref rcl_client_t client)
+        {
+            bool isAvailable = false;
+            DateTime deadline = DateTime.UtcNow.AddSeconds(2);
+            do
+            {
+                TestUtils.AssertRetOk(NativeRcl.rcl_service_server_is_available(
+                    ref node,
+                    ref client,
+                    ref isAvailable));
+                if (isAvailable)
+                {
+                    return;
+                }
+                Thread.Sleep(10);
+            } while (DateTime.UtcNow < deadline);
+
+            Assert.That(isAvailable, Is.True);
+        }
+
+        private void AssertClientAndServiceCanBeAddedToWaitSet(
+            ref rcl_client_t client,
+            ref rcl_service_t service)
+        {
+            rcl_allocator_t allocator = NativeRcl.rcutils_get_default_allocator();
+            rcl_wait_set_t waitSet = NativeRcl.rcl_get_zero_initialized_wait_set();
+            bool waitSetInitialized = false;
+            try
+            {
+                TestUtils.AssertRetOk(NativeRcl.rcl_wait_set_init(
+                    ref waitSet,
+                    (UIntPtr)0,
+                    (UIntPtr)0,
+                    (UIntPtr)0,
+                    (UIntPtr)1,
+                    (UIntPtr)1,
+                    (UIntPtr)0,
+                    ref context,
+                    allocator));
+                waitSetInitialized = true;
+                TestUtils.AssertRetOk(NativeRcl.rcl_wait_set_clear(ref waitSet));
+
+                UIntPtr clientIndex = (UIntPtr)42;
+                UIntPtr serviceIndex = (UIntPtr)42;
+                TestUtils.AssertRetOk(NativeRcl.rcl_wait_set_add_client(ref waitSet, ref client, ref clientIndex));
+                TestUtils.AssertRetOk(NativeRcl.rcl_wait_set_add_service(ref waitSet, ref service, ref serviceIndex));
+                Assert.That(clientIndex.ToUInt64(), Is.EqualTo(0));
+                Assert.That(serviceIndex.ToUInt64(), Is.EqualTo(0));
+            }
+            finally
+            {
+                if (waitSetInitialized)
+                {
+                    TestUtils.AssertRetOk(NativeRcl.rcl_wait_set_fini(ref waitSet));
+                }
+            }
+        }
     }
 
     [TestFixture]
@@ -448,6 +680,7 @@ namespace ROS2.TestNativeMethods
         public void GetZeroInitializedPublisher()
         {
             rcl_publisher_t publisher = NativeRcl.rcl_get_zero_initialized_publisher();
+            Assert.That(publisher, Is.EqualTo(default(rcl_publisher_t)));
         }
 
         public static void InitPublisher(
@@ -530,6 +763,7 @@ namespace ROS2.TestNativeMethods
         public void GetZeroInitializedSubscription()
         {
             rcl_subscription_t subscription = NativeRcl.rcl_get_zero_initialized_subscription();
+            Assert.That(subscription, Is.EqualTo(default(rcl_subscription_t)));
         }
 
         [Test]
@@ -630,6 +864,21 @@ namespace ROS2.TestNativeMethods
         }
 
         [Test]
+        public void SubscriptionTakeEmptyReturnsTakeFailed()
+        {
+            using var msg = new std_msgs.msg.Bool();
+            MessageInternals msgInternals = msg;
+
+            var ret = (RCLReturnEnum)NativeRcl.rcl_take(
+                ref subscription,
+                msgInternals.Handle,
+                IntPtr.Zero,
+                IntPtr.Zero);
+
+            Assert.That(ret, Is.EqualTo(RCLReturnEnum.RCL_RET_SUBSCRIPTION_TAKE_FAILED));
+        }
+
+        [Test]
         public void WaitSetAddSubscription()
         {
             NativeRcl.rcl_reset_error();
@@ -700,6 +949,7 @@ namespace ROS2.TestNativeMethods
             // fields that are set to UIntPtr in C# declaration,
             // not guaranteed to work for all C implemenations/platforms.
             rcl_wait_set_t waitSet = NativeRcl.rcl_get_zero_initialized_wait_set();
+            Assert.That(waitSet, Is.EqualTo(default(rcl_wait_set_t)));
         }
 
         [Test]
@@ -742,6 +992,48 @@ namespace ROS2.TestNativeMethods
                 ));
                 waitSetInitialized = true;
                 TestUtils.AssertRetOk(NativeRcl.rcl_wait_set_clear(ref waitSet));
+            }
+            finally
+            {
+                if (waitSetInitialized)
+                {
+                    TestUtils.AssertRetOk(NativeRcl.rcl_wait_set_fini(ref waitSet));
+                }
+            }
+        }
+
+        [Test]
+        public void WaitSetResize()
+        {
+            rcl_allocator_t allocator = NativeRcl.rcutils_get_default_allocator();
+            rcl_wait_set_t waitSet = NativeRcl.rcl_get_zero_initialized_wait_set();
+            bool waitSetInitialized = false;
+            try
+            {
+                TestUtils.AssertRetOk(NativeRcl.rcl_wait_set_init(
+                    ref waitSet,
+                    (UIntPtr)0,
+                    (UIntPtr)0,
+                    (UIntPtr)0,
+                    (UIntPtr)0,
+                    (UIntPtr)0,
+                    (UIntPtr)0,
+                    ref context,
+                    allocator
+                ));
+                waitSetInitialized = true;
+
+                TestUtils.AssertRetOk(NativeRcl.rcl_wait_set_resize(
+                    ref waitSet,
+                    (UIntPtr)1,
+                    (UIntPtr)0,
+                    (UIntPtr)0,
+                    (UIntPtr)1,
+                    (UIntPtr)1,
+                    (UIntPtr)0));
+                Assert.That(waitSet.size_of_subscriptions.ToUInt64(), Is.EqualTo(1));
+                Assert.That(waitSet.size_of_clients.ToUInt64(), Is.EqualTo(1));
+                Assert.That(waitSet.size_of_services.ToUInt64(), Is.EqualTo(1));
             }
             finally
             {
@@ -934,6 +1226,7 @@ namespace ROS2.TestNativeMethods
         {
             rcl_allocator_t allocator = NativeRcl.rcutils_get_default_allocator();
             IntPtr clockHandle = NativeRclInterface.rclcs_ros_clock_create(ref allocator);
+            Assert.That(clockHandle, Is.Not.EqualTo(IntPtr.Zero));
             NativeRclInterface.rclcs_ros_clock_dispose(clockHandle);
         }
 
