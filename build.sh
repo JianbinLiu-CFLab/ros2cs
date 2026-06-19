@@ -7,6 +7,7 @@
 # - Added optional short colcon build base support through --build-base or ROS2CS_BUILD_BASE.
 # - Added optional colcon install base support through --install-base or ROS2CS_INSTALL_BASE.
 # - Defaulted Linux/macOS builds to Ninja and made the colcon event handler configurable.
+# - Added build evidence metadata and a default install-base distro guard.
 
 set -euo pipefail
 
@@ -30,6 +31,57 @@ if [[ ! "$ROS_DISTRO" =~ ^[a-z][a-z0-9_]*$ ]]; then
     echo "Invalid ROS_DISTRO value: '$ROS_DISTRO'."
     exit 1
 fi
+
+get_effective_install_base() {
+  if [ -z "$INSTALL_BASE" ]; then
+    printf "%s/install" "$PWD"
+    return
+  fi
+
+  case "$INSTALL_BASE" in
+    /*)
+      printf "%s" "$INSTALL_BASE"
+      ;;
+    *)
+      printf "%s/%s" "$PWD" "$INSTALL_BASE"
+      ;;
+  esac
+}
+
+get_git_commit() {
+  git rev-parse HEAD 2>/dev/null || printf "unknown"
+}
+
+assert_default_install_base_matches_distro() {
+  if [ "$EXPLICIT_INSTALL_BASE" = "1" ]; then
+    return
+  fi
+
+  marker_path="$EFFECTIVE_INSTALL_BASE/.ros2cs_build_distro"
+  if [ ! -f "$marker_path" ]; then
+    return
+  fi
+
+  recorded_distro="$(tr -d '\r\n' < "$marker_path")"
+  if [ -n "$recorded_distro" ] && [ "$recorded_distro" != "$ROS_DISTRO" ]; then
+    echo "Default install base '$EFFECTIVE_INSTALL_BASE' was last built for ROS_DISTRO='$recorded_distro', but current ROS_DISTRO='$ROS_DISTRO'. Pass --install-base for an isolated build or remove the default install directory intentionally."
+    exit 1
+  fi
+}
+
+write_build_evidence() {
+  mkdir -p "$EFFECTIVE_INSTALL_BASE"
+  printf "%s\n" "$ROS_DISTRO" > "$EFFECTIVE_INSTALL_BASE/.ros2cs_build_distro"
+  {
+    printf "ros2cs_commit=%s\n" "$(get_git_commit)"
+    printf "ros_distro=%s\n" "$ROS_DISTRO"
+    printf "build_timestamp_utc=%s\n" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+    printf "repo_path=%s\n" "$PWD"
+    printf "install_base=%s\n" "$EFFECTIVE_INSTALL_BASE"
+    printf "standalone=%s\n" "$STANDALONE"
+    printf "build_testing=%s\n" "$TESTS"
+  } > "$EFFECTIVE_INSTALL_BASE/ros2cs_build_info.txt"
+}
 
 TESTS=OFF
 MSG="Build started."
@@ -113,6 +165,13 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+EXPLICIT_INSTALL_BASE=0
+if [ -n "$INSTALL_BASE" ]; then
+  EXPLICIT_INSTALL_BASE=1
+fi
+EFFECTIVE_INSTALL_BASE="$(get_effective_install_base)"
+assert_default_install_base_matches_distro
+
 CMAKE_ARGS=(
   -G Ninja
   -DCMAKE_BUILD_TYPE=Release
@@ -153,3 +212,5 @@ colcon "${COLCON_ARGS[@]}" \
 --event-handlers "$EVENT_HANDLER" \
 --cmake-args \
 "${CMAKE_ARGS[@]}" || exit $?
+
+write_build_evidence

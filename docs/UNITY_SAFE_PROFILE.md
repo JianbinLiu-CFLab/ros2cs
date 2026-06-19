@@ -32,6 +32,15 @@ and downstream R2FU packages.
 - Add graph convenience APIs without changing existing message behavior.
 - Keep lightweight runtime behavior opt-in.
 
+## Validation Status
+
+Unity Player smoke and external ROS 2 echo validation are the target evidence for
+Unity-facing runtime claims. Build-only evidence is not enough for those claims.
+
+This ros2cs maintenance branch can document APIs and profile boundaries on its
+own, but it should only mark R2FU Player validation as complete when the paired
+ROS2 For Unity runtime artifact evidence is recorded for the same ros2cs commit.
+
 ## Lightweight Node Options
 
 `NodeOptions` defaults preserve the existing ros2cs node behavior. The existing

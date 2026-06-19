@@ -7,6 +7,7 @@
 > - Documented Ninja as the required Windows Jazzy generator policy for VS 2026 / VS 18 toolchains.
 > - Updated the current Windows verification status for Windows 10 LTSC + ROS 2 Jazzy and .NET 10 tests/examples.
 > - Updated tests/examples target framework references to .NET 10.
+> - Clarified Lyrical preview evidence boundaries and build metadata output.
 
 ## Building
 
@@ -31,6 +32,11 @@ lives in the outer `ros2unity/tools` workspace and is not part of this public
 ros2cs repository. Lyrical is not a replacement for the Jazzy maintenance
 preview until the Lyrical build, test, R2FU artifact, and Unity smoke plans have
 passed.
+
+Lyrical validation evidence must record whether `ROS2CS_SPIN_FALLBACK` was set.
+The direct fallback path bypasses `rcl_wait`, so it is fallback-runtime evidence,
+not proof that the wait-set path is stable on Lyrical. Wait-set claims require a
+separate run with `ROS2CS_SPIN_FALLBACK=waitset`.
 
 ### Prerequisites
 
@@ -68,6 +74,13 @@ passed.
 - Build package (`build.ps1`)
   - It invokes `colcon_build` with `--merge-install` argument to simplify libraries installation
   - You can build tests by adding `-with_tests` argument
+  - Successful builds write `ros2cs_build_info.txt` and `.ros2cs_build_distro`
+    under the install base. The default `install/` base refuses to mix a new
+    `ROS_DISTRO` with a previous recorded distro; pass `-install_base` for
+    intentionally isolated multi-distro builds.
+- Run tests (`test.ps1`)
+  - Successful or failing test runs write `ros2cs_test_info.txt` under the
+    build base with git commit, `ROS_DISTRO`, and colcon test exit codes.
 - To test your build please check main readme [Testing section](README.md#testing)
 
 ### Build profiles
@@ -92,6 +105,11 @@ dependency graph or CMake cache is actually stale.
 
 Record validation commands, exit codes, and key output in your local release or
 maintenance notes before making platform support claims.
+
+The build and test scripts also write the current git commit, `ROS_DISTRO`,
+install or build base, timestamp, and relevant build/test flags to
+`ros2cs_build_info.txt` or `ros2cs_test_info.txt`. Keep those files with local
+artifact evidence when comparing Jazzy and Lyrical results.
 
 ### Standalone version (Windows)
 
