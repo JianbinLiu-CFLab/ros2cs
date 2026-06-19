@@ -18,6 +18,7 @@
 // - Shared the ros2cs native wrapper handle with rcl wrapper bindings.
 // - Normalized delegate binding indentation.
 // - Added liveliness QoS setter binding.
+// - Added QoS duration setter bindings.
 
 using System;
 using System.Runtime.InteropServices;
@@ -94,5 +95,26 @@ namespace ROS2
       nativeRMW,
       "rmw_native_interface_set_liveliness"),
       typeof(RMWNativeSetLivelinessIdentifierType));
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate void RMWNativeSetDurationIdentifierType(IntPtr profile, ulong nanoseconds);
+    internal static RMWNativeSetDurationIdentifierType
+      rmw_native_interface_set_deadline =
+      (RMWNativeSetDurationIdentifierType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
+      nativeRMW,
+      "rmw_native_interface_set_deadline"),
+      typeof(RMWNativeSetDurationIdentifierType));
+    internal static RMWNativeSetDurationIdentifierType
+      rmw_native_interface_set_lifespan =
+      (RMWNativeSetDurationIdentifierType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
+      nativeRMW,
+      "rmw_native_interface_set_lifespan"),
+      typeof(RMWNativeSetDurationIdentifierType));
+    internal static RMWNativeSetDurationIdentifierType
+      rmw_native_interface_set_liveliness_lease_duration =
+      (RMWNativeSetDurationIdentifierType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
+      nativeRMW,
+      "rmw_native_interface_set_liveliness_lease_duration"),
+      typeof(RMWNativeSetDurationIdentifierType));
   }
 }

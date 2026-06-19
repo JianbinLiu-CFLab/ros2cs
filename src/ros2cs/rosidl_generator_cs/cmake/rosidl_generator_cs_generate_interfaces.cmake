@@ -204,6 +204,24 @@ rosidl_write_generator_arguments(
 
 file(MAKE_DIRECTORY "${_output_path}")
 
+if(NOT rosidl_generator_cs_CLEAN_GENERATE)
+  message(FATAL_ERROR "rosidl_generator_cs clean generator wrapper was not registered")
+endif()
+
+set(_generated_cs_outputs
+  ${_generated_msg_cs_files}
+  ${_generated_msg_c_files}
+  ${_generated_msg_c_ts_files}
+  ${_generated_srv_cs_files}
+  ${_generated_srv_c_files}
+  ${_generated_srv_c_ts_files}
+)
+set(_generated_cs_outputs_file "${CMAKE_CURRENT_BINARY_DIR}/rosidl_generator_cs__outputs.txt")
+file(WRITE "${_generated_cs_outputs_file}" "")
+foreach(_generated_cs_output IN LISTS _generated_cs_outputs)
+  file(APPEND "${_generated_cs_outputs_file}" "${_generated_cs_output}\n")
+endforeach()
+
 message(STATUS "Generating C# code for ROS interfaces ${_generated_msg_cs_files} and ${_generated_srv_cs_files}")
 set(ros2_distro "$ENV{ROS_DISTRO}")
 if(ros2_distro STREQUAL "foxy" OR ros2_distro STREQUAL "galactic")
@@ -215,11 +233,14 @@ endif()
 add_custom_command(
   OUTPUT ${_generated_msg_cs_files} ${_generated_msg_c_files} ${_generated_msg_c_ts_files} ${_generated_srv_cs_files} ${_generated_srv_c_files} ${_generated_srv_c_ts_files}
   COMMAND ${PYTHON_CMD}
-  ARGS ${rosidl_generator_cs_BIN}
+  ARGS "${rosidl_generator_cs_CLEAN_GENERATE}"
+  --outputs-file "${_generated_cs_outputs_file}"
+  --generator "${rosidl_generator_cs_BIN}"
+  --
   --generator-arguments-file "${generator_arguments_file}"
   --typesupport-impls "${_typesupport_impls}"
   --cs-build-tool "${CSBUILD_TOOL}"
-  DEPENDS ${target_dependencies}
+  DEPENDS ${target_dependencies} "${_generated_cs_outputs_file}"
   COMMENT "Generating C# code for ROS interfaces"
   VERBATIM
 )
@@ -344,8 +365,9 @@ if(_generated_msg_c_ts_count GREATER 0)
   get_filename_component(_package_name "${_package_folder}" NAME)
   get_filename_component(_parent_folder "${_full_folder}" NAME)
   get_filename_component(_base_msg_name "${_generated_msg_c_ts_file}" NAME_WE)
+  string(REGEX REPLACE "\\.ep\\..*$" "" _module_name "${_base_msg_name}")
 
-  set(_runtime_name "${_package_name}_${_base_msg_name}__${_typesupport_impl}")
+  set(_runtime_name "${_package_name}_${_module_name}__${_typesupport_impl}")
   # Keep the runtime DLL name stable for generated C# LoadLibrary calls, but use
   # a short logical CMake target name so MSVC object paths stay below CMake limits.
   set(_target_name "${PROJECT_NAME}__cs_msg_ts_${_file_index}")
@@ -434,8 +456,9 @@ if(_generated_srv_c_ts_count GREATER 0)
   get_filename_component(_package_name "${_package_folder}" NAME)
   get_filename_component(_parent_folder "${_full_folder}" NAME)
   get_filename_component(_base_srv_name "${_generated_srv_c_ts_file}" NAME_WE)
+  string(REGEX REPLACE "\\.ep\\..*$" "" _module_name "${_base_srv_name}")
 
-  set(_runtime_name "${_package_name}_srv_${_base_srv_name}__${_typesupport_impl}")
+  set(_runtime_name "${_package_name}_srv_${_module_name}__${_typesupport_impl}")
   # Keep the runtime DLL name stable for generated C# LoadLibrary calls, but use
   # a short logical CMake target name so MSVC object paths stay below CMake limits.
   set(_target_name "${PROJECT_NAME}__cs_srv_ts_${_file_index}")

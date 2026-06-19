@@ -87,8 +87,6 @@ namespace ROS2.Test
                 .Where(type => type != null)
                 .Where(type => typeof(Message).IsAssignableFrom(type))
                 .Where(type => !type.IsAbstract)
-                .Where(type => type.Namespace != null &&
-                    (type.Namespace.EndsWith(".msg") || type.Namespace.EndsWith(".srv")))
                 .ToArray();
 
             Assert.That(messageTypes, Is.Not.Empty);
@@ -227,6 +225,18 @@ namespace ROS2.Test
             Assert.Throws<ObjectDisposedException>(() => msg.WriteNativeMessage(IntPtr.Zero));
         }
 
+        /// <summary>Generated type support access must respect Dispose state like handle access does.</summary>
+        [Test]
+        public void TypeSupportHandleThrowsAfterDispose()
+        {
+            var msg = new std_msgs.msg.Empty();
+            ROS2.Internal.MessageInternals internals = msg;
+
+            msg.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => { _ = internals.TypeSupportHandle; });
+        }
+
         /// <summary>Generated parent messages own direct nested message members created by their constructor.</summary>
         [Test]
         public void DisposeReleasesDirectNestedMessages()
@@ -238,6 +248,21 @@ namespace ROS2.Test
             msg.Dispose();
 
             Assert.That(msg.IsDisposed, Is.True);
+            Assert.That(nested.IsDisposed, Is.True);
+        }
+
+        /// <summary>Direct nested members remain parent-owned after reading from native storage.</summary>
+        [Test]
+        public void DisposeReleasesDirectNestedMessagesAfterNativeRead()
+        {
+            var msg = new test_msgs.msg.Nested();
+            test_msgs.msg.BasicTypes nested = msg.Basic_types_value;
+            msg.Basic_types_value.Int32_value = 42;
+
+            msg.WriteNativeMessage();
+            msg.ReadNativeMessage();
+            msg.Dispose();
+
             Assert.That(nested.IsDisposed, Is.True);
         }
 
@@ -254,6 +279,28 @@ namespace ROS2.Test
             msg.Dispose();
 
             Assert.That(nested.IsDisposed, Is.False);
+        }
+
+        /// <summary>Sequence elements materialized by ReadNativeMessage are parent-owned, unlike caller-supplied elements.</summary>
+        [Test]
+        public void DisposeReleasesReadOwnedNestedSequenceElements()
+        {
+            using var callerOwnedNested = new test_msgs.msg.BasicTypes();
+            var msg = new test_msgs.msg.UnboundedSequences
+            {
+                Basic_types_values = new[] { callerOwnedNested }
+            };
+            callerOwnedNested.Int32_value = 42;
+
+            msg.WriteNativeMessage();
+            msg.Basic_types_values = Array.Empty<test_msgs.msg.BasicTypes>();
+            msg.ReadNativeMessage();
+            test_msgs.msg.BasicTypes readOwnedNested = msg.Basic_types_values[0];
+
+            msg.Dispose();
+
+            Assert.That(callerOwnedNested.IsDisposed, Is.False);
+            Assert.That(readOwnedNested.IsDisposed, Is.True);
         }
 
         /// <summary>Verifies generated wstring fields preserve Unicode through native storage.</summary>

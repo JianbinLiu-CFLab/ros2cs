@@ -145,7 +145,7 @@ namespace ROS2
         message = GetRequestMessage();
 
         ret = (RCLReturnEnum)NativeRcl.rcl_take_request(ref serviceHandle, ref header, message.Handle);
-        if (ret != RCLReturnEnum.RCL_RET_OK && ret != RCLReturnEnum.RCL_RET_SERVICE_TAKE_FAILED)
+        if (ret != RCLReturnEnum.RCL_RET_SERVICE_TAKE_FAILED)
         {
           requestMessage = null;
         }
@@ -199,28 +199,35 @@ namespace ROS2
     /// <param name="header">request id received when taking the Request</param>
     private void ProcessRequest(rcl_rmw_request_id_t header, MessageInternals message)
     {
-      message.ReadNativeMessage();
-      O response = default(O);
       try
       {
-        response = callback((I)message);
-      }
-      catch (Exception e)
-      {
-        logger.LogError("Unhandled exception in service callback for topic '" + topic + "': " + e);
-        return;
-      }
+        message.ReadNativeMessage();
+        O response = default(O);
+        try
+        {
+          response = callback((I)message);
+        }
+        catch (Exception e)
+        {
+          logger.LogError("Unhandled exception in service callback for topic '" + topic + "': " + e);
+          return;
+        }
 
-      try
-      {
-        SendResp(header, response);
+        try
+        {
+          SendResp(header, response);
+        }
+        finally
+        {
+          if (!object.ReferenceEquals(response, message))
+          {
+            response?.Dispose();
+          }
+        }
       }
       finally
       {
-        if (!object.ReferenceEquals(response, message))
-        {
-          response?.Dispose();
-        }
+        ((IDisposable)message).Dispose();
       }
     }
 

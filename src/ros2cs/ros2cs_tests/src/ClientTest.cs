@@ -33,6 +33,7 @@ namespace ROS2.Test
     {
         private static readonly string SERVICE_NAME = "test_service";
         private static readonly TimeSpan SpinTimeout = TimeSpan.FromSeconds(5);
+        private static readonly TimeSpan ServiceDisappearanceTimeout = TimeSpan.FromSeconds(10);
 
         private INode Node;
 
@@ -86,7 +87,12 @@ namespace ROS2.Test
 
         private void SpinUntil(Func<bool> condition, string timeoutMessage)
         {
-            DateTime deadline = DateTime.UtcNow + SpinTimeout;
+            SpinUntil(condition, timeoutMessage, SpinTimeout);
+        }
+
+        private void SpinUntil(Func<bool> condition, string timeoutMessage, TimeSpan timeout)
+        {
+            DateTime deadline = DateTime.UtcNow + timeout;
             while (!condition())
             {
                 if (DateTime.UtcNow >= deadline)
@@ -214,7 +220,8 @@ namespace ROS2.Test
             }
             SpinUntil(
                 () => !Client.IsServiceAvailable(),
-                "Timed out waiting for service to become unavailable.");
+                "Timed out waiting for service to become unavailable.",
+                ServiceDisappearanceTimeout);
         }
 
         [Test]

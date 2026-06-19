@@ -805,9 +805,13 @@ namespace ROS2.TestNativeMethods
                 }
             }
         }
+    }
 
+    [TestFixture]
+    public class QualityOfServiceProfileMethods
+    {
         [Test]
-        public void QosPolicyEnumsMatchJazzyRmwOrdinals()
+        public void QosPolicyEnumsMatchRmwOrdinals()
         {
             Assert.That((int)HistoryPolicy.QOS_POLICY_HISTORY_SYSTEM_DEFAULT, Is.EqualTo(0));
             Assert.That((int)HistoryPolicy.QOS_POLICY_HISTORY_KEEP_LAST, Is.EqualTo(1));
@@ -824,7 +828,27 @@ namespace ROS2.TestNativeMethods
         }
 
         [Test]
-        public void KeepLastHistoryRejectsNonPositiveDepth()
+        public void InvalidQosPresetThrows()
+        {
+            Assert.Throws<RuntimeError>(
+                () =>
+                {
+                    using var qos = new QualityOfServiceProfile((QosPresetProfile)999);
+                });
+        }
+
+        [Test]
+        public void QosPresetProfilesCreateNativeHandles()
+        {
+            foreach (QosPresetProfile preset in Enum.GetValues(typeof(QosPresetProfile)))
+            {
+                using var qos = new QualityOfServiceProfile(preset);
+                Assert.That(qos.handle, Is.Not.EqualTo(IntPtr.Zero), preset.ToString());
+            }
+        }
+
+        [Test]
+        public void HistoryRejectsNegativeDepthAndKeepLastRejectsZero()
         {
             using var qos = new QualityOfServiceProfile();
 
@@ -832,6 +856,10 @@ namespace ROS2.TestNativeMethods
                 () => qos.SetHistory(HistoryPolicy.QOS_POLICY_HISTORY_KEEP_LAST, 0));
             Assert.Throws<ArgumentOutOfRangeException>(
                 () => qos.SetHistory(HistoryPolicy.QOS_POLICY_HISTORY_KEEP_LAST, -1));
+            Assert.Throws<ArgumentOutOfRangeException>(
+                () => qos.SetHistory(HistoryPolicy.QOS_POLICY_HISTORY_KEEP_ALL, -1));
+            Assert.Throws<ArgumentOutOfRangeException>(
+                () => qos.SetHistory(HistoryPolicy.QOS_POLICY_HISTORY_SYSTEM_DEFAULT, -1));
             Assert.DoesNotThrow(
                 () => qos.SetHistory(HistoryPolicy.QOS_POLICY_HISTORY_KEEP_ALL, 0));
         }
@@ -843,6 +871,27 @@ namespace ROS2.TestNativeMethods
 
             Assert.DoesNotThrow(
                 () => qos.SetLiveliness(LivelinessPolicy.QOS_POLICY_LIVELINESS_AUTOMATIC));
+        }
+
+        [Test]
+        public void SetDurationPoliciesDoNotThrow()
+        {
+            using var qos = new QualityOfServiceProfile();
+
+            Assert.DoesNotThrow(() => qos.SetDeadline(TimeSpan.FromMilliseconds(20)));
+            Assert.DoesNotThrow(() => qos.SetLifespan(TimeSpan.FromSeconds(1)));
+            Assert.DoesNotThrow(() => qos.SetLivelinessLeaseDuration(TimeSpan.FromMilliseconds(200)));
+        }
+
+        [Test]
+        public void SetDurationPoliciesRejectNegativeValues()
+        {
+            using var qos = new QualityOfServiceProfile();
+
+            Assert.Throws<ArgumentOutOfRangeException>(() => qos.SetDeadline(TimeSpan.FromTicks(-1)));
+            Assert.Throws<ArgumentOutOfRangeException>(() => qos.SetLifespan(TimeSpan.FromTicks(-1)));
+            Assert.Throws<ArgumentOutOfRangeException>(
+                () => qos.SetLivelinessLeaseDuration(TimeSpan.FromTicks(-1)));
         }
 
         [Test]

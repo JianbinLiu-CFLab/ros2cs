@@ -54,6 +54,55 @@ class NativeTemplateSafetyTest(unittest.TestCase):
         template = read_template("srv_typesupport.c.em")
         self.assertIn("service-level type support", template)
 
+    def test_generated_csharp_templates_wrap_required_symbol_lookup(self):
+        for template_name in ("msg.cs.em", "srv.cs.em"):
+            with self.subTest(template=template_name):
+                template = read_template(template_name)
+                self.assertIn("GetRequiredProcAddress", template)
+                self.assertIn("is missing required symbol", template)
+                self.assertIn("plain ROS typesupport library", template)
+
+    def test_generated_csharp_templates_guard_disposed_type_support(self):
+        for template_name in ("msg.cs.em", "srv.cs.em"):
+            with self.subTest(template=template_name):
+                template = read_template(template_name)
+                self.assertIn("public IntPtr TypeSupportHandle", template)
+                self.assertIn("throw new ObjectDisposedException(nameof(@(message_class)))", template)
+
+    def test_generated_csharp_templates_track_owned_sequence_elements(self):
+        for template_name in ("msg.cs.em", "srv.cs.em"):
+            with self.subTest(template=template_name):
+                template = read_template(template_name)
+                self.assertIn("ownedSequenceElements", template)
+                self.assertIn("DisposeOwnedSequenceElements", template)
+                self.assertIn("DisposeAllOwnedSequenceElements", template)
+                self.assertIn("caller-supplied sequence", template)
+
+    def test_generated_csharp_templates_coalesce_null_strings(self):
+        for template_name in ("msg.cs.em", "srv.cs.em"):
+            with self.subTest(template=template_name):
+                template = read_template(template_name)
+                self.assertIn("Marshal.PtrToStringAnsi(pStr) ?? \"\"", template)
+                self.assertIn("Marshal.PtrToStringUni(pStr) ?? \"\"", template)
+                self.assertIn("Marshal.PtrToStringAnsi(native_read_field_@(member.name)(i, handle)) ?? \"\"", template)
+                self.assertIn("Marshal.PtrToStringUni(native_read_field_@(member.name)(i, handle)) ?? \"\"", template)
+
+    def test_generated_csharp_templates_guard_fixed_array_size_and_pointcloud_overflow(self):
+        for template_name in ("msg.cs.em", "srv.cs.em"):
+            with self.subTest(template=template_name):
+                template = read_template(template_name)
+                self.assertIn("but IDL fixed array size is @(member.type.size)", template)
+                self.assertIn("ulong point_cloud_size", template)
+                self.assertIn("point_cloud_size > int.MaxValue", template)
+                self.assertIn("point_cloud_size > (ulong)Data.Length", template)
+
+    def test_generated_csharp_templates_log_unsupported_preload_rmw(self):
+        for template_name in ("msg.cs.em", "srv.cs.em"):
+            with self.subTest(template=template_name):
+                template = read_template(template_name)
+                self.assertIn("No generated", template)
+                self.assertIn("preload rule for RMW_IMPLEMENTATION", template)
+
 
 if __name__ == "__main__":
     unittest.main()

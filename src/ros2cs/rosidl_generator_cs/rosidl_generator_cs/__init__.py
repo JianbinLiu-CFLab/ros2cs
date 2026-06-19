@@ -15,5 +15,4 @@
 __all__ = ['import_type_support']
 
 from .generate_cs_impl import generate_cs
-assert generate_cs
 __all__.append('generate_cs')

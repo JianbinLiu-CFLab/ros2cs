@@ -64,7 +64,8 @@ namespace ROS2
     /// </summary>
     /// <remarks>
     /// The <see cref="TaskCompletionSource.Task"/> is stored separately to allow
-    /// <see cref="Cancel"/> to work even if the source returns multiple tasks.
+    /// <see cref="Cancel"/> to work even if the source returns multiple tasks. Internal callers
+    /// that need both locks must acquire <c>mutex</c> before <c>Requests</c>.
     /// </remarks>
     private Dictionary<long, (TaskCompletionSource<O>, Task<O>)> Requests;
     private Dictionary<Task<O>, long> RequestSequencesByTask;

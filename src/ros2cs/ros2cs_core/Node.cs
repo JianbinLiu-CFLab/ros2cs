@@ -46,39 +46,6 @@ namespace ROS2
     private string name;
     private Ros2csLogger logger = Ros2csLogger.GetInstance();
 
-    internal List<ISubscriptionBase> Subscriptions
-    {
-      get
-      {
-        lock (mutex)
-        {
-          return subscriptions.ToList();
-        }
-      }
-    }
-
-    internal List<IClientBase> Clients
-    {
-      get
-      {
-        lock (mutex)
-        {
-          return clients.ToList();
-        }
-      }
-    }
-
-    internal List<IServiceBase> Services
-    {
-      get
-      {
-        lock (mutex)
-        {
-          return services.ToList();
-        }
-      }
-    }
-
     internal rcl_node_t nodeHandle;
     private IntPtr defaultNodeOptions;
     private HashSet<ISubscriptionBase> subscriptions;
@@ -149,7 +116,6 @@ namespace ROS2
           defaultNodeOptions = IntPtr.Zero;
         }
         Utils.ThrowCollectedExceptions(exceptions);
-        throw;
       }
       logger.LogInfo("Node initialized");
     }
@@ -394,20 +360,19 @@ namespace ROS2
       IntPtr result = IntPtr.Zero;
       lock (mutex)
       {
-        ThrowIfNodeNotUsable("query topic names and types");
-        Utils.CheckReturnEnum(NativeRclInterface.rclcs_get_topic_names_and_types(
-          ref nodeHandle,
-          noDemangle,
-          out result));
-      }
-
-      try
-      {
-        return MarshalTopicNamesAndTypes(result);
-      }
-      finally
-      {
-        NativeRclInterface.rclcs_dispose_topic_names_and_types(result);
+        try
+        {
+          ThrowIfNodeNotUsable("query topic names and types");
+          Utils.CheckReturnEnum(NativeRclInterface.rclcs_get_topic_names_and_types(
+            ref nodeHandle,
+            noDemangle,
+            out result));
+          return MarshalTopicNamesAndTypes(result);
+        }
+        finally
+        {
+          NativeRclInterface.rclcs_dispose_topic_names_and_types(result);
+        }
       }
     }
 
@@ -472,6 +437,7 @@ namespace ROS2
           logger.LogInfo("Removing client for topic " + client.Topic);
           try
           {
+            // Child disposal is idempotent; its disposed flag prevents double-fini if node disposal races.
             client.Dispose();
           }
           finally

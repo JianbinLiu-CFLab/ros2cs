@@ -46,7 +46,7 @@ namespace ROS2
 
     private rcl_wait_set_t Handle;
     private readonly object mutex = new object();
-    private bool disposed;
+    private volatile bool disposed;
 
     internal WaitSet(ref rcl_context_t context, rcl_allocator_t allocator)
     {

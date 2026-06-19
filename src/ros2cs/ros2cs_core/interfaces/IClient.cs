@@ -94,7 +94,9 @@ namespace ROS2
     /// <summary>
     /// Send a Request to a Service and wait for a Response
     /// </summary>
-    /// <remarks>The provided message can be modified or disposed after this call</remarks>
+    /// <remarks>The provided message can be modified or disposed after this call. If the service
+    /// callback throws and sends no response, this call can block indefinitely; prefer the timeout
+    /// overload when the service callback is not trusted.</remarks>
     /// <param name="msg">Message to be send</param>
     /// <returns>Response of the Service</returns>
     O Call(I msg);
@@ -111,11 +113,17 @@ namespace ROS2
     /// <summary>
     /// Send a Request to a Service and wait for a Response asynchronously
     /// </summary>
+    /// <remarks>Do not block on the returned task from a spin callback. Use continuations or await it
+    /// from outside the spinning thread; blocking the spin callback prevents the response from being
+    /// processed.</remarks>
     /// <param name="msg">Message to be send</param>
     /// <returns><see cref="Task"/> representing the Response of the Service</returns>
     Task<O> CallAsync(I msg);
 
     /// <inheritdoc cref="CallAsync(I)"/>
+    /// <remarks>Do not block on the returned task from a spin callback. Use continuations or await it
+    /// from outside the spinning thread; blocking the spin callback prevents the response from being
+    /// processed.</remarks>
     /// <param name="options">Options used when creating the <see cref="Task"/></param>
     Task<O> CallAsync(I msg, TaskCreationOptions options);
   }

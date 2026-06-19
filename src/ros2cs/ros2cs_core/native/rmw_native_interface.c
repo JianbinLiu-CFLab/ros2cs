@@ -16,12 +16,34 @@
 // Modifications by Jianbin Liu:
 // - Added allocation and null-argument guards for QoS profile helpers.
 // - Added liveliness QoS setter wrapper.
+// - Added QoS duration setter wrappers and compile-time rmw enum checks.
 
 #include <rmw/qos_profiles.h>
 #include <rmw/types.h>
 #include <rmw/rmw.h>
 #include <rcl/rcl.h>
+#include <stdint.h>
 #include <stdlib.h>
+
+#define RMW_STATIC_ASSERT(name, expr) typedef char name[(expr) ? 1 : -1]
+RMW_STATIC_ASSERT(rmw_history_system_default_ordinal, RMW_QOS_POLICY_HISTORY_SYSTEM_DEFAULT == 0);
+RMW_STATIC_ASSERT(rmw_history_keep_last_ordinal, RMW_QOS_POLICY_HISTORY_KEEP_LAST == 1);
+RMW_STATIC_ASSERT(rmw_history_keep_all_ordinal, RMW_QOS_POLICY_HISTORY_KEEP_ALL == 2);
+RMW_STATIC_ASSERT(rmw_reliability_system_default_ordinal, RMW_QOS_POLICY_RELIABILITY_SYSTEM_DEFAULT == 0);
+RMW_STATIC_ASSERT(rmw_reliability_reliable_ordinal, RMW_QOS_POLICY_RELIABILITY_RELIABLE == 1);
+RMW_STATIC_ASSERT(rmw_reliability_best_effort_ordinal, RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT == 2);
+RMW_STATIC_ASSERT(rmw_durability_system_default_ordinal, RMW_QOS_POLICY_DURABILITY_SYSTEM_DEFAULT == 0);
+RMW_STATIC_ASSERT(rmw_durability_transient_local_ordinal, RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL == 1);
+RMW_STATIC_ASSERT(rmw_durability_volatile_ordinal, RMW_QOS_POLICY_DURABILITY_VOLATILE == 2);
+RMW_STATIC_ASSERT(rmw_liveliness_system_default_ordinal, RMW_QOS_POLICY_LIVELINESS_SYSTEM_DEFAULT == 0);
+RMW_STATIC_ASSERT(rmw_liveliness_automatic_ordinal, RMW_QOS_POLICY_LIVELINESS_AUTOMATIC == 1);
+RMW_STATIC_ASSERT(rmw_liveliness_manual_by_topic_ordinal, RMW_QOS_POLICY_LIVELINESS_MANUAL_BY_TOPIC == 3);
+
+static void set_rmw_time_from_nanoseconds(struct rmw_time_s * target, uint64_t nanoseconds)
+{
+  target->sec = nanoseconds / 1000000000ULL;
+  target->nsec = nanoseconds % 1000000000ULL;
+}
 
 ROSIDL_GENERATOR_C_EXPORT
 rmw_qos_profile_t * rmw_native_interface_create_qos_profile(int profile)
@@ -50,7 +72,9 @@ rmw_qos_profile_t * rmw_native_interface_create_qos_profile(int profile)
       case SERVICES_DEFAULT: *preset_profile = rmw_qos_profile_services_default; break;
       case PARAMETER_EVENTS: *preset_profile = rmw_qos_profile_parameter_events; break;
       case SYSTEM_DEFAULT: *preset_profile = rmw_qos_profile_system_default; break;
-      default: *preset_profile = rmw_qos_profile_unknown; break;
+      default:
+        free(preset_profile);
+        return NULL;
   }
 
   return preset_profile;
@@ -107,4 +131,36 @@ void rmw_native_interface_set_liveliness(rmw_qos_profile_t * profile, int liveli
     return;
   }
   profile->liveliness = liveliness_mode;
+}
+
+ROSIDL_GENERATOR_C_EXPORT
+void rmw_native_interface_set_deadline(rmw_qos_profile_t * profile, uint64_t nanoseconds)
+{
+  if (profile == NULL)
+  {
+    return;
+  }
+  set_rmw_time_from_nanoseconds(&profile->deadline, nanoseconds);
+}
+
+ROSIDL_GENERATOR_C_EXPORT
+void rmw_native_interface_set_lifespan(rmw_qos_profile_t * profile, uint64_t nanoseconds)
+{
+  if (profile == NULL)
+  {
+    return;
+  }
+  set_rmw_time_from_nanoseconds(&profile->lifespan, nanoseconds);
+}
+
+ROSIDL_GENERATOR_C_EXPORT
+void rmw_native_interface_set_liveliness_lease_duration(
+  rmw_qos_profile_t * profile,
+  uint64_t nanoseconds)
+{
+  if (profile == NULL)
+  {
+    return;
+  }
+  set_rmw_time_from_nanoseconds(&profile->liveliness_lease_duration, nanoseconds);
 }
