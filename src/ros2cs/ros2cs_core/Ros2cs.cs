@@ -59,6 +59,8 @@ namespace ROS2
     private const string DirectSpinFallbackEnvVar = "ROS2CS_SPIN_FALLBACK";
     private static WaitSet WaitSet;
     private static bool destructorFinalizerSuppressed;
+    private static volatile bool useDirectSpinFallback;
+    private static string directSpinFallbackReason;
     private static int directSpinFallbackLogged;
 
     /// <summary>Whether the current thread is executing subscription/client/service callbacks.</summary>
@@ -86,6 +88,8 @@ namespace ROS2
           global_context = NativeRcl.rcl_get_zero_initialized_context();
           Utils.CheckReturnEnum(NativeRclInterface.rclcs_init(ref global_context, default_allocator));
           WaitSet = new WaitSet(ref global_context, default_allocator);
+          useDirectSpinFallback = ResolveDirectSpinFallback(out directSpinFallbackReason);
+          directSpinFallbackLogged = 0;
           initialized = true;
           contextFinalized = false;
         }
@@ -120,23 +124,23 @@ namespace ROS2
 
         Ros2csLogger.GetInstance().LogInfo("Ros2cs shutdown");
 
-        // Dispose nodes before rcl_shutdown so child handles can finalize against a valid context.
-        foreach (var node in nodes)
-        {
-          try
-          {
-            node.Dispose();
-          }
-          catch (Exception e)
-          {
-            AddException(ref exceptions, e);
-          }
-        }
-        nodes.Clear();
-
-        // The wait set must be released while no SpinOnce call can mutate or wait on it.
+        // Wait for any in-flight rcl_wait before finalizing entity handles stored in the wait set.
         lock (waitSetMutex)
         {
+          // Dispose nodes before rcl_shutdown so child handles can finalize against a valid context.
+          foreach (var node in nodes)
+          {
+            try
+            {
+              node.Dispose();
+            }
+            catch (Exception e)
+            {
+              AddException(ref exceptions, e);
+            }
+          }
+          nodes.Clear();
+
           try
           {
             if (WaitSet != null)
@@ -150,6 +154,10 @@ namespace ROS2
             AddException(ref exceptions, e);
           }
         }
+
+        useDirectSpinFallback = false;
+        directSpinFallbackReason = null;
+        directSpinFallbackLogged = 0;
 
         try
         {
@@ -301,7 +309,9 @@ namespace ROS2
     /// executed (a callback for each subscription that received a message) or after a timeout.
     /// Note that you don't need to spin if you are only publishing (like in ros2) </description>
     /// <remarks> Only subscriptions are executed currently, no timers or other executables.
-    /// Shutdown waits for an in-flight spin wait to return, so shutdown latency can be up to timeoutSec. </remarks>
+    /// Shutdown waits for an in-flight wait-set wait to return, so shutdown latency can be up to
+    /// timeoutSec. If no entities are registered, SpinOnce returns immediately and Shutdown does not
+    /// wait for the caller-side empty-spin sleep. </remarks>
     /// <param name="node"> A node to spin on </param>
     /// <param name="timoutSec"> Maximum time to wait for execution item (e. g. subscription) </param>
     public static void Spin(INode node, double timeoutSec = 0.1)
@@ -317,7 +327,8 @@ namespace ROS2
 
     /// <summary> Spin overload for multiple nodes </summary>
     /// <remarks> This overload saves on implicit List creation. Shutdown waits for an in-flight
-    /// spin wait to return, so shutdown latency can be up to timeoutSec. </remarks>
+    /// wait-set wait to return, so shutdown latency can be up to timeoutSec. Empty-spin sleeps are
+    /// outside the shutdown serialization path. </remarks>
     /// <see cref="Spin(INode,double)"/>
     public static void Spin(List<INode> nodes, double timeoutSec = 0.1)
     {
@@ -394,8 +405,7 @@ namespace ROS2
           return false;
         }
 
-        string directSpinFallbackReason;
-        if (UseDirectSpinFallback(out directSpinFallbackReason))
+        if (useDirectSpinFallback)
         {
           LogDirectSpinFallbackOnce(directSpinFallbackReason);
           SleepForSpinTimeout(timeoutSec);
@@ -479,7 +489,7 @@ namespace ROS2
     }
 
     /// <summary>Use a bounded direct take loop when explicitly requested or for known preview distro instability.</summary>
-    private static bool UseDirectSpinFallback(out string reason)
+    private static bool ResolveDirectSpinFallback(out string reason)
     {
       string configuredFallback = Environment.GetEnvironmentVariable(DirectSpinFallbackEnvVar);
       if (IsTruthy(configuredFallback))

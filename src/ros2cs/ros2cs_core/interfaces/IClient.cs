@@ -30,7 +30,9 @@ namespace ROS2
     /// Tries to get a Response message from rcl/rmw layers
     /// </summary>
     /// <remarks>
-    /// Marks the corresponding <see cref="Task"/> as finished if successful
+    /// Marks the corresponding <see cref="Task"/> as finished if successful.
+    /// Implementations must check disposed state and <see cref="Ros2cs.Ok"/> under their own mutex
+    /// before any native take call because shutdown can invalidate a spin snapshot before callbacks run.
     /// </remarks>
     // Internal spin entry point; kept on the public interface for compatibility.
     void TakeMessage();

@@ -30,6 +30,7 @@
 #include <rcutils/allocator.h>
 #include <rcutils/types.h>
 #include <rmw/qos_profiles.h>
+#include <rmw/types.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -93,7 +94,7 @@ size_t rclcs_sizeof_rcl_wait_set_t()
 ROSIDL_GENERATOR_C_EXPORT
 size_t rclcs_sizeof_rcl_rmw_request_id_t()
 {
-  return sizeof(rcl_rmw_request_id_t);
+  return sizeof(rmw_request_id_t);
 }
 
 ROSIDL_GENERATOR_C_EXPORT

@@ -268,7 +268,7 @@ namespace ROS2
       lock (mutex)
       {
         ThrowIfDisposed();
-        int ret = NativeRcl.rcl_wait(ref Handle, timeout.Ticks * 100);
+        int ret = NativeRcl.rcl_wait(ref Handle, ToNanoseconds(timeout));
         if ((RCLReturnEnum)ret == RCLReturnEnum.RCL_RET_TIMEOUT)
         {
           return false;
@@ -279,6 +279,12 @@ namespace ROS2
           return true;
         }
       }
+    }
+
+    /// <summary>Convert managed timeouts to rcl nanoseconds without silent overflow.</summary>
+    internal static long ToNanoseconds(TimeSpan timeout)
+    {
+      return checked(timeout.Ticks * 100L);
     }
 
     /// <summary>Reject wait set operations after shutdown has released the native handle.</summary>

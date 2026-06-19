@@ -90,6 +90,16 @@ namespace ROS2.Test
 
             Assert.Throws<ObjectDisposedException>(() => { var _ = clock.Now; });
         }
+
+        [Test]
+        public void ClockDoubleDisposeDoesNotThrow()
+        {
+            var clock = new Clock();
+            clock.Dispose();
+
+            Assert.DoesNotThrow(() => clock.Dispose());
+            Assert.That(clock.IsDisposed, Is.True);
+        }
     }
 
     [TestFixture]
@@ -122,6 +132,12 @@ namespace ROS2.Test
             long overflowingNanoseconds = ((long)int.MaxValue + 1L) * 1000000000L;
 
             Assert.Throws<OverflowException>(() => Clock.FromNanoseconds(overflowingNanoseconds));
+        }
+
+        [Test]
+        public void WaitSetTimeoutOverflowThrows()
+        {
+            Assert.Throws<OverflowException>(() => WaitSet.ToNanoseconds(TimeSpan.MaxValue));
         }
     }
 }
