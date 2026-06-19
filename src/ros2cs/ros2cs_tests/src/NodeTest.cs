@@ -167,6 +167,14 @@ namespace ROS2.Test
         }
 
         [Test]
+        public void TryWaitForSubscriberReturnsFalseOnTimeout()
+        {
+            Assert.That(
+                node.TryWaitForSubscriber(GRAPH_WAIT_MISSING_TOPIC, TimeSpan.FromMilliseconds(100)),
+                Is.False);
+        }
+
+        [Test]
         public void GetTopicNamesAndTypesReturnsListForFreshNode()
         {
             IReadOnlyList<TopicNamesAndTypes> topics = node.GetTopicNamesAndTypes();
@@ -358,15 +366,18 @@ namespace ROS2.Test
         private static void WaitForGraphCount(Func<int> readCount, IResolveConstraint expected)
         {
             DateTime deadline = DateTime.UtcNow + GraphTimeout;
-            int count = readCount();
-            while (!expected.Resolve().ApplyTo(count).IsSuccess)
+            while (true)
             {
+                int count = readCount();
+                if (expected.Resolve().ApplyTo(count).IsSuccess)
+                {
+                    return;
+                }
                 if (DateTime.UtcNow >= deadline)
                 {
                     Assert.That(count, expected);
                 }
                 Thread.Sleep(GraphPollInterval);
-                count = readCount();
             }
         }
 
