@@ -437,6 +437,7 @@ namespace ROS2
           logger.LogInfo("Removing client for topic " + client.Topic);
           try
           {
+            // Child disposal is idempotent; its disposed flag prevents double-fini if node disposal races.
             client.Dispose();
           }
           finally

@@ -26,7 +26,7 @@ namespace ROS2
   {
     /// <remarks>
     /// The subscription callback receives a message wrapper owned by ros2cs. Callers must not
-    /// dispose that callback argument; ros2cs disposes it after the callback returns.
+    /// retain or dispose that callback argument; ros2cs disposes it after the callback returns.
     /// Implementations must check disposed state and <see cref="Ros2cs.Ok"/> under their own mutex
     /// before any native take call because shutdown can invalidate a spin snapshot before callbacks run.
     /// </remarks>

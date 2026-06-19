@@ -64,7 +64,7 @@ namespace ROS2
 
         message = GetTakeMessage();
         ret = (RCLReturnEnum)NativeRcl.rcl_take(ref subscriptionHandle, message.Handle, IntPtr.Zero, IntPtr.Zero);
-        if (ret != RCLReturnEnum.RCL_RET_OK && ret != RCLReturnEnum.RCL_RET_SUBSCRIPTION_TAKE_FAILED)
+        if (ret != RCLReturnEnum.RCL_RET_SUBSCRIPTION_TAKE_FAILED)
         {
           takeMessage = null;
         }
@@ -114,8 +114,15 @@ namespace ROS2
     /// <param name="message"> Message that will be populated and returned through callback </param>
     private void TriggerCallback(MessageInternals message)
     {
-      message.ReadNativeMessage();
-      callback((T)message);
+      try
+      {
+        message.ReadNativeMessage();
+        callback((T)message);
+      }
+      finally
+      {
+        ((IDisposable)message).Dispose();
+      }
     }
 
     /// <summary> Internal constructor for Subscription. Use INode.CreateSubscription to construct </summary>
