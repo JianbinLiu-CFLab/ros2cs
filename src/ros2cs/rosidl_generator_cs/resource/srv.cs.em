@@ -207,6 +207,54 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
   private static NativeLibraryHandle native_library = null;
   private static NativeLibraryHandle message_library_typesupport_fastrtps_cpp = null;
   private static NativeLibraryHandle message_library_typesupport_fastrtps_c = null;
+  private readonly System.Collections.Generic.HashSet<object> ownedSequenceElements =
+    new System.Collections.Generic.HashSet<object>();
+
+  private static IntPtr GetRequiredProcAddress(IntPtr libraryHandle, string libraryName, string symbolName)
+  {
+    try
+    {
+      return dllLoadUtils.GetProcAddress(libraryHandle, symbolName);
+    }
+    catch (EntryPointNotFoundException e)
+    {
+      string message =
+        "Generated native library '" + libraryName + "' is missing required symbol '" + symbolName +
+        "'. Ensure the ros2cs native overlay library is packaged instead of the plain ROS typesupport library.";
+      Ros2csLogger.GetInstance().LogError(message);
+      throw new InvalidOperationException(message, e);
+    }
+  }
+
+  private void DisposeOwnedSequenceElements(System.Array elements)
+  {
+    if (elements == null)
+    {
+      return;
+    }
+
+    foreach (object element in elements)
+    {
+      IDisposable disposable = element as IDisposable;
+      if (disposable != null && ownedSequenceElements.Remove(element))
+      {
+        disposable.Dispose();
+      }
+    }
+  }
+
+  private void DisposeAllOwnedSequenceElements()
+  {
+    foreach (object element in ownedSequenceElements)
+    {
+      IDisposable disposable = element as IDisposable;
+      if (disposable != null)
+      {
+        disposable.Dispose();
+      }
+    }
+    ownedSequenceElements.Clear();
+  }
 
   // This is done to preload before ros2 rmw_implementation attempts to find custom message library (and fails without absolute path)
   static private void MessageTypeSupportPreload()
@@ -238,7 +286,13 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
           // Keep FastRTPS dependencies loaded after preloading succeeds.
           message_library_typesupport_fastrtps_cpp = NativeLibraryHandle.LoadLibraryNoSuffix(loadUtils, "@(package_name)__rosidl_typesupport_fastrtps_cpp");
           message_library_typesupport_fastrtps_c = NativeLibraryHandle.LoadLibraryNoSuffix(loadUtils, "@(package_name)__rosidl_typesupport_fastrtps_c");
-      }
+        }
+        else
+        {
+          Ros2csLogger.GetInstance().LogDebug(
+            "No generated service message preload rule for RMW_IMPLEMENTATION=" + rmw_implementation +
+            " while loading package @(package_name)");
+        }
     }
   }
 
@@ -252,17 +306,21 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
 
     // Keep the generated native typesupport library loaded while delegates point into it.
     // This must be the ros2cs native overlay; the plain FastRTPS typesupport library does not export _native_* symbols.
-    native_library = NativeLibraryHandle.LoadLibrary(dllLoadUtils, "@(package_name)_srv_@(service_class_lower)__rosidl_typesupport_c");
+    string nativeLibraryName = "@(package_name)_srv_@(service_class_lower)__rosidl_typesupport_c";
+    native_library = NativeLibraryHandle.LoadLibrary(dllLoadUtils, nativeLibraryName);
     IntPtr nativelibrary = native_library.Handle;
-    IntPtr native_get_typesupport_ptr = dllLoadUtils.GetProcAddress(nativelibrary, "@(c_full_name)_native_get_type_support");
+    IntPtr native_get_typesupport_ptr = GetRequiredProcAddress(
+      nativelibrary, nativeLibraryName, "@(c_full_name)_native_get_type_support");
     @(message_class).native_get_typesupport = (NativeGetTypeSupportType)Marshal.GetDelegateForFunctionPointer(
       native_get_typesupport_ptr, typeof(NativeGetTypeSupportType));
 
-    IntPtr native_create_native_message_ptr = dllLoadUtils.GetProcAddress(nativelibrary, "@(c_full_name)_native_create_native_message");
+    IntPtr native_create_native_message_ptr = GetRequiredProcAddress(
+      nativelibrary, nativeLibraryName, "@(c_full_name)_native_create_native_message");
     @(message_class).native_create_native_message = (NativeCreateNativeMessageType)Marshal.GetDelegateForFunctionPointer(
       native_create_native_message_ptr, typeof(NativeCreateNativeMessageType));
 
-    IntPtr native_destroy_native_message_ptr = dllLoadUtils.GetProcAddress(nativelibrary, "@(c_full_name)_native_destroy_native_message");
+    IntPtr native_destroy_native_message_ptr = GetRequiredProcAddress(
+      nativelibrary, nativeLibraryName, "@(c_full_name)_native_destroy_native_message");
     @(message_class).native_destroy_native_message = (NativeDestroyNativeMessageType)Marshal.GetDelegateForFunctionPointer(
       native_destroy_native_message_ptr, typeof(NativeDestroyNativeMessageType));
 
@@ -271,19 +329,19 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
        (isinstance(member.type, AbstractNestedType) and \
         isinstance(member.type.value_type, (BasicType, AbstractGenericString)))]@
     IntPtr native_read_field_@(member.name)_ptr =
-      dllLoadUtils.GetProcAddress(nativelibrary, "@(c_full_name)_native_read_field_@(member.name)");
+      GetRequiredProcAddress(nativelibrary, nativeLibraryName, "@(c_full_name)_native_read_field_@(member.name)");
     @(message_class).native_read_field_@(member.name) =
       (NativeReadField@(get_field_name(member.type, member.name, message_class))Type)Marshal.GetDelegateForFunctionPointer(
       native_read_field_@(member.name)_ptr, typeof(NativeReadField@(get_field_name(member.type, member.name, message_class))Type));
 
     IntPtr native_write_field_@(member.name)_ptr =
-      dllLoadUtils.GetProcAddress(nativelibrary, "@(c_full_name)_native_write_field_@(member.name)");
+      GetRequiredProcAddress(nativelibrary, nativeLibraryName, "@(c_full_name)_native_write_field_@(member.name)");
     @(message_class).native_write_field_@(member.name) =
       (NativeWriteField@(get_field_name(member.type, member.name, message_class))Type)Marshal.GetDelegateForFunctionPointer(
       native_write_field_@(member.name)_ptr, typeof(NativeWriteField@(get_field_name(member.type, member.name, message_class))Type));
 @[  elif isinstance(member.type, (NamedType, NamespacedType))]@
     IntPtr native_get_nested_message_handle_@(member.name)_ptr =
-      dllLoadUtils.GetProcAddress(nativelibrary, "@(c_full_name)_native_get_nested_message_handle_@(member.name)");
+      GetRequiredProcAddress(nativelibrary, nativeLibraryName, "@(c_full_name)_native_get_nested_message_handle_@(member.name)");
     @(message_class).native_get_nested_message_handle_@(member.name) =
       (NativeGetNestedHandle@(get_field_name(member.type, member.name, message_class))Type)Marshal.GetDelegateForFunctionPointer(
       native_get_nested_message_handle_@(member.name)_ptr, typeof(NativeGetNestedHandle@(get_field_name(member.type, member.name, message_class))Type));
@@ -293,20 +351,20 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
 @[    if isinstance(member.type.value_type, (NamedType, NamespacedType))]@
 
     IntPtr native_get_nested_message_handle_@(member.name)_ptr =
-      dllLoadUtils.GetProcAddress(nativelibrary, "@(c_full_name)_native_get_nested_message_handle_@(member.name)");
+      GetRequiredProcAddress(nativelibrary, nativeLibraryName, "@(c_full_name)_native_get_nested_message_handle_@(member.name)");
     @(message_class).native_get_nested_message_handle_@(member.name) =
       (NativeGetNestedHandle@(get_field_name(member.type, member.name, message_class))Type)Marshal.GetDelegateForFunctionPointer(
     native_get_nested_message_handle_@(member.name)_ptr, typeof(NativeGetNestedHandle@(get_field_name(member.type, member.name, message_class))Type));
 @[    end if]@
 
     IntPtr native_get_array_size_@(member.name)_ptr =
-      dllLoadUtils.GetProcAddress(nativelibrary, "@(c_full_name)_native_get_array_size_@(member.name)");
+      GetRequiredProcAddress(nativelibrary, nativeLibraryName, "@(c_full_name)_native_get_array_size_@(member.name)");
     @(message_class).native_get_array_size_@(member.name) =
       (NativeGetArraySize@(get_field_name(member.type, member.name, message_class))Type)Marshal.GetDelegateForFunctionPointer(
     native_get_array_size_@(member.name)_ptr, typeof(NativeGetArraySize@(get_field_name(member.type, member.name, message_class))Type));
 
     IntPtr native_init_sequence_@(member.name)_ptr =
-      dllLoadUtils.GetProcAddress(nativelibrary, "@(c_full_name)_native_init_sequence_@(member.name)");
+      GetRequiredProcAddress(nativelibrary, nativeLibraryName, "@(c_full_name)_native_init_sequence_@(member.name)");
     @(message_class).native_init_sequence_@(member.name) =
       (NativeInitSequence@(get_field_name(member.type, member.name, message_class))Type)Marshal.GetDelegateForFunctionPointer(
     native_init_sequence_@(member.name)_ptr, typeof(NativeInitSequence@(get_field_name(member.type, member.name, message_class))Type));
@@ -318,7 +376,15 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
   {
     get
     {
-      return native_get_typesupport();
+      lock (mutex)
+      {
+        if (disposed)
+        {
+          throw new ObjectDisposedException(nameof(@(message_class)));
+        }
+
+        return native_get_typesupport();
+      }
     }
   }
 
@@ -403,22 +469,35 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
 @[  elif isinstance(member.type, AbstractString)]@
     {
       IntPtr pStr = native_read_field_@(member.name)(handle);
-      @(get_field_name(member.type, member.name, message_class)) = Marshal.PtrToStringAnsi(pStr);
+      @(get_field_name(member.type, member.name, message_class)) = Marshal.PtrToStringAnsi(pStr) ?? "";
     }
 @[  elif isinstance(member.type, AbstractWString)]@
     {
       IntPtr pStr = native_read_field_@(member.name)(handle);
-      @(get_field_name(member.type, member.name, message_class)) = Marshal.PtrToStringUni(pStr);
+      @(get_field_name(member.type, member.name, message_class)) = Marshal.PtrToStringUni(pStr) ?? "";
     }
 @[  elif isinstance(member.type, AbstractNestedType) and isinstance(member.type.value_type, BasicType)]@
     { //TODO - (adam) this is a bit clunky. Is there a better way to marshal unsigned and bool types?
       int arraySize = 0;
       IntPtr pArr = native_read_field_@(member.name)(out arraySize, handle);
+@[    if isinstance(member.type, Array)]@
+      if (arraySize != @(member.type.size))
+      {
+        throw new System.InvalidOperationException(
+          "Native field @(member.name) returned size " + arraySize +
+          " but IDL fixed array size is @(member.type.size)");
+      }
+      if (@(get_field_name(member.type, member.name, message_class)) == null)
+      {
+        @(get_field_name(member.type, member.name, message_class)) = new @(get_dotnet_type(member.type.value_type))[@(member.type.size)];
+      }
+@[    else]@
       if (@(get_field_name(member.type, member.name, message_class)) == null ||
           @(get_field_name(member.type, member.name, message_class)).Length != arraySize)
       {
         @(get_field_name(member.type, member.name, message_class)) = new @(get_dotnet_type(member.type.value_type))[arraySize];
       }
+@[    end if]@
 @[    if get_marshal_array_type(member.type) == get_dotnet_type(member.type.value_type)]@
       if (arraySize != 0)
       {
@@ -448,23 +527,40 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
          isinstance(member.type.value_type, (NamedType, NamespacedType, AbstractGenericString))]@
     {
       int __native_array_size = native_get_array_size_@(member.name)(handle);
+@[    if isinstance(member.type, Array)]@
+      if (__native_array_size != @(member.type.size))
+      {
+        throw new System.InvalidOperationException(
+          "Native field @(member.name) returned size " + __native_array_size +
+          " but IDL fixed array size is @(member.type.size)");
+      }
+      if (@(get_field_name(member.type, member.name, message_class)) == null)
+      {
+        @(get_field_name(member.type, member.name, message_class)) = new @(get_dotnet_type(member.type.value_type))[@(member.type.size)];
+      }
+@[    else]@
       if (@(get_field_name(member.type, member.name, message_class)) == null ||
           @(get_field_name(member.type, member.name, message_class)).Length != __native_array_size)
       {
+@[      if isinstance(member.type.value_type, (NamedType, NamespacedType))]@
+        DisposeOwnedSequenceElements(@(get_field_name(member.type, member.name, message_class)));
+@[      end if]@
         @(get_field_name(member.type, member.name, message_class)) = new @(get_dotnet_type(member.type.value_type))[__native_array_size];
       }
+@[    end if]@
       for (int i = 0; i < __native_array_size; ++i)
       {
 @[    if isinstance(member.type.value_type, (NamedType, NamespacedType))]@
         if (@(get_field_name(member.type, member.name, message_class))[i] == null)
         {
           @(get_field_name(member.type, member.name, message_class))[i] = new @(get_dotnet_type(member.type.value_type))();
+          ownedSequenceElements.Add(@(get_field_name(member.type, member.name, message_class))[i]);
         }
         @(get_field_name(member.type, member.name, message_class))[i].ReadNativeMessage(native_get_nested_message_handle_@(member.name)(handle, i));
 @[    elif isinstance(member.type.value_type, AbstractString)]@
-        @(get_field_name(member.type, member.name, message_class))[i] = Marshal.PtrToStringAnsi(native_read_field_@(member.name)(i, handle));
+        @(get_field_name(member.type, member.name, message_class))[i] = Marshal.PtrToStringAnsi(native_read_field_@(member.name)(i, handle)) ?? "";
 @[    elif isinstance(member.type.value_type, AbstractWString)]@
-        @(get_field_name(member.type, member.name, message_class))[i] = Marshal.PtrToStringUni(native_read_field_@(member.name)(i, handle));
+        @(get_field_name(member.type, member.name, message_class))[i] = Marshal.PtrToStringUni(native_read_field_@(member.name)(i, handle)) ?? "";
 @[    end if]@
       }
     }
@@ -500,8 +596,10 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
 @[  elif isinstance(member.type, AbstractNestedType) and isinstance(member.type.value_type, BasicType)]@
     {
       @[    if message_class == "PointCloud2"]@
-      uint point_cloud_size = Height * Row_step;
-      if (point_cloud_size > Data.Length)
+      ulong point_cloud_size = (ulong)Height * (ulong)Row_step;
+      if (point_cloud_size > int.MaxValue)
+        throw new System.InvalidOperationException("PointCloud2 data too large for native write");
+      if (point_cloud_size > (ulong)Data.Length)
         throw new System.InvalidOperationException("PointCloud2 data invalid: smaller than indicated by width and row step");
       // special optimization for PointCloud2, where you can pass larger data[] array to avoid realocations, making use of message information about its size
       bool success = native_write_field_@(member.name)(@(get_field_name(member.type, member.name, message_class)), (int)point_cloud_size, handle);
@@ -536,7 +634,9 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
 
   // Generated service messages intentionally do not use a finalizer. Unity/Mono can
   // run finalizers during domain teardown after native plugin state is unsafe; callers
-  // must dispose owned messages explicitly.
+  // must dispose owned messages explicitly. Dispose releases direct nested members
+  // and sequence elements allocated by ReadNativeMessage; caller-supplied sequence
+  // elements remain caller-owned.
   public void Dispose()
   {
     lock (mutex)
@@ -559,6 +659,7 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
       }
 @[  end if]@
 @[end for]@
+      DisposeAllOwnedSequenceElements();
       disposed = true;
     }
   }

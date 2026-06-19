@@ -31,6 +31,9 @@ namespace ROS2.Test
             try
             {
                 CreateLeakedGeneratedString();
+                CreateLeakedGeneratedDirectNested();
+                CreateLeakedGeneratedNestedSequence();
+                CreateLeakedGeneratedServiceRequest();
                 ForceFinalizerSweep();
                 Console.WriteLine("GENERATED_MESSAGE_FINALIZER_PROBE_PASS");
                 return 0;
@@ -48,6 +51,34 @@ namespace ROS2.Test
         {
             std_msgs.msg.String msg = new std_msgs.msg.String();
             msg.Data = "generated_message_finalizer_probe";
+            msg.WriteNativeMessage();
+        }
+
+        /// <summary>Create a generated message with a direct nested member, then intentionally leak ownership.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void CreateLeakedGeneratedDirectNested()
+        {
+            test_msgs.msg.Nested msg = new test_msgs.msg.Nested();
+            msg.Basic_types_value.Int32_value = 42;
+            msg.WriteNativeMessage();
+        }
+
+        /// <summary>Create a generated message with a nested sequence member, then intentionally leak ownership.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void CreateLeakedGeneratedNestedSequence()
+        {
+            test_msgs.msg.UnboundedSequences msg = new test_msgs.msg.UnboundedSequences();
+            msg.Basic_types_values = new[] { new test_msgs.msg.BasicTypes() };
+            msg.Basic_types_values[0].Int32_value = 42;
+            msg.WriteNativeMessage();
+        }
+
+        /// <summary>Create a generated service request message, then intentionally leak ownership.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void CreateLeakedGeneratedServiceRequest()
+        {
+            test_msgs.srv.BasicTypes_Request msg = new test_msgs.srv.BasicTypes_Request();
+            msg.Int32_value = 42;
             msg.WriteNativeMessage();
         }
 
