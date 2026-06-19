@@ -86,7 +86,7 @@ jobs:
           . install/setup.sh
           set +e
           colcon test \
-            --packages-select ros2cs_tests \
+            --packages-select rosidl_generator_cs ros2cs_tests \
             --merge-install \
             --event-handlers console_direct+
           test_exit=$?

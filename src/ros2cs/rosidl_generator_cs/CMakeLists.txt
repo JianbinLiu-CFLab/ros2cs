@@ -20,6 +20,10 @@ find_package(ament_cmake REQUIRED)
 find_package(rosidl_cmake REQUIRED)
 find_package(rmw_implementation_cmake REQUIRED)
 
+if(BUILD_TESTING)
+  find_package(ament_cmake_pytest REQUIRED)
+endif()
+
 ament_export_dependencies(ament_cmake)
 ament_export_dependencies(rosidl_cmake)
 ament_export_dependencies(rmw_implementation_cmake)
@@ -44,3 +48,8 @@ install(
   DIRECTORY cmake resource
   DESTINATION share/${PROJECT_NAME}
 )
+
+if(BUILD_TESTING)
+  ament_add_pytest_test(test_generator_entrypoints test/test_generator_entrypoints.py)
+  ament_add_pytest_test(test_native_template_safety test/test_native_template_safety.py)
+endif()

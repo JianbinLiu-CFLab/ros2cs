@@ -16,6 +16,7 @@
 # Modifications by Jianbin Liu:
 # - Fixed int8 sequence marshaling to use a byte-compatible native representation.
 # - Returned an explicit generator success status.
+# - Treat empty generator output as a failed generation step.
 
 from rosidl_cmake import generate_files
 from rosidl_generator_c import idl_type_to_c
@@ -27,6 +28,15 @@ from rosidl_parser.definition import Array
 from rosidl_parser.definition import BasicType
 from rosidl_parser.definition import NamespacedType
 from rosidl_parser.definition import NamedType
+
+
+def _generate_files_or_raise(generator_arguments_file, mapping, additional_context=None):
+    generated_files = generate_files(generator_arguments_file, mapping, additional_context)
+    if not generated_files:
+        raise RuntimeError(
+            'rosidl_generator_cs generated no files for mapping: {0}'.format(
+                ', '.join(mapping.keys())))
+    return generated_files
 
 
 def generate_cs(generator_arguments_file, typesupport_impls, cs_build_tool):
@@ -49,11 +59,11 @@ def generate_cs(generator_arguments_file, typesupport_impls, cs_build_tool):
         'get_csbuild_tool': cs_build_tool
     }
 
-    generate_files(generator_arguments_file, mapping, additional_context)
+    _generate_files_or_raise(generator_arguments_file, mapping, additional_context)
 
     for type_support in type_support_output_patterns:
         typemapping = { 'idl_typesupport.c.em': type_support }
-        generate_files(generator_arguments_file, typemapping)
+        _generate_files_or_raise(generator_arguments_file, typemapping)
 
     return 0
 
