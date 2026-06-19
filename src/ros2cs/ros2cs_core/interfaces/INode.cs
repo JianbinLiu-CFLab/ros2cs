@@ -65,7 +65,7 @@ namespace ROS2
     /// <summary> Create a client for this node for a given topic, qos and message type </summary>
     /// <description> Can only be called in an initialized Ros2cs state. </description>
     /// <param name="topic"> Topic for the client. Naming restrictions of ros2 apply and violation results in an exception </param>
-    /// <param name="qos"> Quality of Client settings. Not passing this parameter will result in default settings </param>
+    /// <param name="qos"> Quality of Client settings. Not passing this parameter will result in default settings. The profile is copied during creation; later profile mutations do not affect this client. </param>
     /// <returns> Client for the topic, which can be used to send service requests </returns>
     Client<I, O> CreateClient<I, O>(string topic, QualityOfServiceProfile qos = null) where I : Message, new() where O : Message, new();
 
@@ -79,7 +79,7 @@ namespace ROS2
     /// <description> Can only be called in an initialized Ros2cs state. </description>
     /// <param name="topic"> Topic to service to. Naming restrictions of ros2 apply and violation results in an exception </param>
     /// <param name="callback"> Action to be called when message is received (through Spin or SpinOnce). The message passed to this callback is owned and disposed by ros2cs. Provide a lambda or a method </param>
-    /// <param name="qos"> Quality of Service settings. Not passing this parameter will result in default settings </param>
+    /// <param name="qos"> Quality of Service settings. Not passing this parameter will result in default settings. The profile is copied during creation; later profile mutations do not affect this service. </param>
     /// <returns> Service for the topic </returns>
     Service<I, O> CreateService<I, O>(string topic, Func<I, O> callback, QualityOfServiceProfile qos = null) where I : Message, new() where O : Message, new();
 
@@ -92,7 +92,7 @@ namespace ROS2
     /// <summary> Create a publisher for this node for a given topic, qos and message type </summary>
     /// <description> Can only be called in an initialized Ros2cs state. </description>
     /// <param name="topic"> Topic for the publisher. Naming restrictions of ros2 apply and violation results in an exception </param>
-    /// <param name="qos"> Quality of Service settings. Not passing this parameter will result in default settings </param>
+    /// <param name="qos"> Quality of Service settings. Not passing this parameter will result in default settings. The profile is copied during creation; later profile mutations do not affect this publisher. </param>
     /// <returns> Publisher for the topic, which can be used to publish messages </returns>
     Publisher<T> CreatePublisher<T>(string topic, QualityOfServiceProfile qos = null) where T : Message, new();
 
@@ -100,7 +100,7 @@ namespace ROS2
     /// <description> Can only be called in an initialized Ros2cs state. </description>
     /// <param name="topic"> Topic to subscribe to. Naming restrictions of ros2 apply and violation results in an exception </param>
     /// <param name="callback"> Action to be called when message is received (through Spin or SpinOnce). The message passed to this callback is owned and disposed by ros2cs. Provide a lambda or a method </param>
-    /// <param name="qos"> Quality of Service settings. Not passing this parameter will result in default settings </param>
+    /// <param name="qos"> Quality of Service settings. Not passing this parameter will result in default settings. The profile is copied during creation; later profile mutations do not affect this subscription. </param>
     /// <returns> Subscription for the topic </returns>
     Subscription<T> CreateSubscription<T>(string topic, Action<T> callback, QualityOfServiceProfile qos = null) where T : Message, new();
 

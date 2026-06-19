@@ -19,6 +19,7 @@
 // - Added QoS policy validation, explicit rmw ordinals, and liveliness setter support.
 
 using System;
+using System.Threading;
 
 namespace ROS2
 {
@@ -64,6 +65,10 @@ namespace ROS2
   }
 
   /// <summary> Quality of Service settings for publishers and subscriptions </summary>
+  /// <remarks>
+  /// Entity constructors copy this profile into native creation options. Mutating a profile after
+  /// creating a publisher, subscription, client, or service does not change that existing entity.
+  /// </remarks>
   public class QualityOfServiceProfile : IDisposable
   {
     // Native rmw_qos_profile_t wrapper owned by this managed object.
@@ -147,6 +152,36 @@ namespace ROS2
       }
     }
 
+    public void SetDeadline(TimeSpan deadline)
+    {
+      ulong nanoseconds = ToNanoseconds(deadline, nameof(deadline));
+      lock (mutex)
+      {
+        ThrowIfDisposed();
+        NativeRmwInterface.rmw_native_interface_set_deadline(handle, nanoseconds);
+      }
+    }
+
+    public void SetLifespan(TimeSpan lifespan)
+    {
+      ulong nanoseconds = ToNanoseconds(lifespan, nameof(lifespan));
+      lock (mutex)
+      {
+        ThrowIfDisposed();
+        NativeRmwInterface.rmw_native_interface_set_lifespan(handle, nanoseconds);
+      }
+    }
+
+    public void SetLivelinessLeaseDuration(TimeSpan leaseDuration)
+    {
+      ulong nanoseconds = ToNanoseconds(leaseDuration, nameof(leaseDuration));
+      lock (mutex)
+      {
+        ThrowIfDisposed();
+        NativeRmwInterface.rmw_native_interface_set_liveliness_lease_duration(handle, nanoseconds);
+      }
+    }
+
     /// <summary>Release the native QoS profile wrapper.</summary>
     public void Dispose()
     {
@@ -206,8 +241,36 @@ namespace ROS2
       }
     }
 
+    internal IntPtr EnterHandleScope()
+    {
+      Monitor.Enter(mutex);
+      try
+      {
+        ThrowIfDisposed();
+        return handle;
+      }
+      catch
+      {
+        Monitor.Exit(mutex);
+        throw;
+      }
+    }
+
+    internal void ExitHandleScope()
+    {
+      Monitor.Exit(mutex);
+    }
+
     private static void ValidateHistoryDepth(HistoryPolicy policy, int depth)
     {
+      if (depth < 0)
+      {
+        throw new ArgumentOutOfRangeException(
+          nameof(depth),
+          depth,
+          "History depth cannot be negative.");
+      }
+
       if (policy == HistoryPolicy.QOS_POLICY_HISTORY_KEEP_LAST && depth < 1)
       {
         throw new ArgumentOutOfRangeException(
@@ -216,12 +279,31 @@ namespace ROS2
           "KEEP_LAST history requires a positive depth.");
       }
     }
+
+    private static ulong ToNanoseconds(TimeSpan value, string paramName)
+    {
+      if (value < TimeSpan.Zero)
+      {
+        throw new ArgumentOutOfRangeException(paramName, value, "QoS durations cannot be negative.");
+      }
+
+      try
+      {
+        return checked((ulong)(value.Ticks * 100L));
+      }
+      catch (OverflowException)
+      {
+        throw new ArgumentOutOfRangeException(paramName, value, "QoS duration is too large.");
+      }
+    }
   }
 
   /// <summary>Owns a temporary preset QoS profile only when the caller did not provide one.</summary>
   internal sealed class QosScope : IDisposable
   {
     private QualityOfServiceProfile ownedProfile;
+    private QualityOfServiceProfile scopedProfile;
+    private bool scopeLocked;
 
     internal IntPtr Handle { get; private set; }
 
@@ -234,16 +316,25 @@ namespace ROS2
         ownedProfile = activeProfile;
       }
 
-      Handle = activeProfile.Handle;
+      scopedProfile = activeProfile;
+      Handle = scopedProfile.EnterHandleScope();
+      scopeLocked = true;
     }
 
     public void Dispose()
     {
+      if (scopeLocked)
+      {
+        scopeLocked = false;
+        scopedProfile.ExitHandleScope();
+      }
+
       if (ownedProfile != null)
       {
         ownedProfile.Dispose();
         ownedProfile = null;
       }
+      scopedProfile = null;
       Handle = IntPtr.Zero;
     }
   }
