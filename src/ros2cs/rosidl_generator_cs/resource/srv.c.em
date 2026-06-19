@@ -39,16 +39,16 @@ have_not_included_arrays = True
 have_not_included_wstring = True
 }@
 
-@[if service_req == message.structure.namespaced_type.name ]@
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
+#include <limits.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 
 #include <@(include_path).h>
 #include <rosidl_runtime_c/visibility_control.h>
-@[end if]@
 
 @[for member in message.structure.members]@
 @[  if (isinstance(member.type, AbstractString) or \
@@ -128,8 +128,9 @@ bool @(msg_typename)_native_write_field_@(member.name)(@(get_c_type(member.type.
     return false;
 @[      end if]@
   size_t previous_sequence_size = ros_message->@(member.name).size;
+  size_t previous_sequence_capacity = ros_message->@(member.name).capacity;
   bool size_changed = previous_sequence_size != (size_t)size;
-  if (size_changed && previous_sequence_size != 0)
+  if (size_changed && previous_sequence_capacity != 0)
   {
     rosidl_runtime_c__@(member.type.value_type.typename)__Sequence__fini(&ros_message->@(member.name));
   }
@@ -164,7 +165,12 @@ ROSIDL_GENERATOR_C_EXPORT
   *size = @(member.type.size);
   return ros_message->@(member.name);
 @[    elif isinstance(member.type, AbstractSequence)]@
-  *size = ros_message->@(member.name).size;
+  if (ros_message->@(member.name).size > INT_MAX)
+  {
+    *size = -1;
+    return NULL;
+  }
+  *size = (int)ros_message->@(member.name).size;
   return ros_message->@(member.name).data;
 @[    end if]@
 }
@@ -186,6 +192,7 @@ bool @(msg_typename)_native_write_field_@(member.name)(@(get_c_type(member.type.
   rosidl_runtime_c__U16String__assign(&ros_message->@(member.name)[index], value);
 @[      end if]@
 @[    elif isinstance(member.type, AbstractSequence)]@
+  // Sequence element writes require @(msg_typename)_native_init_sequence_@(member.name) to run first.
   if (index < 0 || (size_t)index >= ros_message->@(member.name).size)
       return false;
 @[      if isinstance(member.type.value_type, AbstractString)]@
@@ -266,7 +273,9 @@ int @(msg_typename)_native_get_array_size_@(member.name)(void *message_handle)
   return @(member.type.size);
 @[    elif isinstance(member.type, AbstractSequence)]@
   @(msg_typename) *ros_message = (@(msg_typename) *)message_handle;
-  return ros_message->@(member.name).size;
+  if (ros_message->@(member.name).size > INT_MAX)
+    return -1;
+  return (int)ros_message->@(member.name).size;
 @[    end if]@
 }
 
@@ -288,8 +297,9 @@ bool @(msg_typename)_native_init_sequence_@(member.name)(void *message_handle, i
     return false;
 @[      end if]@
   size_t previous_sequence_size = ros_message->@(member.name).size;
+  size_t previous_sequence_capacity = ros_message->@(member.name).capacity;
   bool size_changed = previous_sequence_size != (size_t)size;
-  if (size_changed && previous_sequence_size != 0)
+  if (size_changed && previous_sequence_capacity != 0)
   {
     @(n_type)__Sequence__fini(&ros_message->@(member.name)); //Supports same message reuse
   }

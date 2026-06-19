@@ -27,7 +27,6 @@ includes = {}
 includes[key + '.h'] = '#include <%s.h>' % key
 }@
 
-@[if service_req == message.structure.namespaced_type.name ]@
 #include <stdbool.h>
 #include <stdint.h>
 #include <rosidl_runtime_c/visibility_control.h>
@@ -35,17 +34,12 @@ includes[key + '.h'] = '#include <%s.h>' % key
 @[for v in sorted(includes.values())]@
 @(v)
 @[end for]@
-@[end if]@
 
 ROSIDL_GENERATOR_C_EXPORT
 void * @(msg_typename)_native_get_type_support()
 {
     // Request and Response wrappers intentionally return the service-level type support handle.
-    static const void * ts = 0;
-    if (!ts) {
-        ts = (const void *)ROSIDL_GET_SRV_TYPE_SUPPORT(@(package_name), @(include_parts[1]), @(service.namespaced_type.name));
-    }
-    return (void *)ts;
+    return (void *)ROSIDL_GET_SRV_TYPE_SUPPORT(@(package_name), @(include_parts[1]), @(service.namespaced_type.name));
 }
 
 ROSIDL_GENERATOR_C_EXPORT
