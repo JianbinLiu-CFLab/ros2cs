@@ -24,6 +24,7 @@
 // Based on http://dimitry-i.blogspot.com.es/2013/01/mononet-how-to-dynamically-load-native.html
 
 using System;
+using System.ComponentModel;
 using System.Runtime;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -32,6 +33,7 @@ namespace ROS2
 {
   public class GlobalVariables {
     private static Snapshot settings = new Snapshot(false, "", "");
+    private static readonly object settingsMutex = new object();
 
     /// <summary>Whether a native dependency should be preloaded before loading ros2cs libraries.</summary>
     public static bool preloadLibrary
@@ -39,8 +41,11 @@ namespace ROS2
       get { return GetSnapshot().PreloadLibrary; }
       set
       {
-        Snapshot current = GetSnapshot();
-        SetSnapshot(new Snapshot(value, current.PreloadLibraryName, current.AbsolutePath));
+        lock (settingsMutex)
+        {
+          Snapshot current = GetSnapshot();
+          SetSnapshot(new Snapshot(value, current.PreloadLibraryName, current.AbsolutePath));
+        }
       }
     }
 
@@ -50,8 +55,11 @@ namespace ROS2
       get { return GetSnapshot().PreloadLibraryName; }
       set
       {
-        Snapshot current = GetSnapshot();
-        SetSnapshot(new Snapshot(current.PreloadLibrary, value, current.AbsolutePath));
+        lock (settingsMutex)
+        {
+          Snapshot current = GetSnapshot();
+          SetSnapshot(new Snapshot(current.PreloadLibrary, value, current.AbsolutePath));
+        }
       }
     }
 
@@ -61,8 +69,11 @@ namespace ROS2
       get { return GetSnapshot().AbsolutePath; }
       set
       {
-        Snapshot current = GetSnapshot();
-        SetSnapshot(new Snapshot(current.PreloadLibrary, current.PreloadLibraryName, value));
+        lock (settingsMutex)
+        {
+          Snapshot current = GetSnapshot();
+          SetSnapshot(new Snapshot(current.PreloadLibrary, current.PreloadLibraryName, value));
+        }
       }
     }
 
@@ -88,7 +99,10 @@ namespace ROS2
     /// <summary>Atomically replace all native loader settings.</summary>
     public static void SetLoaderSettings(bool preloadLibrary, string preloadLibraryName, string absolutePath)
     {
-      SetSnapshot(new Snapshot(preloadLibrary, preloadLibraryName, absolutePath));
+      lock (settingsMutex)
+      {
+        SetSnapshot(new Snapshot(preloadLibrary, preloadLibraryName, absolutePath));
+      }
     }
 
     private static void SetSnapshot(Snapshot snapshot)
@@ -276,6 +290,89 @@ namespace ROS2
     [DllImport ("api-ms-win-core-libraryloader-l1-2-0.dll", SetLastError = true, ExactSpelling = true)]
     private static extern IntPtr GetProcAddress (IntPtr handle, string procedureName);
 
+    private static string preloadedLibraryKey = "";
+    private static NativeLibraryHandle preloadedLibraryHandle = null;
+    private static readonly object preloadMutex = new object();
+
+    private static string LastLoadErrorMessage(string libraryName)
+    {
+      int errorCode = Marshal.GetLastWin32Error();
+      return libraryName + ": Win32 error " + errorCode + " (" + new Win32Exception(errorCode).Message + ")";
+    }
+
+    private IntPtr LoadExactLibrary(string libraryName)
+    {
+      Ros2csLogger.GetInstance().LogDebug(() => "Loading packaged library: " + libraryName);
+      IntPtr ptr = LoadPackagedLibrary(libraryName);
+      if (ptr == IntPtr.Zero)
+      {
+        throw new UnsatisfiedLinkError(LastLoadErrorMessage(libraryName));
+      }
+      return ptr;
+    }
+
+    private IntPtr LoadLibraryByName(string libraryName)
+    {
+      GlobalVariables.Snapshot settings = GlobalVariables.GetSnapshot();
+      if (settings.PreloadLibrary)
+      {
+        CheckPreloadLibraries(settings);
+      }
+
+      return LoadWithFallback(libraryName, settings.AbsolutePath);
+    }
+
+    private void CheckPreloadLibraries(GlobalVariables.Snapshot settings)
+    {
+      string preloadKey = settings.AbsolutePath + "|" + settings.PreloadLibraryName;
+      if (settings.PreloadLibraryName == "")
+      {
+        return;
+      }
+
+      lock (preloadMutex)
+      {
+        if (preloadedLibraryKey == preloadKey)
+        {
+          return;
+        }
+
+        IntPtr libPtr = LoadWithFallback(settings.PreloadLibraryName, settings.AbsolutePath);
+        NativeLibraryHandle newHandle = NativeLibraryHandle.FromHandle(this, libPtr);
+        NativeLibraryHandle oldHandle = preloadedLibraryHandle;
+        preloadedLibraryHandle = newHandle;
+        preloadedLibraryKey = preloadKey;
+
+        if (oldHandle != null)
+        {
+          oldHandle.Dispose();
+        }
+      }
+    }
+
+    private IntPtr LoadWithFallback(string libraryName, string absolutePath)
+    {
+      if (!String.IsNullOrEmpty(absolutePath))
+      {
+        string libraryPath = ApplyAbsolutePath(absolutePath, libraryName);
+        IntPtr ptr = LoadPackagedLibrary(libraryPath);
+        if (ptr != IntPtr.Zero)
+        {
+          return ptr;
+        }
+
+        int errorCode = Marshal.GetLastWin32Error();
+        Ros2csLogger.GetInstance().LogDebug(() => "Could not find " + libraryPath + ": Win32 error " + errorCode + ". Fallback to " + libraryName);
+      }
+
+      return LoadExactLibrary(libraryName);
+    }
+
+    private static string ApplyAbsolutePath(string absolutePath, string libraryName)
+    {
+      return String.IsNullOrEmpty(absolutePath) ? libraryName : absolutePath + libraryName;
+    }
+
     void DllLoadUtils.FreeLibrary (IntPtr handle) {
       if (handle != IntPtr.Zero) {
         FreeLibrary (handle);
@@ -292,20 +389,12 @@ namespace ROS2
 
     IntPtr DllLoadUtils.LoadLibrary (string fileName) {
       string libraryName = fileName + "_native.dll";
-      IntPtr ptr = LoadPackagedLibrary (libraryName);
-      if (ptr == IntPtr.Zero) {
-        throw new UnsatisfiedLinkError (libraryName);
-      }
-      return ptr;
+      return LoadLibraryByName(libraryName);
     }
 
     IntPtr DllLoadUtils.LoadLibraryNoSuffix (string fileName) {
       string libraryName = fileName + ".dll";
-      IntPtr ptr = LoadPackagedLibrary (libraryName);
-      if (ptr == IntPtr.Zero) {
-        throw new UnsatisfiedLinkError (libraryName);
-      }
-      return ptr;
+      return LoadLibraryByName(libraryName);
     }
   }
 
@@ -320,6 +409,89 @@ namespace ROS2
     [DllImport ("kernel32.dll", SetLastError = true, ExactSpelling = true)]
     private static extern IntPtr GetProcAddress (IntPtr handle, string procedureName);
 
+    private static string preloadedLibraryKey = "";
+    private static NativeLibraryHandle preloadedLibraryHandle = null;
+    private static readonly object preloadMutex = new object();
+
+    private static string LastLoadErrorMessage(string libraryName)
+    {
+      int errorCode = Marshal.GetLastWin32Error();
+      return libraryName + ": Win32 error " + errorCode + " (" + new Win32Exception(errorCode).Message + ")";
+    }
+
+    private IntPtr LoadExactLibrary(string libraryName)
+    {
+      Ros2csLogger.GetInstance().LogDebug(() => "Loading library: " + libraryName);
+      IntPtr ptr = LoadLibrary(libraryName);
+      if (ptr == IntPtr.Zero)
+      {
+        throw new UnsatisfiedLinkError(LastLoadErrorMessage(libraryName));
+      }
+      return ptr;
+    }
+
+    private IntPtr LoadLibraryByName(string libraryName)
+    {
+      GlobalVariables.Snapshot settings = GlobalVariables.GetSnapshot();
+      if (settings.PreloadLibrary)
+      {
+        CheckPreloadLibraries(settings);
+      }
+
+      return LoadWithFallback(libraryName, settings.AbsolutePath);
+    }
+
+    private void CheckPreloadLibraries(GlobalVariables.Snapshot settings)
+    {
+      string preloadKey = settings.AbsolutePath + "|" + settings.PreloadLibraryName;
+      if (settings.PreloadLibraryName == "")
+      {
+        return;
+      }
+
+      lock (preloadMutex)
+      {
+        if (preloadedLibraryKey == preloadKey)
+        {
+          return;
+        }
+
+        IntPtr libPtr = LoadWithFallback(settings.PreloadLibraryName, settings.AbsolutePath);
+        NativeLibraryHandle newHandle = NativeLibraryHandle.FromHandle(this, libPtr);
+        NativeLibraryHandle oldHandle = preloadedLibraryHandle;
+        preloadedLibraryHandle = newHandle;
+        preloadedLibraryKey = preloadKey;
+
+        if (oldHandle != null)
+        {
+          oldHandle.Dispose();
+        }
+      }
+    }
+
+    private IntPtr LoadWithFallback(string libraryName, string absolutePath)
+    {
+      if (!String.IsNullOrEmpty(absolutePath))
+      {
+        string libraryPath = ApplyAbsolutePath(absolutePath, libraryName);
+        IntPtr ptr = LoadLibrary(libraryPath);
+        if (ptr != IntPtr.Zero)
+        {
+          return ptr;
+        }
+
+        int errorCode = Marshal.GetLastWin32Error();
+        Ros2csLogger.GetInstance().LogDebug(() => "Could not find " + libraryPath + ": Win32 error " + errorCode + ". Fallback to " + libraryName);
+      }
+
+      return LoadExactLibrary(libraryName);
+    }
+
+    private static string ApplyAbsolutePath(string absolutePath, string libraryName)
+    {
+      return String.IsNullOrEmpty(absolutePath) ? libraryName : absolutePath + libraryName;
+    }
+
     void DllLoadUtils.FreeLibrary (IntPtr handle) {
       if (handle != IntPtr.Zero) {
         FreeLibrary (handle);
@@ -336,20 +508,12 @@ namespace ROS2
 
     IntPtr DllLoadUtils.LoadLibrary (string fileName) {
       string libraryName = fileName + "_native.dll";
-      IntPtr ptr = LoadLibrary (libraryName);
-      if (ptr == IntPtr.Zero) {
-        throw new UnsatisfiedLinkError (libraryName);
-      }
-      return ptr;
+      return LoadLibraryByName(libraryName);
     }
 
     IntPtr DllLoadUtils.LoadLibraryNoSuffix (string fileName) {
       string libraryName = fileName + ".dll";
-      IntPtr ptr = LoadLibrary (libraryName);
-      if (ptr == IntPtr.Zero) {
-        throw new UnsatisfiedLinkError (libraryName);
-      }
-      return ptr;
+      return LoadLibraryByName(libraryName);
     }
   }
 
@@ -394,15 +558,17 @@ namespace ROS2
 
         Ros2csLogger.GetInstance().LogDebug(() => "Preloading " + settings.PreloadLibraryName);
         IntPtr libPtr = Load(settings.PreloadLibraryName, settings.AbsolutePath);
-        if (preloadedLibraryHandle != null)
-        {
-          preloadedLibraryHandle.Dispose();
-        }
-        preloadedLibraryHandle = NativeLibraryHandle.FromHandle(this, libPtr);
+        NativeLibraryHandle newHandle = NativeLibraryHandle.FromHandle(this, libPtr);
+        NativeLibraryHandle oldHandle = preloadedLibraryHandle;
+        preloadedLibraryHandle = newHandle;
+        preloadedLibraryKey = preloadKey;
 
         Ros2csLogger.GetInstance().LogDebug(() => "Preloading " + settings.PreloadLibraryName + " successful.");
 
-        preloadedLibraryKey = preloadKey;
+        if (oldHandle != null)
+        {
+          oldHandle.Dispose();
+        }
       }
     }
 
@@ -503,15 +669,17 @@ namespace ROS2
 
         Ros2csLogger.GetInstance().LogDebug(() => "Preloading " + settings.PreloadLibraryName);
         IntPtr libPtr = Load(settings.PreloadLibraryName, settings.AbsolutePath);
-        if (preloadedLibraryHandle != null)
-        {
-          preloadedLibraryHandle.Dispose();
-        }
-        preloadedLibraryHandle = NativeLibraryHandle.FromHandle(this, libPtr);
+        NativeLibraryHandle newHandle = NativeLibraryHandle.FromHandle(this, libPtr);
+        NativeLibraryHandle oldHandle = preloadedLibraryHandle;
+        preloadedLibraryHandle = newHandle;
+        preloadedLibraryKey = preloadKey;
 
         Ros2csLogger.GetInstance().LogDebug(() => "Preloading " + settings.PreloadLibraryName + " successful.");
 
-        preloadedLibraryKey = preloadKey;
+        if (oldHandle != null)
+        {
+          oldHandle.Dispose();
+        }
       }
     }
 
