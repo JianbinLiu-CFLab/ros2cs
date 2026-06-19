@@ -37,5 +37,5 @@ repositories:
   external/build_tools/ament_cmake_export_assemblies:
     type: git
     url: https://github.com/RobotecAI/ament_cmake_export_assemblies
-    # Historical upstream tracking branch retained for this legacy distro file.
-    version: master
+    # Pinned to the commit verified by the active Jazzy maintenance line.
+    version: 5a7411c1744d266717da9f292053165102b442c3

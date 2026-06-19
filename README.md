@@ -58,9 +58,16 @@ Verified in the current local validation:
 - `ros2cs_common`, `ros2cs_core`, and generated message assemblies remain `netstandard2.0`.
 - `ros2cs_tests` and `ros2cs_examples` target `net10.0`.
 
+Verified in the current CI validation:
+
+- Ubuntu 24.04 GitHub Actions runner with the `ros:jazzy` container image.
+- `colcon build --packages-up-to ros2cs_tests` and `colcon test` for the Jazzy
+  source workspace.
+
 Not yet verified in the current maintenance round:
 
-- Ubuntu 20.04 / 22.04 / 24.04.
+- Ubuntu 20.04 / 22.04.
+- Ubuntu 24.04 outside the CI container setup.
 - Windows 11.
 - ROS 2 Foxy / Galactic / Humble / Rolling on this branch.
 - Unity / R2FU runtime import and Player validation.
@@ -74,7 +81,10 @@ Historical/project OS targets:
 - Windows 10 / Windows 10 LTSC (powershell)
 - Windows 11 (powershell)
 
-> The current Jazzy validation evidence is Windows 10 LTSC only. Treat Windows 11 and Ubuntu entries as expected or legacy targets until they have fresh build/test evidence.
+> The current Jazzy validation evidence is Windows 10 LTSC locally and Ubuntu
+> 24.04 in CI. Treat Windows 11, Ubuntu 20.04/22.04, and native/non-container
+> Ubuntu 24.04 entries as expected or legacy targets until they have fresh
+> build/test evidence.
 
 Historical/project ROS2 distribution targets:
 - Jazzy
@@ -93,7 +103,7 @@ Historical/project ROS2 distribution targets:
 
 ### Generating custom messages
 
-After cloning the project and importing .repos, you can simply put your message package next to other packages in the `src/ros2` sub-folder. Then, build your project, and you have all messages generated. You can also modify and use the `custom_message.repos` template to automate the process with the `get_repos` script.
+After cloning the project and importing .repos, you can simply put your message package next to other packages in the `src/ros2` sub-folder. Then, build your project, and you have all messages generated. You can also modify and use the `custom_messages.repos` template to automate the process with the `get_repos` script.
 
 ### Build instructions
 
@@ -114,7 +124,9 @@ replacing ros2cs generated-message support.
 
 Make sure your NuGet repositories can resolve the test dependencies used by `ros2cs_tests` (currently NUnit-based). You can call `dotnet nuget list source` to see your current sources for NuGet packages. Please note that `Microsoft Visual Studio Offline Packages` are usually insufficient. You can fix it by adding `nuget.org` repository: `dotnet nuget add source --name nuget.org https://api.nuget.org/v3/index.json`.
 
-- Make sure you built tests (OS-specific build script with `--with-tests` flag).
+- Make sure you built tests with the OS-specific build flag:
+    - ubuntu: `./build.sh --with-tests`
+    - windows: `.\build.ps1 -with_tests`
 - Run OS-specific test script:
     - ubuntu:
     ```bash
