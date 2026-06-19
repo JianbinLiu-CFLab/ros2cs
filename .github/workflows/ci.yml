@@ -75,6 +75,19 @@ jobs:
               -DCMAKE_C_COMPILER_LAUNCHER=sccache \
               -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
 
+      - name: Build ros2cs examples
+        working-directory: ros2cs_ws
+        run: |
+          . /opt/ros/jazzy/setup.sh
+          . install/setup.sh
+          colcon build \
+            --packages-select ros2cs_examples \
+            --merge-install \
+            --event-handlers console_direct+ \
+            --cmake-args \
+              -DCMAKE_C_COMPILER_LAUNCHER=sccache \
+              -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+
       - name: Show sccache stats
         if: always()
         run: sccache --show-stats
