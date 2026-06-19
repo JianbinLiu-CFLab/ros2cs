@@ -31,6 +31,8 @@ namespace ROS2
     /// Invokes the callback if successful. The request wrapper passed to the callback is owned by
     /// ros2cs and is disposed after the callback returns. The response returned by the callback is
     /// also disposed by ros2cs after it is copied into native memory.
+    /// Implementations must check disposed state and <see cref="Ros2cs.Ok"/> under their own mutex
+    /// before any native take call because shutdown can invalidate a spin snapshot before callbacks run.
     /// </remarks>
     // Internal spin entry point; kept on the public interface for compatibility.
     void TakeMessage();

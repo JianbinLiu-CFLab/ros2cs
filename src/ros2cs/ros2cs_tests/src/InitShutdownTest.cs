@@ -140,6 +140,10 @@ namespace ROS2.Test
         {
             Ros2cs.Init();
             var node = Ros2cs.CreateNode("shutdown_during_spin_node");
+            node.CreateSubscription<std_msgs.msg.Int32>(
+                "shutdown_during_spin_topic",
+                (msg) => { throw new InvalidOperationException("subscription callback was triggered"); }
+            );
             Exception spinException = null;
             Task spinTask = Task.Run(() =>
             {
@@ -155,6 +159,36 @@ namespace ROS2.Test
 
             Thread.Sleep(100);
             Assert.DoesNotThrow(() => Ros2cs.Shutdown());
+
+            Assert.That(spinTask.Wait(TimeSpan.FromSeconds(2)), Is.True);
+            Assert.That(spinException, Is.Null);
+            Assert.That(Ros2cs.Ok(), Is.False);
+        }
+
+        [Test]
+        public void SpinExitsAfterShutdown()
+        {
+            Ros2cs.Init();
+            var node = Ros2cs.CreateNode("spin_exits_after_shutdown_node");
+            node.CreateSubscription<std_msgs.msg.Int32>(
+                "spin_exits_after_shutdown_topic",
+                (msg) => { throw new InvalidOperationException("subscription callback was triggered"); }
+            );
+            Exception spinException = null;
+            Task spinTask = Task.Run(() =>
+            {
+                try
+                {
+                    Ros2cs.Spin(node, 0.05);
+                }
+                catch (Exception e)
+                {
+                    spinException = e;
+                }
+            });
+
+            Thread.Sleep(100);
+            Ros2cs.Shutdown();
 
             Assert.That(spinTask.Wait(TimeSpan.FromSeconds(2)), Is.True);
             Assert.That(spinException, Is.Null);

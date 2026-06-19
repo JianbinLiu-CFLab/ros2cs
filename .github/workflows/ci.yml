@@ -8,6 +8,7 @@ on:
 
 jobs:
   ros2cs-tests:
+    name: Jazzy ros2cs tests
     runs-on: ubuntu-24.04
     container:
       image: ros:jazzy
@@ -37,14 +38,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('ros2cs_ws/src/ros2cs/**/*.cmake', 'ros2cs_ws/src/ros2cs/**/*.cs', 'ros2cs_ws/src/ros2cs/**/*.xml') }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('ros2cs_ws/src/ros2cs/**/*.csproj', 'ros2cs_ws/src/ros2cs/**/*.cmake', 'ros2cs_ws/src/ros2cs/**/*.cs', 'ros2cs_ws/src/ros2cs/**/*.xml') }}
           restore-keys: |
             nuget-${{ runner.os }}-
 
       - name: Cache sccache compiler outputs
         uses: actions/cache@v4
         with:
-          path: ~/.cache/sccache
+          path: /github/home/.cache/sccache
           key: sccache-${{ runner.os }}-jazzy-${{ hashFiles('ros2cs_ws/src/ros2cs/ros2_jazzy.repos', 'ros2cs_ws/src/ros2cs/**/CMakeLists.txt', 'ros2cs_ws/src/ros2cs/**/*.cmake', 'ros2cs_ws/src/ros2cs/**/package.xml') }}
           restore-keys: |
             sccache-${{ runner.os }}-jazzy-
@@ -70,6 +71,7 @@ jobs:
             --merge-install \
             --event-handlers console_direct+ \
             --cmake-args \
+              -DBUILD_TESTING=ON \
               -DCMAKE_C_COMPILER_LAUNCHER=sccache \
               -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
 
@@ -82,8 +84,16 @@ jobs:
         run: |
           . /opt/ros/jazzy/setup.sh
           . install/setup.sh
+          set +e
           colcon test \
             --packages-select ros2cs_tests \
             --merge-install \
             --event-handlers console_direct+
+          test_exit=$?
           colcon test-result --verbose
+          result_exit=$?
+          set -e
+          if [ "$test_exit" -ne 0 ]; then
+            exit "$test_exit"
+          fi
+          exit "$result_exit"

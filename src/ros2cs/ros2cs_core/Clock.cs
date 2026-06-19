@@ -104,7 +104,7 @@ namespace ROS2
       handle = NativeRclInterface.rclcs_ros_clock_create(ref allocator);
       if (handle == IntPtr.Zero)
       {
-        throw new RuntimeError("Failed to create ROS clock");
+        throw new RuntimeError("Failed to create ROS clock: " + Utils.PopRclErrorString());
       }
     }
 

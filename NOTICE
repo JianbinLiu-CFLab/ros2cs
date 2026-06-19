@@ -3,6 +3,11 @@ Esteve Fernandez (esteve@apache.org)
 Samuel Lindgren (samuel@dynorobotics.se)
 Adam Dabrowski (adam.dabrowski@robotec.ai, adamdbrw@gmail.com)
 
-Originated from ros2_dotnet/ros2_dotnet and later co-developed in adambrw/ros2_dotnet fork by Adam Dabrowski and Samuel Lidgren.
+Originated from ros2_dotnet/ros2_dotnet and later co-developed in adambrw/ros2_dotnet fork by Adam Dabrowski and Samuel Lindgren.
 Since then, a closed source version was developed by Robotec.ai, including major changes to almost all parts of the project, before
 being released back into open source as ros2cs.
+
+Modifications Copyright (c) 2026 Jianbin Liu (JianbinLiu-CFLab fork).
+The fork updates the Jazzy maintenance line, Lyrical preview path, build/test
+tooling, generated-message behavior, Unity/R2FU compatibility boundary, and
+runtime validation evidence.

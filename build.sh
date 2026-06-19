@@ -26,6 +26,11 @@ if [ -z "${ROS_DISTRO:-}" ]; then
     exit 1
 fi
 
+if [[ ! "$ROS_DISTRO" =~ ^[a-z][a-z0-9_]*$ ]]; then
+    echo "Invalid ROS_DISTRO value: '$ROS_DISTRO'."
+    exit 1
+fi
+
 TESTS=OFF
 MSG="Build started."
 STANDALONE=OFF
@@ -147,4 +152,4 @@ colcon "${COLCON_ARGS[@]}" \
 --merge-install \
 --event-handlers "$EVENT_HANDLER" \
 --cmake-args \
-"${CMAKE_ARGS[@]}"
+"${CMAKE_ARGS[@]}" || exit $?

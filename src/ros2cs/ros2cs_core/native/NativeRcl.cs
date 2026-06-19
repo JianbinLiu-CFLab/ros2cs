@@ -218,7 +218,10 @@ namespace ROS2
         typeof(TakeResponceType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    internal delegate int ServiceIsAvailableType(ref rcl_node_t node, ref rcl_client_t client, ref bool is_available);
+    internal delegate int ServiceIsAvailableType(
+        ref rcl_node_t node,
+        ref rcl_client_t client,
+        [MarshalAs(UnmanagedType.I1)] ref bool is_available);
     internal static ServiceIsAvailableType
         rcl_service_server_is_available =
         (ServiceIsAvailableType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(

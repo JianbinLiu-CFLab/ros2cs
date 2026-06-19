@@ -55,6 +55,42 @@ namespace ROS2
         typeof(RCLCSInitType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate UIntPtr SizeOfRclNodeType();
+    internal static SizeOfRclNodeType
+        rclcs_sizeof_rcl_node_t =
+        (SizeOfRclNodeType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
+        nativeROS2CS,
+        "rclcs_sizeof_rcl_node_t"),
+        typeof(SizeOfRclNodeType));
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate UIntPtr SizeOfRclContextType();
+    internal static SizeOfRclContextType
+        rclcs_sizeof_rcl_context_t =
+        (SizeOfRclContextType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
+        nativeROS2CS,
+        "rclcs_sizeof_rcl_context_t"),
+        typeof(SizeOfRclContextType));
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate UIntPtr SizeOfRclWaitSetType();
+    internal static SizeOfRclWaitSetType
+        rclcs_sizeof_rcl_wait_set_t =
+        (SizeOfRclWaitSetType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
+        nativeROS2CS,
+        "rclcs_sizeof_rcl_wait_set_t"),
+        typeof(SizeOfRclWaitSetType));
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate UIntPtr SizeOfRclRmwRequestIdType();
+    internal static SizeOfRclRmwRequestIdType
+        rclcs_sizeof_rcl_rmw_request_id_t =
+        (SizeOfRclRmwRequestIdType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
+        nativeROS2CS,
+        "rclcs_sizeof_rcl_rmw_request_id_t"),
+        typeof(SizeOfRclRmwRequestIdType));
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate IntPtr GetErrorStringType();
     internal static GetErrorStringType
         rclcs_get_error_string =

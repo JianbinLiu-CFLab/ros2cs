@@ -44,6 +44,7 @@ namespace ROS2
     private static volatile LogLevel _logLevel;
 
     public delegate void Callback(object message);
+    public delegate void CallbackExceptionHandler(LogLevel level, object message, Exception exception);
 
     private static readonly string[] LevelNames = new string[]
     {
@@ -74,6 +75,8 @@ namespace ROS2
       null,
     };
 
+    private static CallbackExceptionHandler callbackExceptionHandler;
+
     /// <summary> Set a callback for an application layer logger </summary>
     /// <description> Can be useful to standardize logging between Ros2cs and
     /// an application (e. g. in Unity3D) which is using it </description>
@@ -84,6 +87,17 @@ namespace ROS2
       lock (LoggerMutex)
       {
         LevelCallbacks[(int)level] = cb;
+      }
+    }
+
+    /// <summary>Register an optional handler for exceptions thrown by application logger callbacks.</summary>
+    /// <description>Useful in headless runtimes where stderr may not be visible.</description>
+    /// <param name="handler">Handler invoked when a registered log callback throws, or null to clear.</param>
+    public static void SetCallbackExceptionHandler(CallbackExceptionHandler handler)
+    {
+      lock (LoggerMutex)
+      {
+        callbackExceptionHandler = handler;
       }
     }
 
@@ -152,23 +166,40 @@ namespace ROS2
     public void Log(LogLevel level, String message)
     {
       Callback callback;
+      CallbackExceptionHandler exceptionHandler;
       lock (LoggerMutex)
       {
         if (_logLevel > level) return;
         callback = Ros2csLogger.LevelCallbacks[(int)level];
+        exceptionHandler = callbackExceptionHandler;
       }
 
       // Threshold and callback are a snapshot: later LogLevel changes do not cancel a message already accepted.
       // Invoke application callbacks outside the console lock so custom loggers cannot block formatting.
       if (callback != null)
       {
+        string callbackMessage = "[ROS2CS] " + message;
         try
         {
-          callback.Invoke("[ROS2CS] " + message);
+          callback.Invoke(callbackMessage);
         }
         catch (Exception e)
         {
-          TryWriteConsoleError("[ROS2CS] Logger callback failed: " + e);
+          if (exceptionHandler != null)
+          {
+            try
+            {
+              exceptionHandler.Invoke(level, callbackMessage, e);
+            }
+            catch (Exception handlerException)
+            {
+              TryWriteConsoleError("[ROS2CS] Logger callback exception handler failed: " + handlerException);
+            }
+          }
+          else
+          {
+            TryWriteConsoleError("[ROS2CS] Logger callback failed: " + e);
+          }
         }
       }
 
@@ -201,6 +232,8 @@ namespace ROS2
 
     public void LogDebug(Func<string> messageFactory)
     {
+      // This fast path intentionally reads the volatile level outside LoggerMutex to avoid
+      // constructing debug messages when DEBUG logging is disabled.
       if (_logLevel > LogLevel.DEBUG)
       {
         return;

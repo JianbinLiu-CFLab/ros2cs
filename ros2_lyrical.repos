@@ -2,7 +2,8 @@
 #
 # Modifications by Jianbin Liu:
 # - Add a ROS 2 Lyrical preview repository set parallel to the Jazzy maintenance line.
-# - Keep rosidl_python on the JianbinLiu-CFLab fork so shortened Python extension target support can be carried forward.
+# - Keep rosidl_python on the JianbinLiu-CFLab fork pinned to a verified commit
+#   so shortened Python extension target support can be carried forward.
 # - Preserve verified build-tool pins used by the Jazzy Windows build.
 
 repositories:
@@ -22,7 +23,7 @@ repositories:
   ros2/rosidl_python:
     type: git
     url: https://github.com/JianbinLiu-CFLab/rosidl_python.git
-    version: lyrical
+    version: a7e54557a4f6a910f1c4dfa9cf590e36f8828413
   ros2/common_interfaces:
     type: git
     url: https://github.com/ros2/common_interfaces.git
