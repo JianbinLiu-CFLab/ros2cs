@@ -45,7 +45,7 @@ if [ -z "$VCS_WORKERS" ]; then
     elif command -v getconf >/dev/null 2>&1; then
         VCS_WORKERS="$(getconf _NPROCESSORS_ONLN)"
     else
-        VCS_WORKERS="4"
+        VCS_WORKERS="1"
     fi
 fi
 

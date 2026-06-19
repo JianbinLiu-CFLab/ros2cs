@@ -12,6 +12,8 @@
     Optional colcon build base directory. Can also be set with ROS2CS_BUILD_BASE.
 .PARAMETER install_base
     Optional colcon install base directory. Can also be set with ROS2CS_INSTALL_BASE.
+.PARAMETER help
+    show help and exit
 
 Modifications Copyright (c) 2026 Jianbin Liu.
 
@@ -24,6 +26,7 @@ Modifications by Jianbin Liu:
 - Added ROS2CS_EVENT_HANDLER override and defaulted colcon output to console_cohesion+.
 #>
 Param (
+    [Parameter(Mandatory=$false)][switch]$help=$false,
     [Parameter(Mandatory=$false)][switch]$with_tests=$false,
     [Parameter(Mandatory=$false)][switch]$standalone=$false,
     [Parameter(Mandatory=$false)][string]$build_base=$Env:ROS2CS_BUILD_BASE,
@@ -32,6 +35,17 @@ Param (
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+
+if ($help) {
+    Write-Host "Usage: .\build.ps1 [-with_tests] [-standalone] [-build_base PATH] [-install_base PATH]"
+    Write-Host ""
+    Write-Host "Options:"
+    Write-Host "  -with_tests         Build tests."
+    Write-Host "  -standalone         Build standalone runtime layout."
+    Write-Host "  -build_base PATH    Optional colcon build base directory. Can also be set with ROS2CS_BUILD_BASE."
+    Write-Host "  -install_base PATH  Optional colcon install base directory. Can also be set with ROS2CS_INSTALL_BASE."
+    exit 0
+}
 
 function Get-ParallelWorkers {
     # Worker count is a throughput policy; build correctness must not depend on a specific value.
@@ -62,6 +76,11 @@ function Get-CompilerLauncher {
 
 if ([string]::IsNullOrEmpty($Env:ROS_DISTRO)) {
     Write-Host "Source your ros2 distro first (foxy, galactic, humble, jazzy, lyrical or rolling are supported)" -ForegroundColor Red
+    exit 1
+}
+
+if ($Env:ROS_DISTRO -notmatch '^[a-z][a-z0-9_]*$') {
+    Write-Host "Invalid ROS_DISTRO value: '$Env:ROS_DISTRO'." -ForegroundColor Red
     exit 1
 }
 
