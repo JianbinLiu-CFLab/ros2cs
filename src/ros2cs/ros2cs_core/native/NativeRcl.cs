@@ -154,6 +154,7 @@ namespace ROS2
         typeof(NodeGetNamespaceType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // UIntPtr mirrors the native size_t output count.
     internal delegate int CountPublishersType(ref rcl_node_t node, string topic_name, ref UIntPtr count);
     internal static CountPublishersType
         rcl_count_publishers =
@@ -163,6 +164,7 @@ namespace ROS2
         typeof(CountPublishersType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // UIntPtr mirrors the native size_t output count.
     internal delegate int CountSubscribersType(ref rcl_node_t node, string topic_name, ref UIntPtr count);
     internal static CountSubscribersType
         rcl_count_subscribers =
@@ -209,6 +211,7 @@ namespace ROS2
         typeof(SendRequestType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Keep the historical misspelled delegate type name: friend test assemblies bind field signatures to it.
     internal delegate int TakeResponceType(ref rcl_client_t client, ref rcl_rmw_request_id_t request_header, IntPtr ros_response);
     internal static TakeResponceType
         rcl_take_response =
@@ -221,6 +224,7 @@ namespace ROS2
     internal delegate int ServiceIsAvailableType(
         ref rcl_node_t node,
         ref rcl_client_t client,
+        // rcl writes a C99 bool (1 byte); use I1 instead of the default 4-byte BOOL.
         [MarshalAs(UnmanagedType.I1)] ref bool is_available);
     internal static ServiceIsAvailableType
         rcl_service_server_is_available =
@@ -230,6 +234,7 @@ namespace ROS2
         typeof(ServiceIsAvailableType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Keep the historical misspelled delegate type name: friend test assemblies bind field signatures to it.
     internal delegate rcl_service_t GetZeroInitiazizedServiceType();
     internal static GetZeroInitiazizedServiceType
         rcl_get_zero_initialized_service =
@@ -266,6 +271,7 @@ namespace ROS2
         typeof(TakeRequestType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Keep the historical misspelled delegate type name: friend test assemblies bind field signatures to it.
     internal delegate int SendResponceType(ref rcl_service_t service, ref rcl_rmw_request_id_t request_header, IntPtr response_info);
     internal static SendResponceType
         rcl_send_response =
@@ -275,6 +281,7 @@ namespace ROS2
         typeof(SendResponceType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Keep the historical misspelled delegate type name: friend test assemblies bind field signatures to it.
     internal delegate rcl_publisher_t GetZeroInitiazizedPublisherType();
     internal static GetZeroInitiazizedPublisherType
         rcl_get_zero_initialized_publisher =
@@ -311,6 +318,7 @@ namespace ROS2
         typeof(PublishType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Keep the historical misspelled delegate type name: friend test assemblies bind field signatures to it.
     internal delegate rcl_subscription_t GetZeroInitializedSubcriptionType();
     internal static GetZeroInitializedSubcriptionType
         rcl_get_zero_initialized_subscription =
@@ -366,6 +374,7 @@ namespace ROS2
         typeof(GetZeroInitializedWaitSetType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // UIntPtr mirrors native size_t fields in rcl_wait_set_resize.
     internal delegate int WaitSetResizeType(ref rcl_wait_set_t wait_set,
                                             UIntPtr number_of_subscriptions,
                                             UIntPtr number_of_guard_conditions,
@@ -380,6 +389,7 @@ namespace ROS2
         typeof(WaitSetResizeType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // UIntPtr mirrors native size_t fields in rcl_wait_set_init.
     internal delegate int WaitSetInitType(ref rcl_wait_set_t wait_set,
                                           UIntPtr number_of_subscriptions,
                                           UIntPtr number_of_guard_conditions,
@@ -397,6 +407,7 @@ namespace ROS2
         typeof(WaitSetInitType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Keep the historical misspelled delegate type name: friend test assemblies bind field signatures to it.
     internal delegate int WatiSetFiniType(ref rcl_wait_set_t wait_set);
     internal static WatiSetFiniType
         rcl_wait_set_fini =
@@ -415,6 +426,7 @@ namespace ROS2
         typeof(WaitSetClearType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // UIntPtr mirrors the native size_t output index.
     internal delegate int WaitSetAddSubscriptionType(ref rcl_wait_set_t wait_set, ref rcl_subscription_t subscription, ref UIntPtr index);
     internal static WaitSetAddSubscriptionType
         rcl_wait_set_add_subscription =
@@ -424,6 +436,7 @@ namespace ROS2
         typeof(WaitSetAddSubscriptionType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // UIntPtr mirrors the native size_t output index.
     internal delegate int WaitSetAddClientType(ref rcl_wait_set_t wait_set, ref rcl_client_t client, ref UIntPtr index);
     internal static WaitSetAddClientType
         rcl_wait_set_add_client =
@@ -433,6 +446,7 @@ namespace ROS2
         typeof(WaitSetAddClientType));
     
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // UIntPtr mirrors the native size_t output index.
     internal delegate int WaitSetAddServiceType(ref rcl_wait_set_t wait_set, ref rcl_service_t service, ref UIntPtr index);
     internal static WaitSetAddServiceType
         rcl_wait_set_add_service =
@@ -451,6 +465,7 @@ namespace ROS2
         typeof(WaitType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Clock is heap-allocated by rclcs_ros_clock_create; managed code only holds the opaque pointer.
     internal delegate int RclClockGetNow(IntPtr ros_clock, ref long query_now);
     internal static RclClockGetNow
         rcl_clock_get_now =
@@ -476,6 +491,7 @@ namespace ROS2
         rcl_reset_error =
         (ResetErrorType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
         nativeRCUtils,
+        // rcl error state is implemented in rcutils; keep the managed field name for legacy callers.
         "rcutils_reset_error"),
         typeof(ResetErrorType));
   }

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Based on upstream RobotecAI ros2cs scripts, Apache-2.0.
 # Modifications Copyright (c) 2026 Jianbin Liu.
 #
 # Modifications by Jianbin Liu:
@@ -10,6 +11,10 @@
 # - Cleared stale colcon test result XML before each test run.
 # - Aligned local test package selection with CI.
 
+# Runs the local ros2cs test gate for rosidl_generator_cs and ros2cs_tests.
+# The script intentionally separates colcon test from colcon test-result so
+# failing tests still print detailed diagnostics and zero-test runs fail closed.
+
 # Keep -e disabled so colcon test-result still runs and prints diagnostics after colcon test fails.
 set -u
 
@@ -18,6 +23,7 @@ if [ -z "${ROS_DISTRO:-}" ]; then
     exit 1
 fi
 
+# Validate to prevent path injection; ROS_DISTRO is interpolated into marker and repos filenames.
 if [[ ! "$ROS_DISTRO" =~ ^[a-z][a-z0-9_]*$ ]]; then
     echo "Invalid ROS_DISTRO value: '$ROS_DISTRO'."
     exit 1
@@ -172,6 +178,7 @@ EFFECTIVE_BUILD_BASE="$(get_effective_build_base)"
 EFFECTIVE_INSTALL_BASE="$(get_effective_install_base)"
 assert_test_distro_matches_build
 clear_colcon_test_results
+# --merge-install matches the build layout and keeps install/setup.* sourcing simple.
 TEST_ARGS=(test --merge-install --packages-select rosidl_generator_cs ros2cs_tests)
 RESULT_ARGS=(test-result --verbose)
 

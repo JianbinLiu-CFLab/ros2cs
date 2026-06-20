@@ -160,4 +160,4 @@ colcon build --cmake-args -G Ninja
 Set `CMAKE_GENERATOR=Ninja` in the sourced ROS 2 / MSVC environment, or pass
 `--cmake-args -G Ninja` explicitly in reproducible command logs.
 
-**If no solution of your problem is present in the section above, please make sure to check out `ROS2 For Unity` [Troubleshooting section](https://github.com/RobotecAI/ros2-for-unity/blob/master/README-WINDOWS.md#build-troubleshooting)**
+**If no solution of your problem is present in the section above, please make sure to check out `ROS2 For Unity` [Troubleshooting section](https://github.com/RobotecAI/ros2-for-unity/blob/master/README-WINDOWS.md#build-troubleshooting) (upstream reference documentation, not a support channel for this fork).**

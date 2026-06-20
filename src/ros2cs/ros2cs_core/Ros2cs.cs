@@ -30,12 +30,12 @@ using System.Threading;
 namespace ROS2
 {
   /// <summary> Primary ros2 C# static class </summary>
-  /// <description> This class interfaces with rcl library to handle initalization, shutdown,
+  /// <remarks> This class interfaces with rcl library to handle initalization, shutdown,
   /// creation and removal of nodes as well as spinning (no executors are implemented).
   /// Note that the interface is through rcl and not rclcpp, the primary reason is that marshalling
   /// into generic interface api is not feasible, especially when we don't know all possible instantiations
   /// (as it is the case with custom generated messages).
-  /// </description>
+  /// </remarks>
   public static class Ros2cs
   {
     private static readonly Destructor destructor = new Destructor();
@@ -70,9 +70,8 @@ namespace ROS2
     }
 
     /// <summary> Globally initialize ros2 (rcl) </summary>
-    /// <description> Note that only a single context is used. </description>
-    /// <remarks> If needed, support for multiple contexts can be added
-    /// in a rather straightforward way throughout api. </remarks>
+    /// <remarks> Note that only a single context is used. If needed, support for multiple
+    /// contexts can be added in a rather straightforward way throughout api. </remarks>
     public static void Init()
     {
       lock (mutex)
@@ -101,15 +100,16 @@ namespace ROS2
       }
     }
 
+    /// <summary>Return the active RMW implementation identifier reported by the native rmw layer.</summary>
     public static string GetRMWImplementation()
     {
       return RmwImplementation.Value;
     }
 
     /// <summary> Globally shutdown ros2 (rcl) </summary>
-    /// <description> Can be called multiple times with no effects after the first one.
+    /// <remarks> Can be called multiple times with no effects after the first one.
     /// Shutdowns ros2 and disposes all the nodes. Ok() function will return false after Shutdown is called.
-    /// </description>
+    /// </remarks>
     public static void Shutdown()
     {
       List<Exception> exceptions = null;
@@ -185,17 +185,17 @@ namespace ROS2
     }
 
     /// <summary> Whether ros2 C# is initialized </summary>
-    /// <description>
+    /// <remarks>
     /// Only when this function returns true a node can be created and spinning works
-    /// </description>
+    /// </remarks>
     public static bool Ok()
     {
       return initialized && !contextFinalized;
     }
 
     /// <summary> Helper class to handle Ros2cs finalization </summary>
-    /// <description> Could be understood as Ros2cs destructor. Can be called from GC if Shutdown
-    /// was not called explicitly. Also, handles context finalization. </description>
+    /// <remarks> Could be understood as Ros2cs destructor. Can be called from GC if Shutdown
+    /// was not called explicitly. Also, handles context finalization. </remarks>
     private sealed class Destructor
     {
       ~Destructor()
@@ -223,8 +223,8 @@ namespace ROS2
     }
 
     /// <summary> Create a ros2 (rcl) node using default node options. </summary>
-    /// <description> Creates a node in the global context and adds it to an internal collection.
-    /// Checks for name uniqueness. Throws if name is not unique or Ok() is not true. </description>
+    /// <remarks> Creates a node in the global context and adds it to an internal collection.
+    /// Checks for name uniqueness. Throws if name is not unique or Ok() is not true. </remarks>
     /// <param name="nodeName"> A valid node name, which will be first checked for uniqueness,
     /// then validated inside rcl according to naming rules (will throw exception if invalid). </param>
     /// <returns> INode interface, which can be used to create subs and pubs </returns>
@@ -234,8 +234,8 @@ namespace ROS2
     }
 
     /// <summary> Create a ros2 (rcl) node using explicit node options. </summary>
-    /// <description> Creates a node in the global context and adds it to an internal collection.
-    /// Checks for name uniqueness. Throws if name is not unique or Ok() is not true. </description>
+    /// <remarks> Creates a node in the global context and adds it to an internal collection.
+    /// Checks for name uniqueness. Throws if name is not unique or Ok() is not true. </remarks>
     /// <param name="nodeName"> A valid node name, which will be first checked for uniqueness,
     /// then validated inside rcl according to naming rules (will throw exception if invalid). </param>
     /// <param name="options"> Options applied to native node defaults before creation. </param>
@@ -304,11 +304,11 @@ namespace ROS2
     }
 
     /// <summary> Spin on a single node </summary>
-    /// <description> Spin should be called in a dedicate spinning thread in your
+    /// <remarks> Spin should be called in a dedicate spinning thread in your
     /// application layer since it runs in a blocking infinite loop. Will return when some work is
     /// executed (a callback for each subscription that received a message) or after a timeout.
-    /// Note that you don't need to spin if you are only publishing (like in ros2) </description>
-    /// <remarks> Only subscriptions are executed currently, no timers or other executables.
+    /// Note that you don't need to spin if you are only publishing (like in ros2).
+    /// Only subscriptions are executed currently, no timers or other executables.
     /// Shutdown waits for an in-flight wait-set wait to return, so shutdown latency can be up to
     /// timeoutSec. If no entities are registered, SpinOnce returns immediately and Shutdown does not
     /// wait for the caller-side empty-spin sleep. </remarks>
@@ -320,6 +320,7 @@ namespace ROS2
       {
         if (!SpinOnce(node, timeoutSec))
         {
+          // No entities registered; sleep to avoid busy-waiting before retrying.
           Thread.Sleep(TimeSpan.FromSeconds(timeoutSec));
         }
       }
@@ -336,14 +337,15 @@ namespace ROS2
       {
         if (!SpinOnce(nodes, timeoutSec))
         {
+          // No entities registered; sleep to avoid busy-waiting before retrying.
           Thread.Sleep(TimeSpan.FromSeconds(timeoutSec));
         }
       }
     }
 
     /// <summary> Spin only once </summary>
-    /// <description> This overload is meant for when the while loop is better to
-    /// handle in the application layer  </description>
+    /// <remarks> This overload is meant for when the while loop is better to
+    /// handle in the application layer. </remarks>
     /// <returns> Whether the wait set was populated and waited on. Timeout with entities returns true. </returns>
     /// <see cref="Spin(INode,double)"/>
     public static bool SpinOnce(INode node, double timeoutSec = 0.1)

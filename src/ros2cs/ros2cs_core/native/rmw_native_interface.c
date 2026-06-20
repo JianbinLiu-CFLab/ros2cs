@@ -48,6 +48,7 @@ static void set_rmw_time_from_nanoseconds(struct rmw_time_s * target, uint64_t n
 ROSIDL_GENERATOR_C_EXPORT
 rmw_qos_profile_t * rmw_native_interface_create_qos_profile(int profile)
 {
+  // These local ordinals must match ROS2.QosPresetProfile in managed code.
   enum
   {
      SENSOR_DATA,
@@ -83,12 +84,18 @@ rmw_qos_profile_t * rmw_native_interface_create_qos_profile(int profile)
 ROSIDL_GENERATOR_C_EXPORT
 const char* rmw_native_interface_get_implementation_identifier()
 {
+  // rmw owns this static string. Managed code must marshal it without freeing it.
   return rmw_get_implementation_identifier();
 }
 
 ROSIDL_GENERATOR_C_EXPORT
 void rmw_native_interface_delete_qos_profile(rmw_qos_profile_t * profile)
 {
+  // Dispose can be called from failed managed construction paths; NULL is a no-op.
+  if (profile == NULL)
+  {
+    return;
+  }
   free(profile);
 }
 
@@ -100,6 +107,7 @@ void rmw_native_interface_set_history(rmw_qos_profile_t * profile, int history_m
     return;
   }
   profile->history = history_mode;
+  // Managed QoS validation rejects non-positive KeepLast depth before this size_t cast.
   profile->depth = (size_t)history_depth;
 }
 

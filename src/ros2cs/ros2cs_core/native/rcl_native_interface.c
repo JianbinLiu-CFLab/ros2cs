@@ -38,12 +38,14 @@
 
 typedef struct rclcs_string_array_s
 {
+  // Fork-specific flattened string array for C# marshalling; not an rcl/rcutils ABI type.
   char ** data;
   size_t size;
 } rclcs_string_array_t;
 
 typedef struct rclcs_topic_names_and_types_s
 {
+  // Fork-specific flattened graph result owned by managed code until dispose.
   char ** names;
   rclcs_string_array_t * types;
   size_t size;
@@ -69,6 +71,7 @@ int rclcs_init(rcl_context_t *context, rcl_allocator_t allocator)
   ret = rcl_init_options_fini(&init_options);
   if (ret != RCL_RET_OK)
   {
+    // Treat init-options cleanup failure as init failure and close the already-valid context.
     rcl_shutdown(context);
     rcl_context_fini(context);
   }
@@ -102,6 +105,7 @@ size_t rclcs_sizeof_rcl_rmw_request_id_t()
 ROSIDL_GENERATOR_C_EXPORT
 rcl_node_options_t * rclcs_node_create_default_options()
 {
+  // Caller owns the malloc allocation and must release it with rclcs_node_dispose_options.
   rcl_node_options_t  * default_node_options_handle = (rcl_node_options_t *)malloc(sizeof(rcl_node_options_t));
   if (default_node_options_handle == NULL)
   {
@@ -125,6 +129,7 @@ int rclcs_node_options_set_enable_rosout(rcl_node_options_t * node_options_handl
 ROSIDL_GENERATOR_C_EXPORT
 int rclcs_node_dispose_options(rcl_node_options_t * node_options_handle)
 {
+  // Node options have an rcl fini function; return its status after freeing the wrapper allocation.
   if (node_options_handle == NULL)
   {
     return RCL_RET_OK;
@@ -137,6 +142,7 @@ int rclcs_node_dispose_options(rcl_node_options_t * node_options_handle)
 ROSIDL_GENERATOR_C_EXPORT
 rcl_subscription_options_t *rclcs_subscription_create_options(rmw_qos_profile_t * qos)
 {
+  // Caller owns the malloc allocation and must release it with rclcs_subscription_dispose_options.
   rcl_subscription_options_t  * default_subscription_options_handle = (rcl_subscription_options_t *)malloc(sizeof(rcl_subscription_options_t));
   if (default_subscription_options_handle == NULL)
   {
@@ -155,6 +161,7 @@ rcl_subscription_options_t *rclcs_subscription_create_options(rmw_qos_profile_t 
 ROSIDL_GENERATOR_C_EXPORT
 int rclcs_subscription_dispose_options(rcl_subscription_options_t *subscription_options_handle)
 {
+  // Subscription options have an rcl fini function; return its status after freeing the allocation.
   if (subscription_options_handle == NULL)
   {
     return RCL_RET_OK;
@@ -167,6 +174,7 @@ int rclcs_subscription_dispose_options(rcl_subscription_options_t *subscription_
 ROSIDL_GENERATOR_C_EXPORT
 rcl_publisher_options_t *rclcs_publisher_create_options(rmw_qos_profile_t * qos)
 {
+  // Caller owns the malloc allocation and must release it with rclcs_publisher_dispose_options.
   rcl_publisher_options_t *default_publisher_options_handle = (rcl_publisher_options_t *)malloc(sizeof(rcl_publisher_options_t));
   if (default_publisher_options_handle == NULL)
   {
@@ -196,6 +204,7 @@ void rclcs_publisher_dispose_options(rcl_publisher_options_t * publisher_options
 ROSIDL_GENERATOR_C_EXPORT
 rcl_client_options_t *rclcs_client_create_options(rmw_qos_profile_t * qos)
 {
+  // Caller owns the malloc allocation and must release it with rclcs_client_dispose_options.
   rcl_client_options_t *default_client_options_handle = (rcl_client_options_t *)malloc(sizeof(rcl_client_options_t));
   if (default_client_options_handle == NULL)
   {
@@ -225,6 +234,7 @@ void rclcs_client_dispose_options(rcl_client_options_t * client_options_handle)
 ROSIDL_GENERATOR_C_EXPORT
 rcl_service_options_t *rclcs_service_create_options(rmw_qos_profile_t * qos)
 {
+  // Caller owns the malloc allocation and must release it with rclcs_service_dispose_options.
   rcl_service_options_t *default_service_options_handle = (rcl_service_options_t *)malloc(sizeof(rcl_service_options_t));
   if (default_service_options_handle == NULL)
   {
@@ -254,6 +264,7 @@ void rclcs_service_dispose_options(rcl_service_options_t * service_options_handl
 ROSIDL_GENERATOR_C_EXPORT
 char * rclcs_get_error_string()
 {
+  // strdup transfers ownership to managed code; dispose with rclcs_dispose_error_string.
   rcl_error_string_t error_string = rcl_get_error_string();
   char * error_c_string = strdup(error_string.str);
   return error_c_string;
@@ -300,6 +311,7 @@ int rclcs_get_topic_names_and_types(
   bool no_demangle,
   rclcs_topic_names_and_types_t ** result)
 {
+  // C bool is 1 byte; managed delegates must use UnmanagedType.I1 for no_demangle.
   if (result == NULL)
   {
     return RCL_RET_INVALID_ARGUMENT;
@@ -312,6 +324,8 @@ int rclcs_get_topic_names_and_types(
 
   rcl_allocator_t allocator = rcl_get_default_allocator();
   rcl_names_and_types_t names_and_types = rcl_get_zero_initialized_names_and_types();
+  // rcl_names_and_types_t owns nested rcutils string arrays. Flatten them into a fork-specific
+  // result so C# does not directly marshal rcutils allocator-owned char*** structures.
   rcl_ret_t ret = rcl_get_topic_names_and_types(
     node,
     &allocator,
@@ -390,7 +404,7 @@ ROSIDL_GENERATOR_C_EXPORT
 rcl_clock_t * rclcs_ros_clock_create(rcl_allocator_t * allocator_handle)
 {
   rcl_clock_t  * clock_handle = (rcl_clock_t *)malloc(sizeof(rcl_clock_t));
-  // Return NULL on allocation failure so managed code can throw a clear creation error.
+  // Return NULL on allocation or rcl_ros_clock_init failure so managed code can throw clearly.
   if (clock_handle == NULL)
   {
     return NULL;

@@ -1,6 +1,11 @@
+# Local vcs-import workspaces; dependencies are described by *.repos files instead.
 external
 ros2
+
+# Local custom message imports.
 src/custom_messages
+
+# Local colcon outputs.
 install
 build
 log

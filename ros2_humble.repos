@@ -1,3 +1,8 @@
+# Modifications Copyright (c) 2026 Jianbin Liu.
+#
+# Modifications by Jianbin Liu:
+# - Added legacy/unmaintained status header.
+#
 # Legacy distro file - not maintained on JianbinLiu-CFLab/main.
 # Use ros2_jazzy.repos for the active maintenance line.
 

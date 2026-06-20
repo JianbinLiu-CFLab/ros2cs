@@ -28,6 +28,10 @@ using System.Runtime.InteropServices;
 namespace ROS2
 {
   /// <summary>Shared owner for the ros2cs native wrapper library.</summary>
+  /// <remarks>
+  /// Keeping this handle rooted prevents the native library from being unloaded while delegates
+  /// created from its symbols are still reachable.
+  /// </remarks>
   internal static class NativeRos2csLibrary
   {
     internal static readonly DllLoadUtils DllLoadUtils = DllLoadUtilsFactory.GetDllLoadUtils();
@@ -99,6 +103,7 @@ namespace ROS2
     }
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Returned pointer is strdup-owned by managed code; call rclcs_dispose_error_string.
     internal delegate IntPtr GetErrorStringType();
     internal static GetErrorStringType
         rclcs_get_error_string =
@@ -108,6 +113,7 @@ namespace ROS2
         typeof(GetErrorStringType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Disposes the strdup buffer returned by rclcs_get_error_string.
     internal delegate void DisposeErrorStringType(IntPtr error_c_string);
     internal static DisposeErrorStringType
         rclcs_dispose_error_string =
@@ -117,6 +123,7 @@ namespace ROS2
         typeof(DisposeErrorStringType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Returned pointer is malloc-owned by managed code; release with rclcs_node_dispose_options.
     internal delegate IntPtr NodeCreateDefaultOptionsType();
     internal static NodeCreateDefaultOptionsType
         rclcs_node_create_default_options =
@@ -128,6 +135,7 @@ namespace ROS2
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate int NodeOptionsSetEnableRosoutType(
         IntPtr options,
+        // C bool is 1 byte; prevent the default 4-byte Windows BOOL marshalling.
         [MarshalAs(UnmanagedType.I1)] bool enableRosout);
     internal static NodeOptionsSetEnableRosoutType
         rclcs_node_options_set_enable_rosout =
@@ -137,6 +145,7 @@ namespace ROS2
         typeof(NodeOptionsSetEnableRosoutType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Returns an rcl fini status because node options have rcl_node_options_fini.
     internal delegate int NodeDisposeOptionsType(IntPtr options);
     internal static NodeDisposeOptionsType
         rclcs_node_dispose_options =
@@ -146,6 +155,7 @@ namespace ROS2
         typeof(NodeDisposeOptionsType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Returned pointer is malloc-owned by managed code; release with rclcs_subscription_dispose_options.
     internal delegate IntPtr SubscriptionCreateOptionsType(IntPtr qos);
     internal static SubscriptionCreateOptionsType
         rclcs_subscription_create_options =
@@ -155,6 +165,7 @@ namespace ROS2
         typeof(SubscriptionCreateOptionsType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Returns an rcl fini status because subscription options have rcl_subscription_options_fini.
     internal delegate int SubscriptionDisposeOptionsType(IntPtr options);
     internal static SubscriptionDisposeOptionsType
         rclcs_subscription_dispose_options =
@@ -164,6 +175,7 @@ namespace ROS2
         typeof(SubscriptionDisposeOptionsType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Returned pointer is malloc-owned by managed code; release with rclcs_publisher_dispose_options.
     internal delegate IntPtr PublisherCreateOptionsType(IntPtr qos);
     internal static PublisherCreateOptionsType
         rclcs_publisher_create_options =
@@ -173,6 +185,7 @@ namespace ROS2
         typeof(PublisherCreateOptionsType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Void because Jazzy exposes no rcl_publisher_options_fini; native code frees plain values.
     internal delegate void PublisherDisposeOptionsType(IntPtr options);
     internal static PublisherDisposeOptionsType
         rclcs_publisher_dispose_options =
@@ -182,6 +195,7 @@ namespace ROS2
         typeof(PublisherDisposeOptionsType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Returned pointer is malloc-owned by managed code; release with rclcs_client_dispose_options.
     internal delegate IntPtr ClientCreateOptionsType(IntPtr qos);
     internal static ClientCreateOptionsType
         rclcs_client_create_options =
@@ -191,6 +205,7 @@ namespace ROS2
         typeof(ClientCreateOptionsType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Void because Jazzy exposes no rcl_client_options_fini; native code frees plain values.
     internal delegate void ClientDisposeOptionsType(IntPtr options);
     internal static ClientDisposeOptionsType
         rclcs_client_dispose_options =
@@ -200,6 +215,7 @@ namespace ROS2
         typeof(ClientDisposeOptionsType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Returned pointer is malloc-owned by managed code; release with rclcs_service_dispose_options.
     internal delegate IntPtr ServiceCreateOptionsType(IntPtr qos);
     internal static ServiceCreateOptionsType
         rclcs_service_create_options =
@@ -209,6 +225,7 @@ namespace ROS2
         typeof(ServiceCreateOptionsType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Void because Jazzy exposes no rcl_service_options_fini; native code frees plain values.
     internal delegate void ServiceDisposeOptionsType(IntPtr options);
     internal static ServiceDisposeOptionsType
         rclcs_service_dispose_options =
@@ -218,6 +235,7 @@ namespace ROS2
         typeof(ServiceDisposeOptionsType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Returns an opaque heap-allocated rcl_clock_t owned by managed Clock.
     internal delegate IntPtr RclcsClockCreate(ref rcl_allocator_t allocator_handle);
     internal static RclcsClockCreate
         rclcs_ros_clock_create =
@@ -227,6 +245,7 @@ namespace ROS2
         typeof(RclcsClockCreate));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Finalizes and frees the opaque rcl_clock_t returned by rclcs_ros_clock_create.
     internal delegate void RclcsClockDispose(IntPtr clock_handle);
     internal static RclcsClockDispose
         rclcs_ros_clock_dispose =
@@ -238,6 +257,7 @@ namespace ROS2
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate int GetTopicNamesAndTypesType(
         ref rcl_node_t node,
+        // C bool is 1 byte; prevent the default 4-byte Windows BOOL marshalling.
         [MarshalAs(UnmanagedType.I1)] bool noDemangle,
         out IntPtr result);
     internal static GetTopicNamesAndTypesType
@@ -248,6 +268,7 @@ namespace ROS2
         typeof(GetTopicNamesAndTypesType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Disposes the flattened graph result returned by rclcs_get_topic_names_and_types.
     internal delegate void DisposeTopicNamesAndTypesType(IntPtr result);
     internal static DisposeTopicNamesAndTypesType
         rclcs_dispose_topic_names_and_types =

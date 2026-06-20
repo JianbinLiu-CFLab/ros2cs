@@ -1,12 +1,31 @@
-# Modifications Copyright (c) 2026 Jianbin Liu.
-#
-# Modifications by Jianbin Liu:
-# - Added ROS environment checks and preserved failing test-result exit codes.
-# - Added custom colcon build/install base forwarding.
-# - Added test evidence metadata output.
-# - Added build-distro marker validation and zero-test-result rejection.
-# - Cleared stale colcon test result XML before each test run.
-# - Aligned local test package selection with CI.
+<#
+.SYNOPSIS
+    Runs the local ros2cs test gate.
+.DESCRIPTION
+    Executes colcon test for rosidl_generator_cs and ros2cs_tests, then always
+    runs colcon test-result so failing tests still print diagnostics. The script
+    also rejects stale/zero test results and writes local test evidence metadata.
+.PARAMETER build_base
+    Optional colcon build base directory. Can also be set with ROS2CS_BUILD_BASE.
+.PARAMETER install_base
+    Optional colcon install base directory. Can also be set with ROS2CS_INSTALL_BASE.
+.PARAMETER help
+    Show help and exit.
+
+Based on upstream RobotecAI ros2cs scripts, Apache-2.0.
+Modifications Copyright (c) 2026 Jianbin Liu.
+
+Modifications by Jianbin Liu:
+- Added ROS environment checks and preserved failing test-result exit codes.
+- Added custom colcon build/install base forwarding.
+- Added test evidence metadata output.
+- Added build-distro marker validation and zero-test-result rejection.
+- Cleared stale colcon test result XML before each test run.
+- Aligned local test package selection with CI.
+
+Fail-fast PowerShell settings are enabled immediately after parameter parsing;
+colcon exit codes are captured explicitly later so test-result diagnostics still run.
+#>
 
 Param (
     [Parameter(Mandatory=$false)][switch]$help=$false,
@@ -31,6 +50,7 @@ if ([string]::IsNullOrEmpty($Env:ROS_DISTRO)) {
     exit 1
 }
 
+# Validate to prevent path injection; ROS_DISTRO is interpolated into marker and repos filenames.
 if ($Env:ROS_DISTRO -notmatch '^[a-z][a-z0-9_]*$') {
     Write-Host "Invalid ROS_DISTRO value: '$Env:ROS_DISTRO'." -ForegroundColor Red
     exit 1
@@ -165,6 +185,7 @@ $effectiveBuildBase = Get-EffectiveBuildBase -BuildBase $build_base
 $effectiveInstallBase = Get-EffectiveInstallBase -InstallBase $install_base
 Assert-TestDistroMatchesBuild -InstallBase $effectiveInstallBase
 Clear-ColconTestResults -BuildBase $effectiveBuildBase
+# --merge-install matches the build layout and keeps install/setup.* sourcing simple.
 $testArgs = @("test", "--merge-install", "--packages-select", "rosidl_generator_cs", "ros2cs_tests")
 $resultArgs = @("test-result", "--verbose")
 

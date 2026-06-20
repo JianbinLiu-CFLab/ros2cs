@@ -25,13 +25,17 @@ using System.Collections.Generic;
 namespace ROS2
 {
   /// <summary> A simple structure to hold seconds and nanoseconds </summary>
-  /// <description> This is meant to be an intermediate data object before time is packed into
-  /// a rosgraph clock message or into a different format native to application layer </description>
+  /// <remarks> This is meant to be an intermediate data object before time is packed into
+  /// a rosgraph clock message or into a different format native to application layer. </remarks>
   public struct RosTime
   {
+    /// <summary>Whole seconds component matching <c>builtin_interfaces/msg/Time.sec</c>.</summary>
     public int sec;
+
+    /// <summary>Sub-second nanoseconds component matching <c>builtin_interfaces/msg/Time.nanosec</c>.</summary>
     public uint nanosec;
 
+    /// <summary>Total time represented as seconds, including the fractional nanosecond component.</summary>
     public double Seconds
     {
       get { return sec + nanosec/1e9; }
@@ -98,6 +102,11 @@ namespace ROS2
       return time;
     }
 
+    /// <summary>Create a standalone ROS clock wrapper using the default rcl allocator.</summary>
+    /// <remarks>
+    /// The native clock handle is heap-allocated by the ros2cs wrapper. A zero handle means
+    /// allocation or <c>rcl_ros_clock_init</c> failed, and the current rcl error string is surfaced.
+    /// </remarks>
     public Clock()
     {
       rcl_allocator_t allocator = DefaultAllocator;

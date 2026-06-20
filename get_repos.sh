@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Based on upstream RobotecAI ros2cs scripts, Apache-2.0.
 # Modifications Copyright (c) 2026 Jianbin Liu.
 #
 # Modifications by Jianbin Liu:
@@ -19,6 +20,7 @@ if [ -z "${ROS_DISTRO:-}" ]; then
     exit 1
 fi
 
+# Validate to prevent path injection; ROS_DISTRO is interpolated into a repos filename.
 if [[ ! "$ROS_DISTRO" =~ ^[a-z][a-z0-9_]*$ ]]; then
     echo "Invalid ROS_DISTRO value: '$ROS_DISTRO'."
     exit 1
@@ -39,12 +41,14 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Worker count is a throughput policy; import correctness must not depend on a specific value.
 if [ -z "$VCS_WORKERS" ]; then
     if command -v nproc >/dev/null 2>&1; then
         VCS_WORKERS="$(nproc)"
     elif command -v getconf >/dev/null 2>&1; then
         VCS_WORKERS="$(getconf _NPROCESSORS_ONLN)"
     else
+        # Conservative fallback for minimal shells without CPU-count helpers.
         VCS_WORKERS="1"
     fi
 fi

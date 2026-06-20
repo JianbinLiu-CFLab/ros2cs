@@ -34,6 +34,7 @@ namespace ROS2
     private static readonly IntPtr nativeRMW = NativeRos2csLibrary.Ptr;
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Returns a static rmw-owned string; managed code must marshal without freeing it.
     internal delegate IntPtr RMWImplementationIdentifier();
     internal static RMWImplementationIdentifier
         rmw_native_interface_get_implementation_identifier =
@@ -43,6 +44,7 @@ namespace ROS2
         typeof(RMWImplementationIdentifier));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Returned QoS profile is malloc-owned by managed code; release with delete_qos_profile.
     internal delegate IntPtr RMWNativeCreateQoSProfileIdentifierType(int preset_profile);
     internal static RMWNativeCreateQoSProfileIdentifierType
       rmw_native_interface_create_qos_profile =
@@ -52,6 +54,7 @@ namespace ROS2
       typeof(RMWNativeCreateQoSProfileIdentifierType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // Native delete treats IntPtr.Zero as a no-op for failed construction paths.
     internal delegate void RMWNativeDeleteQoSProfileIdentifierType(IntPtr profile);
     internal static RMWNativeDeleteQoSProfileIdentifierType
       rmw_native_interface_delete_qos_profile =
@@ -61,6 +64,7 @@ namespace ROS2
       typeof(RMWNativeDeleteQoSProfileIdentifierType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    // depth is validated in managed QoS code before native casts the int to size_t.
     internal delegate void RMWNativeSetHistoryIdentifierType(IntPtr profile, int mode, int depth);
     internal static RMWNativeSetHistoryIdentifierType
       rmw_native_interface_set_history =

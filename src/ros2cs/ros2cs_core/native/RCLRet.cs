@@ -19,7 +19,13 @@
 
 namespace ROS2
 {
-  /// <summary> Codes returned from rcl C library (updated for Galactic) </summary>
+  /// <summary>
+  /// Codes returned from the rcl C library.
+  /// </summary>
+  /// <remarks>
+  /// Numeric values must stay synchronized with ROS 2 <c>rcl/types.h</c>; managed
+  /// error handling compares these literal values across the native boundary.
+  /// </remarks>
   public enum RCLReturnEnum
 	{
     RCL_RET_OK = 0,

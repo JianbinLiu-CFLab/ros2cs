@@ -22,48 +22,48 @@ using System.Collections.Generic;
 namespace ROS2
 {
   /// <summary> Ros2cs node, created with Ros2cs.CreateNode and supporting use of publishers and subscribers </summary>
-  /// <description> Is automatically disposed when Ros2cs.Shutdown is called.
-  /// Can also be disposed through IDisposable interface. Ros2cs.RemoveNode should be called in such case </description>
-  // TODO(adamdbrw) wrap disposing so that user does not need to handle anything
+  /// <remarks> Is automatically disposed when Ros2cs.Shutdown is called.
+  /// Can also be disposed through IDisposable interface. Ros2cs.RemoveNode should be called in such case. </remarks>
+  // Direct Dispose is supported; Ros2cs prunes disposed nodes before enforcing name uniqueness.
   public interface INode: IExtendedDisposable
   {
     /// <summary> Node name as given in Ros2cs.CreateNode </summary>
     string Name {get;}
 
     /// <summary> Count publishers currently visible for a topic in this node's local ROS graph cache. </summary>
-    /// <description> The ROS graph is updated asynchronously by DDS; callers may need to poll after endpoint creation or teardown. </description>
+    /// <remarks> The ROS graph is updated asynchronously by DDS; callers may need to poll after endpoint creation or teardown. </remarks>
     /// <param name="topicName"> Fully qualified topic name passed through to rcl. Naming restrictions of ros2 apply and violation results in an exception. </param>
     /// <returns> Number of visible publishers for the topic. </returns>
     int CountPublishers(string topicName);
 
     /// <summary> Count subscribers currently visible for a topic in this node's local ROS graph cache. </summary>
-    /// <description> The ROS graph is updated asynchronously by DDS; callers may need to poll after endpoint creation or teardown. </description>
+    /// <remarks> The ROS graph is updated asynchronously by DDS; callers may need to poll after endpoint creation or teardown. </remarks>
     /// <param name="topicName"> Fully qualified topic name passed through to rcl. Naming restrictions of ros2 apply and violation results in an exception. </param>
     /// <returns> Number of visible subscribers for the topic. </returns>
     int CountSubscribers(string topicName);
 
     /// <summary> Wait up to a bounded timeout for a publisher to become visible for a topic. </summary>
-    /// <description> Polls this node's local ROS graph cache and returns false on timeout. The topic name is passed through to rcl without normalization. Throws the same node usability exceptions as CountPublishers. </description>
+    /// <remarks> Polls this node's local ROS graph cache and returns false on timeout. The topic name is passed through to rcl without normalization. Throws the same node usability exceptions as CountPublishers. </remarks>
     /// <param name="topicName"> Topic name passed through to rcl. </param>
     /// <param name="timeout"> Maximum time to wait. </param>
     /// <returns> Whether at least one publisher became visible before timeout. </returns>
     bool TryWaitForPublisher(string topicName, TimeSpan timeout);
 
     /// <summary> Wait up to a bounded timeout for a subscriber to become visible for a topic. </summary>
-    /// <description> Polls this node's local ROS graph cache and returns false on timeout. The topic name is passed through to rcl without normalization. Throws the same node usability exceptions as CountSubscribers. </description>
+    /// <remarks> Polls this node's local ROS graph cache and returns false on timeout. The topic name is passed through to rcl without normalization. Throws the same node usability exceptions as CountSubscribers. </remarks>
     /// <param name="topicName"> Topic name passed through to rcl. </param>
     /// <param name="timeout"> Maximum time to wait. </param>
     /// <returns> Whether at least one subscriber became visible before timeout. </returns>
     bool TryWaitForSubscriber(string topicName, TimeSpan timeout);
 
     /// <summary> Get topic names and type names currently visible in this node's local ROS graph cache. </summary>
-    /// <description> The ROS graph is updated asynchronously by DDS; callers may need to poll after endpoint creation or teardown. </description>
+    /// <remarks> The ROS graph is updated asynchronously by DDS; callers may need to poll after endpoint creation or teardown. </remarks>
     /// <param name="noDemangle"> Whether rcl should skip ROS topic name demangling. Defaults to false to match ROS graph tooling. </param>
     /// <returns> Visible topic names with their associated type names. </returns>
     IReadOnlyList<TopicNamesAndTypes> GetTopicNamesAndTypes(bool noDemangle = false);
 
     /// <summary> Create a client for this node for a given topic, qos and message type </summary>
-    /// <description> Can only be called in an initialized Ros2cs state. </description>
+    /// <remarks> Can only be called in an initialized Ros2cs state. </remarks>
     /// <param name="topic"> Topic for the client. Naming restrictions of ros2 apply and violation results in an exception </param>
     /// <param name="qos"> Quality of Client settings. Not passing this parameter will result in default settings. The profile is copied during creation; later profile mutations do not affect this client. </param>
     /// <returns> Client for the topic, which can be used to send service requests </returns>
@@ -76,7 +76,7 @@ namespace ROS2
     bool RemoveClient(IClientBase client);
 
     /// <summary> Create a service for this node for a given topic, callback, qos and message type </summary>
-    /// <description> Can only be called in an initialized Ros2cs state. </description>
+    /// <remarks> Can only be called in an initialized Ros2cs state. </remarks>
     /// <param name="topic"> Topic to service to. Naming restrictions of ros2 apply and violation results in an exception </param>
     /// <param name="callback"> Action to be called when message is received (through Spin or SpinOnce). The message passed to this callback is owned and disposed by ros2cs. Provide a lambda or a method </param>
     /// <param name="qos"> Quality of Service settings. Not passing this parameter will result in default settings. The profile is copied during creation; later profile mutations do not affect this service. </param>
@@ -90,14 +90,14 @@ namespace ROS2
     bool RemoveService(IServiceBase service);
 
     /// <summary> Create a publisher for this node for a given topic, qos and message type </summary>
-    /// <description> Can only be called in an initialized Ros2cs state. </description>
+    /// <remarks> Can only be called in an initialized Ros2cs state. </remarks>
     /// <param name="topic"> Topic for the publisher. Naming restrictions of ros2 apply and violation results in an exception </param>
     /// <param name="qos"> Quality of Service settings. Not passing this parameter will result in default settings. The profile is copied during creation; later profile mutations do not affect this publisher. </param>
     /// <returns> Publisher for the topic, which can be used to publish messages </returns>
     Publisher<T> CreatePublisher<T>(string topic, QualityOfServiceProfile qos = null) where T : Message, new();
 
     /// <summary> Create a subscription for this node for a given topic, callback, qos and message type </summary>
-    /// <description> Can only be called in an initialized Ros2cs state. </description>
+    /// <remarks> Can only be called in an initialized Ros2cs state. </remarks>
     /// <param name="topic"> Topic to subscribe to. Naming restrictions of ros2 apply and violation results in an exception </param>
     /// <param name="callback"> Action to be called when message is received (through Spin or SpinOnce). The message passed to this callback is owned and disposed by ros2cs. Provide a lambda or a method </param>
     /// <param name="qos"> Quality of Service settings. Not passing this parameter will result in default settings. The profile is copied during creation; later profile mutations do not affect this subscription. </param>

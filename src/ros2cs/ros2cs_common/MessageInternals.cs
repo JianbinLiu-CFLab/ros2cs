@@ -34,9 +34,16 @@ namespace ROS2
     /// </remarks>
     public interface MessageInternals
     {
+      /// <summary>Pointer to the native rcl message struct. Valid only while the message is not disposed.</summary>
       IntPtr Handle { get; }
+
+      /// <summary>Process-stable pointer to the rosidl type-support struct for this message type.</summary>
       IntPtr TypeSupportHandle { get; }
+
+      /// <summary>Copy field values from the native message struct into managed properties.</summary>
       void ReadNativeMessage();
+
+      /// <summary>Copy managed property values into the native message struct before publishing or service replies.</summary>
       void WriteNativeMessage();
     }
 
@@ -65,6 +72,14 @@ namespace ROS2
         return messageInternals;
       }
 
+      /// <summary>
+      /// Get the cached type-support handle for a generated message type.
+      /// </summary>
+      /// <remarks>
+      /// The first lookup creates a temporary message instance, reads its generated
+      /// <see cref="MessageInternals.TypeSupportHandle"/>, disposes the temporary message,
+      /// and caches the process-stable handle for later calls.
+      /// </remarks>
       internal static IntPtr GetTypeSupportHandle<T>() where T : Message, new()
       {
         Type messageType = typeof(T);

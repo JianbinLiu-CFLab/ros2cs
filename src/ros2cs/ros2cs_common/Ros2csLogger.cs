@@ -25,11 +25,16 @@ using System.IO;
 
 namespace ROS2
 {
+  /// <summary>Severity threshold used by <see cref="Ros2csLogger"/>.</summary>
   public enum LogLevel
   {
+    /// <summary>Diagnostic messages intended for development and detailed troubleshooting.</summary>
     DEBUG,
+    /// <summary>Informational runtime messages.</summary>
     INFO,
+    /// <summary>Recoverable or noteworthy runtime warnings.</summary>
     WARNING,
+    /// <summary>Errors that indicate an operation failed or a callback threw.</summary>
     ERROR
   }
 
@@ -43,7 +48,10 @@ namespace ROS2
     private static readonly object LoggerMutex = new object();
     private static volatile LogLevel _logLevel;
 
+    /// <summary>Application-provided logging sink invoked with the formatted ros2cs message.</summary>
     public delegate void Callback(object message);
+
+    /// <summary>Application-provided handler for exceptions thrown by logging callbacks.</summary>
     public delegate void CallbackExceptionHandler(LogLevel level, object message, Exception exception);
 
     private static readonly string[] LevelNames = new string[]
@@ -115,6 +123,10 @@ namespace ROS2
       return Instance.Value;
     }
 
+    /// <summary>
+    /// Write to stderr, swallowing console errors from headless processes, Unity domain reloads,
+    /// or runtimes where the console handle has already been closed.
+    /// </summary>
     private static void TryWriteConsoleError(string message)
     {
       try
@@ -143,6 +155,10 @@ namespace ROS2
         message);
     }
 
+    /// <summary>
+    /// Write to stdout, swallowing console errors from headless processes, Unity domain reloads,
+    /// or runtimes where the console handle has already been closed.
+    /// </summary>
     private static void TryWriteConsoleLine(string line)
     {
       try
@@ -210,26 +226,37 @@ namespace ROS2
       }
     }
 
+    /// <summary>Log an informational message.</summary>
     public void LogInfo(String message)
     {
       Log(LogLevel.INFO, message);
     }
 
+    /// <summary>Log a warning message.</summary>
     public void LogWarning(String message)
     {
       Log(LogLevel.WARNING, message);
     }
 
+    /// <summary>Log an error message.</summary>
     public void LogError(String message)
     {
       Log(LogLevel.ERROR, message);
     }
 
+    /// <summary>Log a DEBUG message that has already been constructed.</summary>
     public void LogDebug(String message)
     {
       Log(LogLevel.DEBUG, message);
     }
 
+    /// <summary>
+    /// Log a DEBUG message using a deferred factory.
+    /// </summary>
+    /// <remarks>
+    /// The factory is invoked only when DEBUG logging is enabled, avoiding string allocation
+    /// and expensive formatting on hotter paths.
+    /// </remarks>
     public void LogDebug(Func<string> messageFactory)
     {
       // This fast path intentionally reads the volatile level outside LoggerMutex to avoid

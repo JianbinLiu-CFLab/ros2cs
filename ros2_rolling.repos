@@ -1,3 +1,8 @@
+# Modifications Copyright (c) 2026 Jianbin Liu.
+#
+# Modifications by Jianbin Liu:
+# - Added legacy/unmaintained status header.
+#
 # Unmaintained on JianbinLiu-CFLab/main.
 # This file tracks upstream Rolling/HEAD-style branches and is not verified for
 # the active Jazzy maintenance line.

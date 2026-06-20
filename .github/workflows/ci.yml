@@ -11,11 +11,15 @@ jobs:
     name: Jazzy ros2cs tests
     runs-on: ubuntu-24.04
     container:
+      # CI is intentionally scoped to the active Jazzy maintenance line.
+      # Other distro files are retained for local/manual review, not matrix claims.
       image: ros:jazzy
 
     env:
+      # CI hygiene only: suppress telemetry and SDK banner noise; does not affect build output.
       DOTNET_CLI_TELEMETRY_OPTOUT: "1"
       DOTNET_NOLOGO: "1"
+      # Match the cache path below inside the ros:jazzy container so sccache writes to restored storage.
       SCCACHE_DIR: /github/home/.cache/sccache
 
     steps:
@@ -32,6 +36,7 @@ jobs:
       - name: Install .NET 10 SDK
         uses: actions/setup-dotnet@v4
         with:
+          # Tests/examples use the current preview SDK line while libraries remain netstandard2.0.
           dotnet-version: 10.0.x
 
       - name: Cache NuGet packages
@@ -65,7 +70,10 @@ jobs:
         working-directory: ros2cs_ws
         run: |
           . /opt/ros/jazzy/setup.sh
+          # Reset counters so the later stats step reports only this build.
           sccache --zero-stats
+          # Build the selected test package and all dependencies needed to compile it.
+          # --merge-install keeps one install tree, matching the setup.sh sourcing used below.
           colcon build \
             --packages-up-to ros2cs_tests \
             --merge-install \
@@ -80,6 +88,8 @@ jobs:
         run: |
           . /opt/ros/jazzy/setup.sh
           . install/setup.sh
+          # Build examples plus dependencies so the later service/client smoke can run.
+          # --merge-install keeps one install tree, matching the setup.sh sourcing used below.
           colcon build \
             --packages-up-to ros2cs_examples \
             --merge-install \
@@ -98,6 +108,9 @@ jobs:
           . /opt/ros/jazzy/setup.sh
           . install/setup.sh
           find build -type d \( -name test_results -o -name Testing \) -prune -exec rm -rf {} +
+          # Keep test-result running even when colcon test fails, so CI logs include per-test diagnostics.
+          # Run only these test packages; build used --packages-up-to to compile dependencies.
+          # --merge-install matches the build layout and sourced install/setup.sh.
           set +e
           colcon test \
             --packages-select rosidl_generator_cs ros2cs_tests \

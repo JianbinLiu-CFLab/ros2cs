@@ -53,12 +53,12 @@ namespace ROS2
       Handle = NativeRcl.rcl_get_zero_initialized_wait_set();
       Utils.CheckReturnEnum(NativeRcl.rcl_wait_set_init(
         ref Handle,
-        (UIntPtr)0,
-        (UIntPtr)0,
-        (UIntPtr)0,
-        (UIntPtr)0,
-        (UIntPtr)0,
-        (UIntPtr)0,
+        (UIntPtr)0, // subscriptions: resized before first spin
+        (UIntPtr)0, // guard conditions: ros2cs does not register guard conditions
+        (UIntPtr)0, // timers: ros2cs does not expose timers
+        (UIntPtr)0, // clients: resized before first spin
+        (UIntPtr)0, // services: resized before first spin
+        (UIntPtr)0, // events: ros2cs does not register events
         ref context,
         allocator));
     }
@@ -108,6 +108,14 @@ namespace ROS2
       }
     }
 
+    /// <summary>
+    /// Resize the wait set for the next spin and clear any previously registered entities.
+    /// </summary>
+    /// <remarks>
+    /// The rcl wait set is rebuilt every spin from live entity snapshots. Even when the
+    /// dimensions are unchanged, <c>rcl_wait_set_clear</c> removes stale native entries
+    /// before the next TryAdd* sequence.
+    /// </remarks>
     internal void Resize(ulong subscriptionCount, ulong clientCount, ulong serviceCount)
     {
       lock (mutex)
@@ -124,15 +132,23 @@ namespace ROS2
         Utils.CheckReturnEnum(NativeRcl.rcl_wait_set_resize(
           ref Handle,
           (UIntPtr)subscriptionCount,
-          (UIntPtr)0,
-          (UIntPtr)0,
+          (UIntPtr)0, // guard conditions are not registered by ros2cs
+          (UIntPtr)0, // timers are not exposed by ros2cs
           (UIntPtr)clientCount,
           (UIntPtr)serviceCount,
-          (UIntPtr)0));
+          (UIntPtr)0)); // events are not registered by ros2cs
         Utils.CheckReturnEnum(NativeRcl.rcl_wait_set_clear(ref Handle));
       }
     }
 
+    /// <summary>
+    /// Register a live subscription handle in the current wait set.
+    /// </summary>
+    /// <returns>
+    /// <see cref="AddResult.SUCCESS"/> with the native index, <see cref="AddResult.FULL"/>
+    /// when the resized wait set has no slot, or <see cref="AddResult.DISPOSED"/> if the
+    /// wait set or subscription was disposed before registration.
+    /// </returns>
     internal AddResult TryAddSubscription(ISubscriptionBase subscription, out ulong index)
     {
       lock (mutex)
@@ -176,6 +192,14 @@ namespace ROS2
       }
     }
 
+    /// <summary>
+    /// Register a live client handle in the current wait set.
+    /// </summary>
+    /// <returns>
+    /// <see cref="AddResult.SUCCESS"/> with the native index, <see cref="AddResult.FULL"/>
+    /// when the resized wait set has no slot, or <see cref="AddResult.DISPOSED"/> if the
+    /// wait set or client was disposed before registration.
+    /// </returns>
     internal AddResult TryAddClient(IClientBase client, out ulong index)
     {
       lock (mutex)
@@ -219,6 +243,14 @@ namespace ROS2
       }
     }
 
+    /// <summary>
+    /// Register a live service handle in the current wait set.
+    /// </summary>
+    /// <returns>
+    /// <see cref="AddResult.SUCCESS"/> with the native index, <see cref="AddResult.FULL"/>
+    /// when the resized wait set has no slot, or <see cref="AddResult.DISPOSED"/> if the
+    /// wait set or service was disposed before registration.
+    /// </returns>
     internal AddResult TryAddService(IServiceBase service, out ulong index)
     {
       lock (mutex)
@@ -263,6 +295,8 @@ namespace ROS2
       }
     }
 
+    /// <summary>Wait for any registered entity to become ready or for the timeout to expire.</summary>
+    /// <returns><c>true</c> when rcl reports readiness; <c>false</c> when rcl_wait times out.</returns>
     internal bool Wait(TimeSpan timeout)
     {
       lock (mutex)
@@ -284,6 +318,7 @@ namespace ROS2
     /// <summary>Convert managed timeouts to rcl nanoseconds without silent overflow.</summary>
     internal static long ToNanoseconds(TimeSpan timeout)
     {
+      // TimeSpan.Ticks are 100-ns units; rcl_wait expects nanoseconds.
       return checked(timeout.Ticks * 100L);
     }
 
