@@ -1,4 +1,5 @@
 @#######################################################################
+@# Derived from RobotecAI rosidl_generator_cs templates, Apache-2.0.
 @# Modifications Copyright (c) 2026 Jianbin Liu.
 @#
 @# Modifications by Jianbin Liu:
@@ -51,7 +52,11 @@ for member in message.structure.members:
 namespace @(ns)
 {
 @[end for]@
-// message class
+/// <summary>Generated managed wrapper for a @(package_name)/@(include_parts[1])/@(service_class) service request or response message.</summary>
+/// <remarks>
+/// Owns its lazily-created native message handle. Handle-taking read/write overloads borrow external
+/// native handles and do not assume ownership of them.
+/// </remarks>
 public class @(message_class) : @(internals_interface), @(parent_interface)
 {
   private IntPtr _handle;
@@ -263,9 +268,12 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
   {
 @[  if get_csbuild_tool == "Mono"]@
     // https://www.mono-project.com/docs/faq/technical/#how-to-detect-the-execution-platform
+    const int monoPlatformUnix = 4;
+    const int monoPlatformMacOs = 6;
+    const int monoPlatformOldLinux = 128;
     bool is_linux = false;
     int p = (int) Environment.OSVersion.Platform;
-    if ((p == 4) || (p == 6) || (p == 128)) {
+    if ((p == monoPlatformUnix) || (p == monoPlatformMacOs) || (p == monoPlatformOldLinux)) {
             is_linux = true;
     }
     if (is_linux)
@@ -280,9 +288,9 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
           return;
         }
 
-        // TODO - generalize to Connext and other implementations
+        // FastRTPS is the only generated preload rule currently required by this fork.
         if (rmw_implementation == rmw_fastrtps)
-        { // TODO - get rcl level constants, e.g. rosidl_typesupport_fastrtps_c__identifier
+        {
           // Load typesupport for fastrtps (_c depends on _cpp)
           var loadUtils = DllLoadUtilsFactory.GetDllLoadUtils();
           // Keep FastRTPS dependencies loaded after preloading succeeds.
@@ -309,6 +317,7 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
     // Keep the generated native typesupport library loaded while delegates point into it.
     // This must be the ros2cs native overlay; the plain FastRTPS typesupport library does not export _native_* symbols.
     // LoadLibrary appends the platform native-library suffix convention, including the "_native" infix used by CMake OUTPUT_NAME.
+    // Service native libraries include the "_srv_" infix to match rosidl_generator_cs CMake runtime names.
     string nativeLibraryName = "@(package_name)_srv_@(service_class_lower)__rosidl_typesupport_c";
     native_library = NativeLibraryHandle.LoadLibrary(dllLoadUtils, nativeLibraryName);
     IntPtr nativelibrary = native_library.Handle;
@@ -451,6 +460,8 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
     ReadNativeMessage(handle);
   }
 
+  // Borrow an externally-owned native message handle and copy its current contents into this wrapper.
+  // The caller retains ownership of the handle and must keep it valid for the duration of this call.
   public void ReadNativeMessage(IntPtr handle)
   {
     lock (mutex)
@@ -480,7 +491,8 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
       @(get_field_name(member.type, member.name, message_class)) = Marshal.PtrToStringUni(pStr) ?? "";
     }
 @[  elif isinstance(member.type, AbstractNestedType) and isinstance(member.type.value_type, BasicType)]@
-    { //TODO - (adam) this is a bit clunky. Is there a better way to marshal unsigned and bool types?
+    {
+      // Some primitive arrays need an intermediate signed/byte-compatible buffer for Marshal.Copy.
       int arraySize = 0;
       IntPtr pArr = native_read_field_@(member.name)(out arraySize, handle);
       if (arraySize < 0)
@@ -585,7 +597,8 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
     WriteNativeMessage(Handle);
   }
 
-  // Write from CS to native handle
+  // Borrow an externally-owned native message handle and copy this wrapper's contents into it.
+  // The caller retains ownership of the handle and must keep it valid for the duration of this call.
   public void WriteNativeMessage(IntPtr handle)
   {
     lock (mutex)
@@ -646,8 +659,8 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
   // Generated service messages intentionally do not use a finalizer. Unity/Mono can
   // run finalizers during domain teardown after native plugin state is unsafe; callers
   // must dispose owned messages explicitly. Dispose releases direct nested members
-  // and sequence elements allocated by ReadNativeMessage; caller-supplied sequence
-  // elements remain caller-owned.
+  // and only the sequence elements allocated by ReadNativeMessage and tracked in
+  // ownedSequenceElements; caller-supplied sequence elements remain caller-owned.
   public void Dispose()
   {
     lock (mutex)
