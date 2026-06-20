@@ -1,3 +1,5 @@
+<!-- Copyright (c) 2026 Jianbin Liu. -->
+
 # Unity-Safe Profile
 
 ros2cs remains the broad generated-message backend used by ROS2 For Unity.

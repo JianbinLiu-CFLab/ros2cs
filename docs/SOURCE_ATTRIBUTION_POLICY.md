@@ -1,3 +1,5 @@
+<!-- Copyright (c) 2026 Jianbin Liu. -->
+
 # Source Attribution Policy
 
 ros2cs may borrow design ideas from compatible open-source projects, but source

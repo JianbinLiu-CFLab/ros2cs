@@ -1,3 +1,5 @@
+<!-- Copyright (c) 2026 Jianbin Liu. -->
+
 # Phase 17 Rcl.NET-Inspired Work Attribution Attestation
 
 Phase 17 used local rclnet reports as design and validation evidence for
