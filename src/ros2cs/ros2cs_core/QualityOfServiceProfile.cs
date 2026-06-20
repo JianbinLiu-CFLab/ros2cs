@@ -24,7 +24,10 @@ using System.Threading;
 namespace ROS2
 {
   /// <summary> Public enum which can be used to acquire predefined qos configurations </summary>
-  /// <remarks> This is mapped to rmw presets, for example SENSOR_DATA is rmw_qos_profile_sensor_data </remarks>
+  /// <remarks>
+  /// This is mapped to rmw presets, for example SENSOR_DATA is rmw_qos_profile_sensor_data.
+  /// Ordinal values intentionally match preset selection in the native wrapper.
+  /// </remarks>
   public enum QosPresetProfile
   {
     SENSOR_DATA = 0,
@@ -36,31 +39,48 @@ namespace ROS2
     SYSTEM_DEFAULT = 5
   }
 
+  /// <summary>History policy values passed directly to rmw_qos_history_policy_t.</summary>
   public enum HistoryPolicy
   {
+    /// <summary>Use the middleware default history behavior.</summary>
     QOS_POLICY_HISTORY_SYSTEM_DEFAULT = 0,
+    /// <summary>Keep only the last configured number of samples.</summary>
     QOS_POLICY_HISTORY_KEEP_LAST = 1,
+    /// <summary>Keep all samples subject to middleware resource limits.</summary>
     QOS_POLICY_HISTORY_KEEP_ALL = 2
   }
 
+  /// <summary>Reliability policy values passed directly to rmw_qos_reliability_policy_t.</summary>
   public enum ReliabilityPolicy
   {
+    /// <summary>Use the middleware default reliability behavior.</summary>
     QOS_POLICY_RELIABILITY_SYSTEM_DEFAULT = 0,
+    /// <summary>Request reliable delivery.</summary>
     QOS_POLICY_RELIABILITY_RELIABLE = 1,
+    /// <summary>Allow best-effort delivery.</summary>
     QOS_POLICY_RELIABILITY_BEST_EFFORT = 2
   }
 
+  /// <summary>Durability policy values passed directly to rmw_qos_durability_policy_t.</summary>
   public enum DurabilityPolicy
   {
+    /// <summary>Use the middleware default durability behavior.</summary>
     QOS_POLICY_DURABILITY_SYSTEM_DEFAULT = 0,
+    /// <summary>Keep transient local samples for late-joining subscriptions.</summary>
     QOS_POLICY_DURABILITY_TRANSIENT_LOCAL = 1,
+    /// <summary>Do not keep samples for late-joining subscriptions.</summary>
     QOS_POLICY_DURABILITY_VOLATILE = 2
   }
 
+  /// <summary>Liveliness policy values passed directly to rmw_qos_liveliness_policy_t.</summary>
   public enum LivelinessPolicy
   {
+    /// <summary>Use the middleware default liveliness behavior.</summary>
     QOS_POLICY_LIVELINESS_SYSTEM_DEFAULT = 0,
+    /// <summary>Any publisher activity in the node can assert liveliness.</summary>
     QOS_POLICY_LIVELINESS_AUTOMATIC = 1,
+    // Ordinal 2 is the deprecated rmw MANUAL_BY_NODE policy; ros2cs does not expose it.
+    /// <summary>Each publisher topic is responsible for asserting liveliness.</summary>
     QOS_POLICY_LIVELINESS_MANUAL_BY_TOPIC = 3
   }
 
@@ -99,6 +119,11 @@ namespace ROS2
       }
     }
 
+    /// <summary>Set history policy and depth on this reusable QoS profile.</summary>
+    /// <param name="policy">History policy to write into the native rmw profile.</param>
+    /// <param name="depth">History depth. KEEP_LAST requires a positive value.</param>
+    /// <exception cref="ObjectDisposedException">Thrown after this profile has been disposed.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="depth"/> is negative or invalid for KEEP_LAST.</exception>
     public void SetHistory(HistoryPolicy policy, int depth)
     {
       lock (mutex)
@@ -109,6 +134,9 @@ namespace ROS2
       }
     }
 
+    /// <summary>Set reliability policy on this reusable QoS profile.</summary>
+    /// <param name="policy">Reliability policy to write into the native rmw profile.</param>
+    /// <exception cref="ObjectDisposedException">Thrown after this profile has been disposed.</exception>
     public void SetReliability(ReliabilityPolicy policy)
     {
       lock (mutex)
@@ -118,6 +146,9 @@ namespace ROS2
       }
     }
 
+    /// <summary>Set durability policy on this reusable QoS profile.</summary>
+    /// <param name="policy">Durability policy to write into the native rmw profile.</param>
+    /// <exception cref="ObjectDisposedException">Thrown after this profile has been disposed.</exception>
     public void SetDurability(DurabilityPolicy policy)
     {
       lock (mutex)
@@ -127,6 +158,13 @@ namespace ROS2
       }
     }
 
+    /// <summary>Set history, reliability, and durability together under one profile lock.</summary>
+    /// <param name="history">History policy to write into the native rmw profile.</param>
+    /// <param name="depth">History depth. KEEP_LAST requires a positive value.</param>
+    /// <param name="reliability">Reliability policy to write into the native rmw profile.</param>
+    /// <param name="durability">Durability policy to write into the native rmw profile.</param>
+    /// <exception cref="ObjectDisposedException">Thrown after this profile has been disposed.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="depth"/> is negative or invalid for KEEP_LAST.</exception>
     public void SetPolicies(
       HistoryPolicy history,
       int depth,
@@ -143,6 +181,9 @@ namespace ROS2
       }
     }
 
+    /// <summary>Set liveliness policy on this reusable QoS profile.</summary>
+    /// <param name="policy">Liveliness policy to write into the native rmw profile.</param>
+    /// <exception cref="ObjectDisposedException">Thrown after this profile has been disposed.</exception>
     public void SetLiveliness(LivelinessPolicy policy)
     {
       lock (mutex)
@@ -261,6 +302,8 @@ namespace ROS2
       Monitor.Exit(mutex);
     }
 
+    /// <summary>Validate history depth before mutating the native rmw profile.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="depth"/> is negative or invalid for KEEP_LAST.</exception>
     private static void ValidateHistoryDepth(HistoryPolicy policy, int depth)
     {
       if (depth < 0)

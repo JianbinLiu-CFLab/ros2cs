@@ -26,15 +26,18 @@ using ROS2.Internal;
 namespace ROS2
 {
   /// <summary> Subscription to a topic with a given type and node-owned native lifetime. </summary>
-  /// <description> Subscriptions are created through INode interface (CreateSubscription) </description>
+  /// <remarks> Subscriptions are created through <see cref="INode.CreateSubscription{T}(string, Action{T}, QualityOfServiceProfile)"/>. </remarks>
   public class Subscription<T>: ISubscription<T>, INodeChildEntity where T : Message, new ()
   {
+    /// <inheritdoc/>
     public rcl_subscription_t Handle { get { return subscriptionHandle; } }
     private rcl_subscription_t subscriptionHandle;
 
+    /// <inheritdoc/>
     public string Topic { get { return topic; } }
     private string topic;
 
+    /// <inheritdoc/>
     public bool IsDisposed { get { return disposed; } }
     private volatile bool disposed = false;
 
@@ -45,6 +48,7 @@ namespace ROS2
     private IntPtr subscriptionOptions = IntPtr.Zero;
     private MessageInternals takeMessage;
 
+    /// <inheritdoc/>
     public object Mutex { get { return mutex; } }
     private object mutex = new object();
 
@@ -82,6 +86,8 @@ namespace ROS2
         return;
       }
 
+      // Run user callbacks outside the subscription mutex so callback code can re-enter ros2cs
+      // without deadlocking this entity.
       TriggerCallback(message);
     }
 

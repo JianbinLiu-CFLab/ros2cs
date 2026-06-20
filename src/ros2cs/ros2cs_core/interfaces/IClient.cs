@@ -80,7 +80,7 @@ namespace ROS2
     /// <summary>
     /// Check if the service to be called is available
     /// </summary>
-    /// <returns><see cref="true"/> if the service is available</returns>
+    /// <returns><see langword="true"/> if the service is available</returns>
     bool IsServiceAvailable();
 
     /// <summary>
@@ -88,26 +88,29 @@ namespace ROS2
     /// </summary>
     /// <remarks>Polls <see cref="IsServiceAvailable"/> and returns false on timeout.</remarks>
     /// <param name="timeout">Maximum time to wait for service graph discovery</param>
-    /// <returns><see cref="true"/> if the service became available before timeout</returns>
+    /// <returns><see langword="true"/> if the service became available before timeout</returns>
     bool TryWaitForService(TimeSpan timeout);
 
     /// <summary>
     /// Send a Request to a Service and wait for a Response
     /// </summary>
-    /// <remarks>The provided message can be modified or disposed after this call. If the service
-    /// callback throws and sends no response, this call can block indefinitely; prefer the timeout
-    /// overload when the service callback is not trusted.</remarks>
+    /// <remarks>The provided message can be modified or disposed after this call. This call can
+    /// block indefinitely if no service response is received; prefer the timeout overload when the
+    /// service endpoint is not fully trusted.</remarks>
     /// <param name="msg">Message to be send</param>
     /// <returns>Response of the Service</returns>
+    /// <exception cref="InvalidOperationException">Thrown when called from a spin callback.</exception>
     O Call(I msg);
 
     /// <summary>
     /// Send a Request to a Service and wait up to the given timeout for a Response
     /// </summary>
-    /// <remarks>The pending request is canceled when the timeout elapses</remarks>
+    /// <remarks>The pending request is canceled when the timeout elapses.</remarks>
     /// <param name="msg">Message to be send</param>
     /// <param name="timeout">Maximum time to wait for a response</param>
     /// <returns>Response of the Service</returns>
+    /// <exception cref="InvalidOperationException">Thrown when called from a spin callback.</exception>
+    /// <exception cref="TimeoutException">Thrown when no response is received before <paramref name="timeout"/> elapses.</exception>
     O Call(I msg, TimeSpan timeout);
 
     /// <summary>

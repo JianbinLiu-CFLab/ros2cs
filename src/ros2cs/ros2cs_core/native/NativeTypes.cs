@@ -24,12 +24,12 @@ namespace ROS2
 {
   /// <summary>
   /// A set of structures to mimic rcl structs and be able to set fields without additional native calls
-  /// <description>
+  /// </summary>
+  /// <remarks>
   /// TODO (adamdbrw): this is a bit dangerous in that if structures change in a new ros2 version we can have
   /// a crash source. Consider removing in favor of handling all manipulation inside the native library,
   /// where structure changes will use defaults (new fields added) or produce compile-time errors (fields changed).
-  /// </description>
-  /// </summary>
+  /// </remarks>
 
   #pragma warning disable 0169
 

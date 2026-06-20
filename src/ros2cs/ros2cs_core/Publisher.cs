@@ -26,9 +26,10 @@ using ROS2.Internal;
 namespace ROS2
 {
   /// <summary> Publisher of a topic with a given type and node-owned native lifetime. </summary>
-  /// <description> Publishers are created through INode.CreatePublisher </description>
+  /// <remarks> Publishers are created through <see cref="INode.CreatePublisher{T}(string, QualityOfServiceProfile)"/>. </remarks>
   public class Publisher<T>: IPublisher<T>, INodeChildEntity where T : Message, new ()
   {
+    /// <inheritdoc/>
     public string Topic { get { return topic; } }
     private string topic;
 
@@ -41,6 +42,7 @@ namespace ROS2
     private readonly object mutex = new object();
     private volatile bool disposed = false;
 
+    /// <inheritdoc/>
     public bool IsDisposed { get { return disposed; } }
 
     /// <summary> Internal constructor for Publsher. Use INode.CreatePublisher to construct </summary>
