@@ -337,6 +337,7 @@ namespace ROS2.Test
         [Test]
         public void NodeDisposedFlagIsVolatileForChildDisposeVisibility()
         {
+            // Child entities can observe Node.IsDisposed outside node.mutex; volatile preserves native-handle visibility.
             FieldInfo field = typeof(Node).GetField("disposed", BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.That(field, Is.Not.Null);
             Assert.That(field.GetRequiredCustomModifiers(), Does.Contain(typeof(System.Runtime.CompilerServices.IsVolatile)));
@@ -345,6 +346,7 @@ namespace ROS2.Test
         [Test]
         public void ChildDisposedFlagsAreVolatileForEntityVisibility()
         {
+            // Entity methods read IsDisposed while coordinating with their own mutexes, so stale reads risk native use-after-free.
             Type[] childTypes = {
                 typeof(Publisher<std_msgs.msg.Bool>),
                 typeof(Subscription<std_msgs.msg.Bool>),
@@ -365,6 +367,7 @@ namespace ROS2.Test
 
         private static void WaitForGraphCount(Func<int> readCount, IResolveConstraint expected)
         {
+            // DDS graph propagation is asynchronous; poll instead of spinning because graph caches are middleware-maintained.
             DateTime deadline = DateTime.UtcNow + GraphTimeout;
             while (true)
             {
@@ -383,6 +386,7 @@ namespace ROS2.Test
 
         private bool PollUntilGraphContainsTopic(string topicName, string expectedType)
         {
+            // Use the same polling model as the count tests because topic/type graph discovery is also asynchronous.
             DateTime deadline = DateTime.UtcNow + GraphTimeout;
             while (DateTime.UtcNow < deadline)
             {

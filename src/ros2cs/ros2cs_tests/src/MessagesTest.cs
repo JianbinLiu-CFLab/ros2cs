@@ -30,6 +30,7 @@ namespace ROS2.Test
     [TestFixture]
     public class MessagesTest
     {
+        /// <summary>Verifies a generated message starts undisposed and can be used with deterministic disposal.</summary>
         [Test]
         public void CreateMessage()
         {
@@ -37,6 +38,7 @@ namespace ROS2.Test
             Assert.That(msg.IsDisposed, Is.False);
         }
 
+        /// <summary>Verifies a generated bool property round-trips managed values without native writes.</summary>
         [Test]
         public void SetBoolData()
         {
@@ -48,6 +50,7 @@ namespace ROS2.Test
             Assert.That(msg.Data, Is.False);
         }
 
+        /// <summary>Verifies a generated int64 property round-trips managed values without native writes.</summary>
         [Test]
         public void SetInt64Data()
         {
@@ -57,6 +60,7 @@ namespace ROS2.Test
             Assert.That(msg.Data, Is.EqualTo(12345));
         }
 
+        /// <summary>Verifies a generated string property preserves assigned managed text.</summary>
         [Test]
         public void SetStringData()
         {
@@ -104,6 +108,7 @@ namespace ROS2.Test
         private static void LoadGeneratedMessageAssemblies()
         {
             string outputDirectory = AppContext.BaseDirectory;
+            // rosidl_generator_cs emits one managed assembly per package with the *_assembly.dll suffix.
             string[] assemblyPaths = Directory.GetFiles(outputDirectory, "*_assembly.dll");
             Assert.That(assemblyPaths, Is.Not.Empty);
 
@@ -113,6 +118,7 @@ namespace ROS2.Test
             }
         }
 
+        /// <summary>Verifies generated messages expose IDL default values and allow overriding them.</summary>
         [Test]
         public void SetDefaults()
         {
@@ -123,6 +129,7 @@ namespace ROS2.Test
             Assert.That(msg.Float32_value, Is.EqualTo(3.14F));
         }
 
+        /// <summary>Verifies generated string fields accept regular managed string assignment.</summary>
         [Test]
         public void SetStrings()
         {
@@ -131,6 +138,7 @@ namespace ROS2.Test
             Assert.That(msg.String_value, Is.EqualTo("Turtles all the way down"));
         }
 
+        /// <summary>Verifies generated unbounded sequence properties preserve representative managed arrays.</summary>
         [Test]
         public void SetUnboundedSequences()
         {
@@ -384,6 +392,7 @@ namespace ROS2.Test
             Assert.That(msg.Wstring_value_default3, Is.EqualTo("ハローワールド"));
         }
 
+        /// <summary>Verifies generated bounded sequence properties preserve representative managed arrays.</summary>
         [Test]
         public void SetBoundedSequences()
         {
@@ -419,6 +428,7 @@ namespace ROS2.Test
             Assert.That(getStringSequence[1], Is.EqualTo("world"));
         }
 
+        /// <summary>Verifies direct nested message properties return a stable managed wrapper.</summary>
         [Test]
         public void SetNested()
         {
@@ -431,6 +441,7 @@ namespace ROS2.Test
             Assert.That(basic_types_msg2.Int32_value, Is.EqualTo(25));
         }
 
+        /// <summary>Verifies nested sequence properties preserve nested generated messages and their string arrays.</summary>
         [Test]
         public void SetMultiNested()
         {

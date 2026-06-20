@@ -30,7 +30,9 @@ namespace ROS2.Test
     [TestFixture]
     public class InitShutdownTest
     {
+        private const int InitShutdownStressIterations = 50;
         private const int SpinEntryDelayMs = 100;
+        private static readonly TimeSpan SpinShutdownJoinTimeout = TimeSpan.FromSeconds(2);
 
         [TearDown]
         public void TearDown()
@@ -78,7 +80,8 @@ namespace ROS2.Test
         [Test]
         public void InitShutdownStress()
         {
-            for (int i = 0; i < 50; ++i)
+            // 50 cycles is enough to surface common handle leaks or double-finalization without slowing CI.
+            for (int i = 0; i < InitShutdownStressIterations; ++i)
             {
                 Ros2cs.Init();
                 Assert.That(Ros2cs.Ok(), Is.True);
@@ -165,7 +168,7 @@ namespace ROS2.Test
             Thread.Sleep(SpinEntryDelayMs);
             Assert.DoesNotThrow(() => Ros2cs.Shutdown());
 
-            Assert.That(spinTask.Wait(TimeSpan.FromSeconds(2)), Is.True);
+            Assert.That(spinTask.Wait(SpinShutdownJoinTimeout), Is.True);
             Assert.That(spinException, Is.Null);
             Assert.That(Ros2cs.Ok(), Is.False);
         }
@@ -218,7 +221,7 @@ namespace ROS2.Test
             Thread.Sleep(SpinEntryDelayMs);
             Ros2cs.Shutdown();
 
-            Assert.That(spinTask.Wait(TimeSpan.FromSeconds(2)), Is.True);
+            Assert.That(spinTask.Wait(SpinShutdownJoinTimeout), Is.True);
             Assert.That(spinException, Is.Null);
             Assert.That(Ros2cs.Ok(), Is.False);
         }
@@ -242,7 +245,7 @@ namespace ROS2.Test
             Thread.Sleep(SpinEntryDelayMs);
             Assert.DoesNotThrow(() => Ros2cs.Shutdown());
 
-            Assert.That(spinTask.Wait(TimeSpan.FromSeconds(2)), Is.True);
+            Assert.That(spinTask.Wait(SpinShutdownJoinTimeout), Is.True);
             Assert.That(spinException, Is.Null);
             Assert.That(Ros2cs.Ok(), Is.False);
         }

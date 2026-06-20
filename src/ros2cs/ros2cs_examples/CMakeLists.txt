@@ -44,6 +44,7 @@ set(_assemblies_dep_dlls
     ${builtin_interfaces_ASSEMBLIES_DLL}
 )
 
+# Talker/listener examples are companion processes and are easiest to validate as a pair.
 add_dotnet_executable(ros2cs_talker
   ROS2Talker.cs
   ROS2ExampleRuntime.cs
@@ -58,6 +59,7 @@ add_dotnet_executable(ros2cs_listener
   ${_assemblies_dep_dlls}
 )
 
+# Performance examples are also paired: run the listener first, then the talker.
 add_dotnet_executable(ros2cs_performance_talker
   ROS2PerformanceTalker.cs
   ROS2ExampleRuntime.cs
@@ -72,6 +74,7 @@ add_dotnet_executable(ros2cs_performance_listener
   ${_assemblies_dep_dlls}
 )
 
+# Service/client examples are paired; CI smoke starts ros2cs_service before ros2cs_client.
 add_dotnet_executable(ros2cs_client
   ROS2Client.cs
   ROS2ExampleRuntime.cs

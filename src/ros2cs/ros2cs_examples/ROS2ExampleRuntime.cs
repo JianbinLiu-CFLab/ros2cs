@@ -26,6 +26,7 @@ namespace Examples
     public ROS2ExampleRuntime()
     {
       Ros2cs.Init();
+      // Ctrl+C raises CancelKeyPress, while process teardown raises ProcessExit; both must release native handles.
       Console.CancelKeyPress += OnCancelKeyPress;
       AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
     }

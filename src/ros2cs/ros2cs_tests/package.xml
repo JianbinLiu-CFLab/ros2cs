@@ -3,9 +3,11 @@
 <package format="2">
   <name>ros2cs_tests</name>
   <version>1.0.0</version>
-  <description>Tests for Ros2cs</description>
+  <description>Managed ros2cs NUnit tests plus a child-process finalizer crash probe.</description>
   <maintainer email="michal.drwiega@robotec.ai">Michal Drwiega</maintainer>
   <license>Apache License 2.0</license>
+
+  <!-- Modifications Copyright (c) 2026 Jianbin Liu: expanded lifecycle, finalizer, graph, and native ABI coverage. -->
 
   <buildtool_depend>ament_cmake</buildtool_depend>
   <buildtool_depend>dotnet_cmake_module</buildtool_depend>

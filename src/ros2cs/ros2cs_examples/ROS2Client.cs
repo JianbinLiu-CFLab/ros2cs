@@ -28,6 +28,10 @@ namespace Examples
   /// <summary> A simple service client class to illustrate Ros2cs in action </summary>
   public class ROS2Client
   {
+    private static readonly TimeSpan ServiceWaitTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan ServiceCallTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan SpinShutdownTimeout = TimeSpan.FromSeconds(1);
+
     public static void Main(string[] args)
     {
       Console.WriteLine("Client start");
@@ -39,7 +43,8 @@ namespace Examples
       msg.A = 7;
       msg.B = 2;
 
-      if (!my_client.TryWaitForService(TimeSpan.FromSeconds(30)))
+      // Bound service discovery so the example fails loudly when ros2cs_service is not running.
+      if (!my_client.TryWaitForService(ServiceWaitTimeout))
       {
         throw new TimeoutException("Timed out waiting for add_two_ints service.");
       }
@@ -49,19 +54,21 @@ namespace Examples
       {
         while (!Volatile.Read(ref spinDone))
         {
+          // The synchronous Call below needs this spin loop to receive the service response.
           Ros2cs.SpinOnce(node, 0.1);
         }
       });
 
       try
       {
-        using example_interfaces.srv.AddTwoInts_Response rsp = my_client.Call(msg, TimeSpan.FromSeconds(10));
+        // Call is synchronous; dispose the generated response because it owns a native message handle.
+        using example_interfaces.srv.AddTwoInts_Response rsp = my_client.Call(msg, ServiceCallTimeout);
         Console.WriteLine("Sum = " + rsp.Sum);
       }
       finally
       {
         Volatile.Write(ref spinDone, true);
-        spinTask.Wait(TimeSpan.FromSeconds(1));
+        spinTask.Wait(SpinShutdownTimeout);
       }
 
       Console.WriteLine("Client shutdown");

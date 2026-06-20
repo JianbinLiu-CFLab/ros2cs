@@ -114,6 +114,7 @@ namespace ROS2.TestNativeMethods
             FieldInfo writerGuid = typeof(rcl_rmw_request_id_t).GetField("writer_guid");
 
             Assert.That(writerGuid, Is.Null);
+            // 16-byte writer_guid plus 8-byte int64 sequence number in rmw_request_id_t.
             Assert.That(Marshal.SizeOf<rcl_rmw_request_id_t>(), Is.EqualTo(24));
         }
 
@@ -907,7 +908,7 @@ namespace ROS2.TestNativeMethods
                 TestUtils.AssertRetOk(NativeRcl.rcl_wait_set_add_subscription(ref waitSet, ref subscription, ref index));
                 Assert.That(index.ToUInt64(), Is.EqualTo(0));
 
-                long timeout_ns = 10*1000*1000;
+                long timeout_ns = 10 * 1000 * 1000; // 10 ms expressed in rcl_wait nanoseconds.
                 var ret = (RCLReturnEnum)NativeRcl.rcl_wait(ref waitSet, timeout_ns);
                 Assert.That(ret, Is.EqualTo(RCLReturnEnum.RCL_RET_TIMEOUT));
             }
@@ -1116,6 +1117,7 @@ namespace ROS2.TestNativeMethods
             Assert.That((int)DurabilityPolicy.QOS_POLICY_DURABILITY_VOLATILE, Is.EqualTo(2));
             Assert.That((int)LivelinessPolicy.QOS_POLICY_LIVELINESS_SYSTEM_DEFAULT, Is.EqualTo(0));
             Assert.That((int)LivelinessPolicy.QOS_POLICY_LIVELINESS_AUTOMATIC, Is.EqualTo(1));
+            // Ordinal 2 was MANUAL_BY_NODE in older ROS 2/RMW headers; MANUAL_BY_TOPIC remains 3.
             Assert.That((int)LivelinessPolicy.QOS_POLICY_LIVELINESS_MANUAL_BY_TOPIC, Is.EqualTo(3));
         }
 

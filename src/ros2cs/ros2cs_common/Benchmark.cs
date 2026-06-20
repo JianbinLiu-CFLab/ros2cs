@@ -23,7 +23,13 @@ using System.Threading;
 
 namespace ROS2
 {
-  /// <summary> An utility class for simple code block execution time measurement </summary>
+  /// <summary>
+  /// Utility class for simple wall-clock elapsed time measurement.
+  /// </summary>
+  /// <remarks>
+  /// Uses <see cref="Stopwatch"/>, so elapsed time includes scheduler delay and waits; it is not CPU time.
+  /// Logged ticks are Stopwatch ticks and must be divided by Stopwatch.Frequency to get seconds.
+  /// </remarks>
   /// <code>
   /// /* example use */
   /// using (var bench = new Benchmark("name_to_show_in_logs"))
@@ -50,7 +56,7 @@ namespace ROS2
       timer.Start();
     }
 
-    /// <summary>Stop the timer once and log elapsed ticks and milliseconds at DEBUG level.</summary>
+    /// <summary>Stop the timer once and log elapsed wall-clock ticks and milliseconds at DEBUG level.</summary>
     public void Dispose()
     {
       if (Interlocked.Exchange(ref disposed, 1) == 0)

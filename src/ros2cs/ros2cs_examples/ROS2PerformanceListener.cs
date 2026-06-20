@@ -64,6 +64,7 @@ namespace Examples
           variance += (diff - mean) * (diff - mean);
         }
         result.mean = mean;
+        // Sample standard deviation uses Bessel's correction, which is defined only for n > 1.
         result.stdDev = this.Count <= 1 ? 0.0 : Math.Sqrt((double)(1.0/(this.Count-1)) * variance);
         return result;
       }
@@ -117,6 +118,7 @@ namespace Examples
 
             if (counter == queue.Size)
             {
+              // Report each rolling-window batch, then start a fresh batch counter for the next sample.
               counter = 0;
               var result = queue.MeanAndStdDev();
               Console.WriteLine("Latency of sample size {0} - avg: {1:F6}s, std dev: {2:F10}s", sampleSize, result.mean, result.stdDev);
