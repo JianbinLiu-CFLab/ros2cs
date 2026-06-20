@@ -435,7 +435,21 @@ namespace ROS2
       var completedTask = Task.WhenAny(task, Task.Delay(timeout)).GetAwaiter().GetResult();
       if (!ReferenceEquals(completedTask, task))
       {
-        Cancel(task);
+        bool cancelled = Cancel(task);
+        if (!cancelled)
+        {
+          task.ContinueWith(
+            completedResponseTask =>
+            {
+              if (completedResponseTask.Status == TaskStatus.RanToCompletion)
+              {
+                completedResponseTask.Result?.Dispose();
+              }
+            },
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+        }
         throw new TimeoutException("Timed out waiting for service response on topic '" + topic + "'");
       }
       return task.GetAwaiter().GetResult();

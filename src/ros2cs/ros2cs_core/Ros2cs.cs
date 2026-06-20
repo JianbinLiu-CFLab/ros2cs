@@ -451,6 +451,11 @@ namespace ROS2
 
       if (success)
       {
+        if (!Ros2cs.Ok())
+        {
+          return false;
+        }
+
         // Mark callback execution so synchronous client calls can fail fast instead of blocking spin.
         spinCallbackDepth++;
         try

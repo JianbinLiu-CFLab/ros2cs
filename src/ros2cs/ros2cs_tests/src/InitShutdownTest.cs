@@ -5,6 +5,7 @@
 // Modifications by Jianbin Liu:
 // - Audited init/shutdown regression tests after lifecycle hardening.
 // - Added lifecycle stress coverage and clarified spin timeout semantics.
+// - Added active-spin shutdown coverage for client and service wait-set entities.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +23,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using NUnit.Framework;
+using example_interfaces.srv;
 
 namespace ROS2.Test
 {
@@ -166,6 +168,28 @@ namespace ROS2.Test
         }
 
         [Test]
+        public void ShutdownDuringActiveSpinOnceWithClientDoesNotThrow()
+        {
+            Ros2cs.Init();
+            var node = Ros2cs.CreateNode("shutdown_during_client_spin_node");
+            node.CreateClient<AddTwoInts_Request, AddTwoInts_Response>("shutdown_during_client_spin_service");
+
+            AssertShutdownDuringActiveSpinDoesNotThrow(node);
+        }
+
+        [Test]
+        public void ShutdownDuringActiveSpinOnceWithServiceDoesNotThrow()
+        {
+            Ros2cs.Init();
+            var node = Ros2cs.CreateNode("shutdown_during_service_spin_node");
+            node.CreateService<AddTwoInts_Request, AddTwoInts_Response>(
+                "shutdown_during_service_spin_service",
+                request => new AddTwoInts_Response());
+
+            AssertShutdownDuringActiveSpinDoesNotThrow(node);
+        }
+
+        [Test]
         public void SpinExitsAfterShutdown()
         {
             Ros2cs.Init();
@@ -189,6 +213,29 @@ namespace ROS2.Test
 
             Thread.Sleep(100);
             Ros2cs.Shutdown();
+
+            Assert.That(spinTask.Wait(TimeSpan.FromSeconds(2)), Is.True);
+            Assert.That(spinException, Is.Null);
+            Assert.That(Ros2cs.Ok(), Is.False);
+        }
+
+        private void AssertShutdownDuringActiveSpinDoesNotThrow(INode node)
+        {
+            Exception spinException = null;
+            Task spinTask = Task.Run(() =>
+            {
+                try
+                {
+                    Ros2cs.SpinOnce(node, 1.0);
+                }
+                catch (Exception e)
+                {
+                    spinException = e;
+                }
+            });
+
+            Thread.Sleep(100);
+            Assert.DoesNotThrow(() => Ros2cs.Shutdown());
 
             Assert.That(spinTask.Wait(TimeSpan.FromSeconds(2)), Is.True);
             Assert.That(spinException, Is.Null);
