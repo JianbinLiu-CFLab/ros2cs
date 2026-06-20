@@ -105,8 +105,44 @@ jobs:
           test_exit=$?
           colcon test-result --verbose
           result_exit=$?
+          cat > count_colcon_tests.py <<'PY'
+          import pathlib
+          import xml.etree.ElementTree as ET
+
+          count = 0
+          for path in pathlib.Path("build").rglob("*.xml"):
+              try:
+                  tree = ET.parse(path)
+              except ET.ParseError:
+                  continue
+              count += len(tree.findall(".//testcase"))
+          print(count)
+          PY
+          test_count=$(python3 count_colcon_tests.py)
+          if [ "$test_count" -le 0 ]; then
+            echo "No test cases were executed; failing test gate."
+            exit 1
+          fi
           set -e
           if [ "$test_exit" -ne 0 ]; then
             exit "$test_exit"
           fi
           exit "$result_exit"
+
+      - name: Run service/client example smoke
+        working-directory: ros2cs_ws
+        run: |
+          . /opt/ros/jazzy/setup.sh
+          . install/setup.sh
+          dotnet install/lib/ros2cs_examples/dotnet/ros2cs_service.dll > service.log 2>&1 &
+          service_pid=$!
+          cleanup() {
+            kill "$service_pid" 2>/dev/null || true
+            wait "$service_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          sleep 2
+          timeout 60s dotnet install/lib/ros2cs_examples/dotnet/ros2cs_client.dll > client.log 2>&1
+          cat service.log
+          cat client.log
+          grep -q "Sum = 9" client.log

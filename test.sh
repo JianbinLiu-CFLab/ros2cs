@@ -6,6 +6,7 @@
 # - Documented why this script does not use set -e.
 # - Added custom colcon build/install base forwarding.
 # - Added test evidence metadata output.
+# - Added build-distro marker validation and zero-test-result rejection.
 
 # Keep -e disabled so colcon test-result still runs and prints diagnostics after colcon test fails.
 set -u
@@ -48,8 +49,62 @@ get_effective_build_base() {
     esac
 }
 
+get_effective_install_base() {
+    if [ -z "$INSTALL_BASE" ]; then
+        printf "%s/install" "$PWD"
+        return
+    fi
+
+    case "$INSTALL_BASE" in
+        /*)
+            printf "%s" "$INSTALL_BASE"
+            ;;
+        *)
+            printf "%s/%s" "$PWD" "$INSTALL_BASE"
+            ;;
+    esac
+}
+
 get_git_commit() {
     git rev-parse HEAD 2>/dev/null || printf "unknown"
+}
+
+assert_test_distro_matches_build() {
+    marker_path="$EFFECTIVE_INSTALL_BASE/.ros2cs_build_distro"
+    if [ ! -f "$marker_path" ]; then
+        echo "Missing build distro marker '$marker_path'. Rebuild ros2cs with the current build script before running tests."
+        exit 1
+    fi
+
+    recorded_distro="$(tr -d '\r\n' < "$marker_path")"
+    if [ -z "$recorded_distro" ]; then
+        echo "Build distro marker '$marker_path' is empty."
+        exit 1
+    fi
+
+    if [ "$recorded_distro" != "$ROS_DISTRO" ]; then
+        echo "Build distro marker '$recorded_distro' does not match current ROS_DISTRO '$ROS_DISTRO'. Rebuild or pass matching --install-base/--build-base paths."
+        exit 1
+    fi
+}
+
+count_colcon_tests() {
+    python3 - "$EFFECTIVE_BUILD_BASE" <<'PY'
+import pathlib
+import sys
+import xml.etree.ElementTree as ET
+
+root = pathlib.Path(sys.argv[1])
+count = 0
+if root.exists():
+    for path in root.rglob("*.xml"):
+        try:
+            tree = ET.parse(path)
+        except ET.ParseError:
+            continue
+        count += len(tree.findall(".//testcase"))
+print(count)
+PY
 }
 
 write_test_evidence() {
@@ -62,6 +117,7 @@ write_test_evidence() {
         printf "build_base=%s\n" "$EFFECTIVE_BUILD_BASE"
         printf "colcon_test_exit_code=%s\n" "$test_exit_code"
         printf "colcon_test_result_exit_code=%s\n" "$result_exit_code"
+        printf "test_count=%s\n" "$test_count"
     } > "$EFFECTIVE_BUILD_BASE/ros2cs_test_info.txt"
 }
 
@@ -103,6 +159,8 @@ if ! command -v colcon >/dev/null 2>&1; then
 fi
 
 EFFECTIVE_BUILD_BASE="$(get_effective_build_base)"
+EFFECTIVE_INSTALL_BASE="$(get_effective_install_base)"
+assert_test_distro_matches_build
 TEST_ARGS=(test --merge-install --packages-select ros2cs_tests)
 RESULT_ARGS=(test-result --verbose)
 
@@ -120,8 +178,14 @@ test_exit_code=$?
 
 colcon "${RESULT_ARGS[@]}"
 result_exit_code=$?
+test_count="$(count_colcon_tests)"
 
 write_test_evidence
+
+if [ "$test_count" -le 0 ]; then
+    echo "No test cases were executed; failing test gate."
+    exit 1
+fi
 
 if [ "$test_exit_code" -ne 0 ]; then
     exit "$test_exit_code"

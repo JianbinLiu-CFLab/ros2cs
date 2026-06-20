@@ -3,6 +3,7 @@
 //
 // Modifications by Jianbin Liu:
 // - Audited client example metadata during Jazzy/.NET maintenance.
+// - Added a background spin loop so synchronous Call(timeout) can receive responses.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +19,8 @@
 
 
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 using ROS2;
 
 namespace Examples
@@ -41,8 +44,25 @@ namespace Examples
         throw new TimeoutException("Timed out waiting for add_two_ints service.");
       }
 
-      using example_interfaces.srv.AddTwoInts_Response rsp = my_client.Call(msg, TimeSpan.FromSeconds(10));
-      Console.WriteLine("Sum = " + rsp.Sum);
+      bool spinDone = false;
+      Task spinTask = Task.Run(() =>
+      {
+        while (!Volatile.Read(ref spinDone))
+        {
+          Ros2cs.SpinOnce(node, 0.1);
+        }
+      });
+
+      try
+      {
+        using example_interfaces.srv.AddTwoInts_Response rsp = my_client.Call(msg, TimeSpan.FromSeconds(10));
+        Console.WriteLine("Sum = " + rsp.Sum);
+      }
+      finally
+      {
+        Volatile.Write(ref spinDone, true);
+        spinTask.Wait(TimeSpan.FromSeconds(1));
+      }
 
       Console.WriteLine("Client shutdown");
     }
