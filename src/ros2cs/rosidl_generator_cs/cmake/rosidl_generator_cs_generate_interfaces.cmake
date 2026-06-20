@@ -26,9 +26,14 @@ find_package(rosidl_typesupport_c REQUIRED)
 find_package(rosidl_typesupport_interface REQUIRED)
 find_package(ament_cmake_export_assemblies REQUIRED)
 find_package(dotnet_cmake_module REQUIRED)
+# DotNETExtra is a CMake module provided by dotnet_cmake_module, not a separate
+# ROS package dependency.
 find_package(DotNETExtra REQUIRED) # add_dotnet_library
 find_package(ros2cs_common REQUIRED)
 
+# Some ROSIDL extension contexts do not expose ament_target_dependencies.
+# Fall back to package-provided targets, include dirs, libraries, and link flags
+# so generated native targets still link on older ROS 2/CMake package layouts.
 function(_rosidl_generator_cs_target_dependencies target)
   if(COMMAND ament_target_dependencies)
     ament_target_dependencies(${target} ${ARGN})
@@ -224,6 +229,8 @@ endforeach()
 
 message(STATUS "Generating C# code for ROS interfaces ${_generated_msg_cs_files} and ${_generated_srv_cs_files}")
 set(ros2_distro "$ENV{ROS_DISTRO}")
+# Foxy/Galactic do not reliably provide the imported Python3::Interpreter target
+# in this extension context, so keep their legacy PYTHON_EXECUTABLE path.
 if(ros2_distro STREQUAL "foxy" OR ros2_distro STREQUAL "galactic")
   set(PYTHON_CMD ${PYTHON_EXECUTABLE})
 else()
@@ -294,6 +301,7 @@ if(_generated_msg_c_files)
     ${_generated_msg_c_structs_target}
     PROPERTIES
     COMPILE_FLAGS             "${_extension_compile_flags}"
+    # These OBJECT files are linked into generated shared libraries.
     POSITION_INDEPENDENT_CODE ON
   )
   target_include_directories(${_generated_msg_c_structs_target}
@@ -330,6 +338,7 @@ if(_generated_srv_c_files)
     ${_generated_srv_c_structs_target}
     PROPERTIES
     COMPILE_FLAGS             "${_extension_compile_flags}"
+    # These OBJECT files are linked into generated shared libraries.
     POSITION_INDEPENDENT_CODE ON
   )
   target_include_directories(${_generated_srv_c_structs_target}
@@ -365,6 +374,9 @@ if(_generated_msg_c_ts_count GREATER 0)
   get_filename_component(_package_name "${_package_folder}" NAME)
   get_filename_component(_parent_folder "${_full_folder}" NAME)
   get_filename_component(_base_msg_name "${_generated_msg_c_ts_file}" NAME_WE)
+  # The generator writes entrypoint files as <module>.ep.<typesupport>.c; strip
+  # the entrypoint/typesupport suffix so runtime DLLs keep the historical
+  # <package>_<message>__<typesupport>_native naming expected by generated C#.
   string(REGEX REPLACE "\\.ep\\..*$" "" _module_name "${_base_msg_name}")
 
   set(_runtime_name "${_package_name}_${_module_name}__${_typesupport_impl}")
@@ -397,13 +409,15 @@ if(_generated_msg_c_ts_count GREATER 0)
     LIBRARY_OUTPUT_DIRECTORY_MINSIZEREL     ${_destination_dir}
   )
 
-  message("Link libraries: ${PROJECT_NAME}__${_typesupport_impl}")
+  message(STATUS "Link libraries: ${PROJECT_NAME}__${_typesupport_impl}")
   target_link_libraries(${_target_name}
     ${PROJECT_NAME}__${_typesupport_impl}
     ${_extension_link_flags}
     ${PROJECT_NAME}__rosidl_generator_c
   )
 
+  # rosidl_cmake newer than 2.5.0 provides rosidl_get_typesupport_target; older
+  # distro layouts need rosidl_target_interfaces.
   if(${rosidl_cmake_VERSION} VERSION_GREATER 2.5.0)
     rosidl_get_typesupport_target(c_typesupport_target "${PROJECT_NAME}" "rosidl_typesupport_c")
     target_link_libraries(${_target_name} "${c_typesupport_target}")
@@ -456,6 +470,8 @@ if(_generated_srv_c_ts_count GREATER 0)
   get_filename_component(_package_name "${_package_folder}" NAME)
   get_filename_component(_parent_folder "${_full_folder}" NAME)
   get_filename_component(_base_srv_name "${_generated_srv_c_ts_file}" NAME_WE)
+  # Services keep an explicit _srv_ infix in runtime DLL names to disambiguate
+  # service support libraries from message support libraries with the same base name.
   string(REGEX REPLACE "\\.ep\\..*$" "" _module_name "${_base_srv_name}")
 
   set(_runtime_name "${_package_name}_srv_${_module_name}__${_typesupport_impl}")
@@ -488,13 +504,15 @@ if(_generated_srv_c_ts_count GREATER 0)
     LIBRARY_OUTPUT_DIRECTORY_MINSIZEREL     ${_destination_dir}
   )
 
-  message("Link libraries: ${PROJECT_NAME}__${_typesupport_impl}")
+  message(STATUS "Link libraries: ${PROJECT_NAME}__${_typesupport_impl}")
   target_link_libraries(${_target_name}
     ${PROJECT_NAME}__${_typesupport_impl}
     ${_extension_link_flags}
     ${PROJECT_NAME}__rosidl_generator_c
   )
 
+  # rosidl_cmake newer than 2.5.0 provides rosidl_get_typesupport_target; older
+  # distro layouts need rosidl_target_interfaces.
   if(${rosidl_cmake_VERSION} VERSION_GREATER 2.5.0)
     rosidl_get_typesupport_target(c_typesupport_target "${PROJECT_NAME}" "rosidl_typesupport_c")
     target_link_libraries(${_target_name} "${c_typesupport_target}")

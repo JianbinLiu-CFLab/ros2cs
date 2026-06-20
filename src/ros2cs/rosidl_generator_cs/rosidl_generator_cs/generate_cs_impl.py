@@ -40,15 +40,22 @@ def _generate_files_or_raise(generator_arguments_file, mapping, additional_conte
 
 
 def generate_cs(generator_arguments_file, typesupport_impls, cs_build_tool):
+    # Typesupport templates produce one native entrypoint C file per RMW C typesupport.
+    # "ep" is short for entrypoint and is stripped from the runtime library name by CMake.
     type_support_output_patterns = [
         '%s.ep.{0}.c'.format(impl) for impl in typesupport_impls
     ]
 
+    # Template-to-output patterns are interpreted by rosidl_cmake.generate_files.
+    # "%s" is replaced with the generated module name under _output_path; "_s.c"
+    # carries the generated C struct marshaling helpers used by the native bridge.
     mapping = {
         'idl.cs.em': '%s.cs',
         'idl.c.em': '%s_s.c'
     }
 
+    # These helpers are injected into the EmPy rendering context and become callable
+    # symbols inside the .em templates.
     additional_context = {
         'get_field_name' : get_field_name,
         'get_dotnet_type' : get_dotnet_type,
@@ -100,6 +107,7 @@ def get_c_type(type_):
 BASIC_IDL_TYPES_TO_MARSHAL = {
     'float': 'R4',
     'double': 'R8',
+    # .NET interop has no 80-bit floating-point type, so IDL long double is exposed as double.
     'long double': 'R8',
     'char': 'I1',
     'wchar': 'I2',
@@ -127,8 +135,11 @@ def get_marshal_type(type_):
 
 
 BASIC_IDL_TYPES_TO_MARSHAL_ARRAY = {
+    # Array mappings are C# element type names used by generated copy helpers, not
+    # P/Invoke UnmanagedType codes like BASIC_IDL_TYPES_TO_MARSHAL above.
     'float': 'float',
     'double': 'double',
+    # Precision is reduced to match the scalar .NET representation above.
     'long double': 'double',
     'char': 'char',
     'wchar': 'short',
@@ -193,6 +204,7 @@ def get_dotnet_type(type_):
 
 
 def get_field_name(type_name, field_name, class_name):
+    """Return a C# property name, avoiding names that collide with generated types."""
     ucased_name = field_name.capitalize()
     if (ucased_name == type_name) or (ucased_name == class_name):
         return "{0}_".format(ucased_name)

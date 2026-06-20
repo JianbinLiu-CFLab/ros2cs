@@ -10,6 +10,7 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
   <buildtool_depend>ament_cmake_export_assemblies</buildtool_depend>
+  <!-- Provides dotnet_cmake_module and the FindDotNETExtra.cmake module used by CMake. -->
   <buildtool_depend>dotnet_cmake_module</buildtool_depend>
   <buildtool_depend>rmw_implementation_cmake</buildtool_depend>
   <buildtool_depend>rosidl_cmake</buildtool_depend>
@@ -19,6 +20,7 @@
   <buildtool_export_depend>rosidl_typesupport_c</buildtool_export_depend>
   <buildtool_export_depend>rosidl_typesupport_interface</buildtool_export_depend>
   <buildtool_export_depend>ament_cmake_export_assemblies</buildtool_export_depend>
+  <!-- Downstream generators need DotNETExtra through dotnet_cmake_module. -->
   <buildtool_export_depend>dotnet_cmake_module</buildtool_export_depend>
   <buildtool_export_depend>rmw_implementation_cmake</buildtool_export_depend>
   <buildtool_export_depend>ros2cs_common</buildtool_export_depend>

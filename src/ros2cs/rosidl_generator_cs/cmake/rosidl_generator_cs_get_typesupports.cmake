@@ -17,6 +17,8 @@ find_package(rmw_implementation_cmake REQUIRED)
 macro(accumulate_typesupports)
   set(_typesupport_impl "")
   if(${rmw_implementation}_FOUND)
+    # The generated native bridge is C ABI based, so request the C typesupport
+    # even when the active RMW implementation also provides C++ typesupport.
     get_rmw_typesupport(_typesupport_impl ${rmw_implementation} LANGUAGE "C")
     if(_typesupport_impl)
       list_append_unique(_typesupport_impls ${_typesupport_impl})

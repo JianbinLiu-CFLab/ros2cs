@@ -11,8 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-__all__ = ['import_type_support']
+#
+# Modifications Copyright (c) 2026 Jianbin Liu.
+#
+# Modifications by Jianbin Liu:
+# - Kept the package entrypoint strict so missing generator dependencies surface
+#   as import errors instead of being hidden behind later AttributeError failures.
 
 from .generate_cs_impl import generate_cs
-__all__.append('generate_cs')
+
+# Re-export only symbols defined by this package module. Older skeletons listed
+# import_type_support here, but rosidl_generator_cs never provided that symbol.
+__all__ = ['generate_cs']
+
+# Keep the imported symbol visibly used for static checkers that do not inspect __all__.
+assert generate_cs

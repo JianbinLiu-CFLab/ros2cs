@@ -13,6 +13,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# Modifications Copyright (c) 2026 Jianbin Liu.
+#
+# Modifications by Jianbin Liu:
+# - Kept the local package fallback loader compatible with Python 3.12+.
 
 import argparse
 import importlib.util
@@ -24,7 +29,9 @@ try:
     from rosidl_generator_cs import generate_cs
 except ImportError:
     # modifying sys.path and importing the .NET package with the same
-    # name as this script does not work on Windows
+    # name as this script does not work on Windows. Use spec_from_file_location
+    # and exec_module instead of the deprecated load_module API so Jazzy/Python
+    # 3.12+ can still execute the fallback path.
     rosidl_generator_cs_root = os.path.dirname(os.path.dirname(__file__))
     rosidl_generator_cs_module = os.path.join(
         rosidl_generator_cs_root, 'rosidl_generator_cs', '__init__.py')
@@ -55,6 +62,7 @@ def main(argv=sys.argv[1:]):
         help='CS build tool to be used for compiling. DotNetCore')
     args = parser.parse_args(argv)
 
+    # CMake passes --typesupport-impls as a semicolon-separated CMake list.
     return generate_cs(args.generator_arguments_file, args.typesupport_impls.split(';'), args.cs_build_tool)
 
 
