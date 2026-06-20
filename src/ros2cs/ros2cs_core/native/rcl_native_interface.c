@@ -18,6 +18,7 @@
 // - Finalizes rcl clock before freeing the wrapper allocation.
 // - Added allocation and null-argument guards for rcl option wrapper helpers.
 // - Finalizes rcl init options when rcl_init fails.
+// - Finalizes context if init-options cleanup fails after rcl_init succeeds.
 // - Finalizes node options before freeing their wrapper allocation.
 // - Surfaced option finalization return codes and guarded null option disposals.
 // - Added node option setter wrappers to avoid managed rcl_node_options_t layout coupling.
@@ -69,6 +70,7 @@ int rclcs_init(rcl_context_t *context, rcl_allocator_t allocator)
   if (ret != RCL_RET_OK)
   {
     rcl_shutdown(context);
+    rcl_context_fini(context);
   }
   return ret;
 }

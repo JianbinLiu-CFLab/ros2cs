@@ -20,6 +20,7 @@
 // - Shared the ros2cs native wrapper handle with rmw wrapper bindings.
 // - Surfaced native option-dispose return codes where rcl fini can fail.
 // - Added node option setter bindings that keep rcl_node_options_t layout in native code.
+// - Deferred ABI sizeof helper binding until native layout tests call it.
 
 using System;
 using System.Runtime.InteropServices;
@@ -45,6 +46,13 @@ namespace ROS2
     private static readonly DllLoadUtils dllLoadUtils = NativeRos2csLibrary.DllLoadUtils;
     private static readonly IntPtr nativeROS2CS = NativeRos2csLibrary.Ptr;
 
+    private static T LoadDelegate<T>(string symbol)
+    {
+      return (T)(object)Marshal.GetDelegateForFunctionPointer(
+        dllLoadUtils.GetProcAddress(nativeROS2CS, symbol),
+        typeof(T));
+    }
+
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate int RCLCSInitType(ref rcl_context_t context, rcl_allocator_t allocator);
     internal static RCLCSInitType
@@ -56,39 +64,39 @@ namespace ROS2
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate UIntPtr SizeOfRclNodeType();
-    internal static SizeOfRclNodeType
-        rclcs_sizeof_rcl_node_t =
-        (SizeOfRclNodeType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
-        nativeROS2CS,
-        "rclcs_sizeof_rcl_node_t"),
-        typeof(SizeOfRclNodeType));
+    private static readonly Lazy<SizeOfRclNodeType> rclcs_sizeof_rcl_node_t_lazy =
+      new Lazy<SizeOfRclNodeType>(() => LoadDelegate<SizeOfRclNodeType>("rclcs_sizeof_rcl_node_t"));
+    internal static SizeOfRclNodeType rclcs_sizeof_rcl_node_t
+    {
+      get { return rclcs_sizeof_rcl_node_t_lazy.Value; }
+    }
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate UIntPtr SizeOfRclContextType();
-    internal static SizeOfRclContextType
-        rclcs_sizeof_rcl_context_t =
-        (SizeOfRclContextType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
-        nativeROS2CS,
-        "rclcs_sizeof_rcl_context_t"),
-        typeof(SizeOfRclContextType));
+    private static readonly Lazy<SizeOfRclContextType> rclcs_sizeof_rcl_context_t_lazy =
+      new Lazy<SizeOfRclContextType>(() => LoadDelegate<SizeOfRclContextType>("rclcs_sizeof_rcl_context_t"));
+    internal static SizeOfRclContextType rclcs_sizeof_rcl_context_t
+    {
+      get { return rclcs_sizeof_rcl_context_t_lazy.Value; }
+    }
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate UIntPtr SizeOfRclWaitSetType();
-    internal static SizeOfRclWaitSetType
-        rclcs_sizeof_rcl_wait_set_t =
-        (SizeOfRclWaitSetType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
-        nativeROS2CS,
-        "rclcs_sizeof_rcl_wait_set_t"),
-        typeof(SizeOfRclWaitSetType));
+    private static readonly Lazy<SizeOfRclWaitSetType> rclcs_sizeof_rcl_wait_set_t_lazy =
+      new Lazy<SizeOfRclWaitSetType>(() => LoadDelegate<SizeOfRclWaitSetType>("rclcs_sizeof_rcl_wait_set_t"));
+    internal static SizeOfRclWaitSetType rclcs_sizeof_rcl_wait_set_t
+    {
+      get { return rclcs_sizeof_rcl_wait_set_t_lazy.Value; }
+    }
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate UIntPtr SizeOfRclRmwRequestIdType();
-    internal static SizeOfRclRmwRequestIdType
-        rclcs_sizeof_rcl_rmw_request_id_t =
-        (SizeOfRclRmwRequestIdType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
-        nativeROS2CS,
-        "rclcs_sizeof_rcl_rmw_request_id_t"),
-        typeof(SizeOfRclRmwRequestIdType));
+    private static readonly Lazy<SizeOfRclRmwRequestIdType> rclcs_sizeof_rcl_rmw_request_id_t_lazy =
+      new Lazy<SizeOfRclRmwRequestIdType>(() => LoadDelegate<SizeOfRclRmwRequestIdType>("rclcs_sizeof_rcl_rmw_request_id_t"));
+    internal static SizeOfRclRmwRequestIdType rclcs_sizeof_rcl_rmw_request_id_t
+    {
+      get { return rclcs_sizeof_rcl_rmw_request_id_t_lazy.Value; }
+    }
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate IntPtr GetErrorStringType();

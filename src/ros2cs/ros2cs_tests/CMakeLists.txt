@@ -6,6 +6,7 @@
 # - Preserved the final newline for consistent generated build files.
 # - Added a generated message finalizer child-process probe.
 # - Added isolated ros2cs_common primitive coverage.
+# - Raised the CTest timeout for the expanded managed test suite.
 #
 
 cmake_minimum_required(VERSION 3.6)
@@ -60,6 +61,7 @@ if(BUILD_TESTING)
     INCLUDE_DLLS
     ${ASSEMBLIES_DEP_DLLS}
   )
+  set_tests_properties(ros2cs_tests_test PROPERTIES TIMEOUT 180)
 
   set(FINALIZER_PROBE_TARGET ros2cs_generated_message_finalizer_probe)
   add_dotnet_executable(${FINALIZER_PROBE_TARGET}

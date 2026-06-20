@@ -33,12 +33,12 @@ ros2cs repository. Lyrical is not a replacement for the Jazzy maintenance
 preview until the Lyrical build, test, R2FU artifact, and Unity smoke plans have
 passed.
 
-Lyrical Win64 has strong local acceptance evidence for the ROS2 For Unity
+Lyrical Win64 has local/manual acceptance evidence for the ROS2 For Unity
 RViz2/PointCloud2 path: the Phase146B workflow validated Unity Native R2FU,
 external Lyrical RViz2, TF, and raw plus deskewed point cloud visualization
-together. Treat that as real runtime acceptance evidence for that path. The
-remaining boundary is publication scope: it is local/manual evidence, not yet a
-public CI matrix or a replacement for the Jazzy maintenance default.
+together for the recorded local artifact. Treat that as runtime evidence for
+that exact path and artifact, not as public CI matrix coverage or a replacement
+for the Jazzy maintenance default.
 
 Lyrical validation evidence must record whether `ROS2CS_SPIN_FALLBACK` was set.
 The direct fallback path bypasses `rcl_wait`, so it is fallback-runtime evidence,

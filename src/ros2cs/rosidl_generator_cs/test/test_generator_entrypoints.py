@@ -106,6 +106,49 @@ class GeneratorCMakeContractTest(unittest.TestCase):
 
 
 class CleanGenerateWrapperTest(unittest.TestCase):
+    def test_clean_generate_reports_missing_outputs_file(self):
+        module = load_module(
+            "clean_generate_missing_outputs_under_test",
+            PACKAGE_ROOT / "rosidl_generator_cs" / "clean_generate.py")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            generator = temp_path / "generator.py"
+            generator.write_text("raise SystemExit(0)\n", encoding="utf-8")
+
+            result = module.main([
+                "--outputs-file", str(temp_path / "missing_outputs.txt"),
+                "--generator", str(generator),
+            ])
+
+            self.assertEqual(2, result)
+
+    def test_clean_generate_keeps_successful_outputs(self):
+        module = load_module(
+            "clean_generate_success_under_test",
+            PACKAGE_ROOT / "rosidl_generator_cs" / "clean_generate.py")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            output = temp_path / "generated.cs"
+            outputs_file = temp_path / "outputs.txt"
+            outputs_file.write_text(str(output) + "\n", encoding="utf-8")
+            generator = temp_path / "generator.py"
+            generator.write_text(
+                "import pathlib, sys\n"
+                "pathlib.Path(sys.argv[1]).write_text('complete', encoding='utf-8')\n"
+                "raise SystemExit(0)\n",
+                encoding="utf-8")
+
+            result = module.main([
+                "--outputs-file", str(outputs_file),
+                "--generator", str(generator),
+                "--", str(output),
+            ])
+
+            self.assertEqual(0, result)
+            self.assertEqual("complete", output.read_text(encoding="utf-8"))
+
     def test_clean_generate_deletes_declared_outputs_on_failure(self):
         module = load_module(
             "clean_generate_under_test",

@@ -242,7 +242,9 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
 
   private void DisposeAllOwnedSequenceElements()
   {
-    foreach (object element in ownedSequenceElements)
+    object[] elements = new object[ownedSequenceElements.Count];
+    ownedSequenceElements.CopyTo(elements);
+    foreach (object element in elements)
     {
       IDisposable disposable = element as IDisposable;
       if (disposable != null)

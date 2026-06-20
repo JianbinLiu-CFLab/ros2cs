@@ -62,7 +62,7 @@ Verified in the current CI validation:
 
 - Ubuntu 24.04 GitHub Actions runner with the `ros:jazzy` container image.
 - `colcon build --packages-up-to ros2cs_tests` and `colcon test` for the Jazzy
-  source workspace.
+  source workspace, with the test gate rejecting zero executed test cases.
 
 Not yet verified in the current maintenance round:
 

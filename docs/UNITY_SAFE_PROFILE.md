@@ -41,8 +41,9 @@ Recorded local R2FU Player or RViz2 acceptance evidence counts as runtime
 validation when it is tied to the same ros2cs commit and runtime artifact. For
 example, the Phase146B Lyrical Win64 run validated Unity Native R2FU, external
 Lyrical RViz2, TF, and raw plus deskewed PointCloud2 visualization together.
-That is strong local acceptance evidence; it is distinct from public CI matrix
-coverage, not weaker than build-only evidence.
+That is local/manual runtime acceptance evidence for the recorded artifact and
+scenario. It is stronger than build-only evidence for that path, but distinct
+from public CI matrix coverage or a general Lyrical wait-set stability claim.
 
 ## Lightweight Node Options
 

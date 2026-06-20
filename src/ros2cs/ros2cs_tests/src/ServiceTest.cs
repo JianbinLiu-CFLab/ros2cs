@@ -4,6 +4,7 @@
 // Modifications by Jianbin Liu:
 // - Added coverage for service callback exceptions during direct service take.
 // - Added explicit service QoS request/response coverage.
+// - Verified service callback failures return a default response instead of hanging clients.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -144,8 +145,16 @@ namespace ROS2.Test
             }
 
             Assert.That(callbackCalled, Is.True);
-            Assert.That(pendingResponse.IsCompleted, Is.False);
-            Assert.That(client.Cancel(pendingResponse), Is.True);
+
+            deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+            while (!pendingResponse.IsCompleted && DateTime.UtcNow < deadline)
+            {
+                Ros2cs.SpinOnce(Node, 0.1);
+            }
+
+            Assert.That(pendingResponse.IsCompletedSuccessfully, Is.True);
+            using var response = pendingResponse.Result;
+            Assert.That(response.Sum, Is.EqualTo(0));
         }
     }
 }
