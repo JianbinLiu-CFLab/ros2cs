@@ -81,7 +81,7 @@ jobs:
           . /opt/ros/jazzy/setup.sh
           . install/setup.sh
           colcon build \
-            --packages-select ros2cs_examples \
+            --packages-up-to ros2cs_examples \
             --merge-install \
             --event-handlers console_direct+ \
             --cmake-args \
