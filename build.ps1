@@ -10,8 +10,10 @@
     standalone build
 .PARAMETER build_base
     Optional colcon build base directory. Can also be set with ROS2CS_BUILD_BASE.
+    Defaults to build-$ROS_DISTRO to keep CMake caches isolated per ROS distro.
 .PARAMETER install_base
     Optional colcon install base directory. Can also be set with ROS2CS_INSTALL_BASE.
+    Defaults to install-$ROS_DISTRO to keep runtime DLLs isolated per ROS distro.
 .PARAMETER help
     show help and exit
 
@@ -25,6 +27,7 @@ Modifications by Jianbin Liu:
 - Added optional colcon install base support through -install_base or ROS2CS_INSTALL_BASE.
 - Added ROS2CS_EVENT_HANDLER override and defaulted colcon output to console_cohesion+.
 - Added build evidence metadata and a default install-base distro guard.
+- Isolated default build/install bases per ROS_DISTRO to prevent cross-distro DLL shadowing.
 
 Based on upstream RobotecAI ros2cs scripts, Apache-2.0.
 #>
@@ -45,8 +48,8 @@ if ($help) {
     Write-Host "Options:"
     Write-Host "  -with_tests         Build tests."
     Write-Host "  -standalone         Build standalone runtime layout."
-    Write-Host "  -build_base PATH    Optional colcon build base directory. Can also be set with ROS2CS_BUILD_BASE."
-    Write-Host "  -install_base PATH  Optional colcon install base directory. Can also be set with ROS2CS_INSTALL_BASE."
+    Write-Host "  -build_base PATH    Optional colcon build base directory. Defaults to build-`$ROS_DISTRO."
+    Write-Host "  -install_base PATH  Optional colcon install base directory. Defaults to install-`$ROS_DISTRO."
     exit 0
 }
 
@@ -82,7 +85,7 @@ function Get-EffectiveInstallBase {
 
     $repoRoot = (Get-Location).Path
     if ([string]::IsNullOrWhiteSpace($InstallBase)) {
-        return (Join-Path $repoRoot "install")
+        return (Join-Path $repoRoot "install-$Env:ROS_DISTRO")
     }
 
     if ([System.IO.Path]::IsPathRooted($InstallBase)) {
@@ -90,6 +93,21 @@ function Get-EffectiveInstallBase {
     }
 
     return (Join-Path $repoRoot $InstallBase)
+}
+
+function Get-EffectiveBuildBase {
+    param([string]$BuildBase)
+
+    $repoRoot = (Get-Location).Path
+    if ([string]::IsNullOrWhiteSpace($BuildBase)) {
+        return (Join-Path $repoRoot "build-$Env:ROS_DISTRO")
+    }
+
+    if ([System.IO.Path]::IsPathRooted($BuildBase)) {
+        return $BuildBase
+    }
+
+    return (Join-Path $repoRoot $BuildBase)
 }
 
 function Get-GitCommit {
@@ -177,6 +195,7 @@ if($standalone) {
 $parallelWorkers = Get-ParallelWorkers
 $compilerLauncher = Get-CompilerLauncher
 $explicitInstallBase = -not [string]::IsNullOrWhiteSpace($install_base)
+$effectiveBuildBase = Get-EffectiveBuildBase -BuildBase $build_base
 $effectiveInstallBase = Get-EffectiveInstallBase -InstallBase $install_base
 Assert-DefaultInstallBaseMatchesDistro -InstallBase $effectiveInstallBase -ExplicitInstallBase $explicitInstallBase
 # console_cohesion+ buffers output per package for readable local logs; CI can override to console_direct+.
@@ -202,17 +221,9 @@ if (-not [string]::IsNullOrWhiteSpace($compilerLauncher)) {
     $msg += " (compiler launcher: $compilerLauncher)"
 }
 
-$colconArgs = @("build")
-
-if (-not [string]::IsNullOrWhiteSpace($build_base)) {
-    $colconArgs += @("--build-base", "$build_base")
-    $msg += " (build base: $build_base)"
-}
-
-if (-not [string]::IsNullOrWhiteSpace($install_base)) {
-    $colconArgs += @("--install-base", "$install_base")
-    $msg += " (install base: $install_base)"
-}
+$colconArgs = @("build", "--build-base", "$effectiveBuildBase", "--install-base", "$effectiveInstallBase")
+$msg += " (build base: $effectiveBuildBase)"
+$msg += " (install base: $effectiveInstallBase)"
 
 $colconArgs += @(
     "--parallel-workers", "$parallelWorkers",

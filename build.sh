@@ -9,6 +9,7 @@
 # - Added optional colcon install base support through --install-base or ROS2CS_INSTALL_BASE.
 # - Defaulted Linux/macOS builds to Ninja and made the colcon event handler configurable.
 # - Added build evidence metadata and a default install-base distro guard.
+# - Isolated default build/install bases per ROS_DISTRO to prevent cross-distro DLL shadowing.
 
 set -euo pipefail
 
@@ -19,8 +20,8 @@ display_usage() {
     echo "Options:"
     echo "--with-tests - build with tests."
     echo "--standalone - standalone version"
-    echo "--build-base PATH - optional colcon build base directory."
-    echo "--install-base PATH - optional colcon install base directory."
+    echo "--build-base PATH - optional colcon build base directory. Defaults to build-\$ROS_DISTRO."
+    echo "--install-base PATH - optional colcon install base directory. Defaults to install-\$ROS_DISTRO."
 }
 
 if [ -z "${ROS_DISTRO:-}" ]; then
@@ -36,7 +37,7 @@ fi
 
 get_effective_install_base() {
   if [ -z "$INSTALL_BASE" ]; then
-    printf "%s/install" "$PWD"
+    printf "%s/install-%s" "$PWD" "$ROS_DISTRO"
     return
   fi
 
@@ -46,6 +47,22 @@ get_effective_install_base() {
       ;;
     *)
       printf "%s/%s" "$PWD" "$INSTALL_BASE"
+      ;;
+  esac
+}
+
+get_effective_build_base() {
+  if [ -z "$BUILD_BASE" ]; then
+    printf "%s/build-%s" "$PWD" "$ROS_DISTRO"
+    return
+  fi
+
+  case "$BUILD_BASE" in
+    /*)
+      printf "%s" "$BUILD_BASE"
+      ;;
+    *)
+      printf "%s/%s" "$PWD" "$BUILD_BASE"
       ;;
   esac
 }
@@ -172,6 +189,7 @@ EXPLICIT_INSTALL_BASE=0
 if [ -n "$INSTALL_BASE" ]; then
   EXPLICIT_INSTALL_BASE=1
 fi
+EFFECTIVE_BUILD_BASE="$(get_effective_build_base)"
 EFFECTIVE_INSTALL_BASE="$(get_effective_install_base)"
 assert_default_install_base_matches_distro
 
@@ -196,16 +214,9 @@ if [ -n "$COMPILER_LAUNCHER" ]; then
   MSG="$MSG (compiler launcher: $COMPILER_LAUNCHER)"
 fi
 
-COLCON_ARGS=(build)
-if [ -n "$BUILD_BASE" ]; then
-  COLCON_ARGS+=(--build-base "$BUILD_BASE")
-  MSG="$MSG (build base: $BUILD_BASE)"
-fi
-
-if [ -n "$INSTALL_BASE" ]; then
-  COLCON_ARGS+=(--install-base "$INSTALL_BASE")
-  MSG="$MSG (install base: $INSTALL_BASE)"
-fi
+COLCON_ARGS=(build --build-base "$EFFECTIVE_BUILD_BASE" --install-base "$EFFECTIVE_INSTALL_BASE")
+MSG="$MSG (build base: $EFFECTIVE_BUILD_BASE)"
+MSG="$MSG (install base: $EFFECTIVE_INSTALL_BASE)"
 
 MSG="$MSG (workers: $PARALLEL_WORKERS, generator: Ninja, event handler: $EVENT_HANDLER)"
 
