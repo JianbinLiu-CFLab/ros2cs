@@ -25,6 +25,8 @@ Modifications by Jianbin Liu:
 - Added optional colcon install base support through -install_base or ROS2CS_INSTALL_BASE.
 - Added ROS2CS_EVENT_HANDLER override and defaulted colcon output to console_cohesion+.
 - Added build evidence metadata and a default install-base distro guard.
+
+Based on upstream RobotecAI ros2cs scripts, Apache-2.0.
 #>
 Param (
     [Parameter(Mandatory=$false)][switch]$help=$false,
@@ -154,6 +156,7 @@ if ([string]::IsNullOrEmpty($Env:ROS_DISTRO)) {
     exit 1
 }
 
+# Validate to prevent path injection; ROS_DISTRO is interpolated into marker and repos filenames.
 if ($Env:ROS_DISTRO -notmatch '^[a-z][a-z0-9_]*$') {
     Write-Host "Invalid ROS_DISTRO value: '$Env:ROS_DISTRO'." -ForegroundColor Red
     exit 1
@@ -176,6 +179,7 @@ $compilerLauncher = Get-CompilerLauncher
 $explicitInstallBase = -not [string]::IsNullOrWhiteSpace($install_base)
 $effectiveInstallBase = Get-EffectiveInstallBase -InstallBase $install_base
 Assert-DefaultInstallBaseMatchesDistro -InstallBase $effectiveInstallBase -ExplicitInstallBase $explicitInstallBase
+# console_cohesion+ buffers output per package for readable local logs; CI can override to console_direct+.
 $eventHandler = if ([string]::IsNullOrWhiteSpace($Env:ROS2CS_EVENT_HANDLER)) {
     "console_cohesion+"
 } else {
@@ -212,6 +216,7 @@ if (-not [string]::IsNullOrWhiteSpace($install_base)) {
 
 $colconArgs += @(
     "--parallel-workers", "$parallelWorkers",
+    # Merge install produces one install tree, which matches downstream setup.* sourcing and R2FU packaging assumptions.
     "--merge-install",
     "--event-handlers", "$eventHandler",
     "--cmake-args"

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Based on upstream RobotecAI ros2cs scripts, Apache-2.0.
 # Modifications Copyright (c) 2026 Jianbin Liu.
 #
 # Modifications by Jianbin Liu:
@@ -27,6 +28,7 @@ if [ -z "${ROS_DISTRO:-}" ]; then
     exit 1
 fi
 
+# Validate to prevent path injection; ROS_DISTRO is interpolated into marker and repos filenames.
 if [[ ! "$ROS_DISTRO" =~ ^[a-z][a-z0-9_]*$ ]]; then
     echo "Invalid ROS_DISTRO value: '$ROS_DISTRO'."
     exit 1
@@ -89,6 +91,7 @@ STANDALONE=OFF
 PARALLEL_WORKERS="${ROS2CS_PARALLEL_WORKERS:-}"
 BUILD_BASE="${ROS2CS_BUILD_BASE:-}"
 INSTALL_BASE="${ROS2CS_INSTALL_BASE:-}"
+# console_cohesion+ buffers output per package for readable local logs; CI can override to console_direct+.
 EVENT_HANDLER="${ROS2CS_EVENT_HANDLER:-console_cohesion+}"
 
 # Worker count is a throughput policy; build correctness must not depend on a specific value.
@@ -177,6 +180,7 @@ CMAKE_ARGS=(
   -DCMAKE_BUILD_TYPE=Release
   -DSTANDALONE_BUILD="$STANDALONE"
   -DBUILD_TESTING="$TESTS"
+  # $ORIGIN-relative RPATH keeps install trees relocatable; old-style RPATH is used so transitive native dependencies resolve beside generated libraries.
   -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-rpath,'\$ORIGIN',-rpath=.,--disable-new-dtags"
 )
 
@@ -206,6 +210,7 @@ fi
 MSG="$MSG (workers: $PARALLEL_WORKERS, generator: Ninja, event handler: $EVENT_HANDLER)"
 
 echo "$MSG"
+# --merge-install produces one install tree, matching downstream setup.sh sourcing and R2FU packaging assumptions.
 colcon "${COLCON_ARGS[@]}" \
 --parallel-workers "$PARALLEL_WORKERS" \
 --merge-install \

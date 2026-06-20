@@ -1,15 +1,19 @@
+<#
+Based on upstream RobotecAI ros2cs scripts, Apache-2.0.
+Modifications Copyright (c) 2026 Jianbin Liu.
+
+Modifications by Jianbin Liu:
+- Added fail-fast validation for ROS_DISTRO, repository files, and custom message imports.
+- Added configurable vcs import worker count through ROS2CS_VCS_WORKERS.
+#>
+
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-
-# Modifications Copyright (c) 2026 Jianbin Liu.
-#
-# Modifications by Jianbin Liu:
-# - Added fail-fast validation for ROS_DISTRO, repository files, and custom message imports.
-# - Added configurable vcs import worker count through ROS2CS_VCS_WORKERS.
 
 $scriptPath = split-path -parent $MyInvocation.MyCommand.Definition
 
 function Get-VcsWorkers {
+    # Worker count is a throughput policy; import correctness must not depend on a specific value.
     if (-not [string]::IsNullOrWhiteSpace($Env:ROS2CS_VCS_WORKERS)) {
         $workers = 0
         if ([int]::TryParse($Env:ROS2CS_VCS_WORKERS, [ref]$workers) -and $workers -gt 0) {
@@ -27,6 +31,7 @@ if (([string]::IsNullOrEmpty($Env:ROS_DISTRO)))
     exit 1
 }
 
+# Validate to prevent path injection; ROS_DISTRO is interpolated into a repos filename.
 if ($Env:ROS_DISTRO -notmatch '^[a-z][a-z0-9_]*$')
 {
     Write-Host "Invalid ROS_DISTRO value: '$Env:ROS_DISTRO'." -ForegroundColor Red
