@@ -25,6 +25,7 @@ find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_export_assemblies REQUIRED)
 find_package(dotnet_cmake_module REQUIRED)
 
+# netstandard2.0 keeps generated/runtime assemblies compatible with Unity's Mono profile.
 set(CSHARP_TARGET_FRAMEWORK "netstandard2.0")
 set(CSBUILD_TOOL "DotNetCore")
 

@@ -14,5 +14,7 @@
 
 using System.Runtime.CompilerServices;
 
+// ros2cs_core consumes internal native-message helpers without making them public API.
 [assembly:InternalsVisibleTo("ros2cs_core")]
+// ros2cs_tests verifies internal loader and message contracts without widening production visibility.
 [assembly:InternalsVisibleTo("ros2cs_tests")]

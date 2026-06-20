@@ -31,6 +31,14 @@ using System.Threading;
 
 namespace ROS2
 {
+  /// <summary>
+  /// Global native library loader settings shared by platform loader implementations.
+  /// </summary>
+  /// <remarks>
+  /// Settings are read as an immutable snapshot by each load operation. Apply all
+  /// loader settings before the first native library load to avoid mixed behavior
+  /// across already-loaded assemblies.
+  /// </remarks>
   public class GlobalVariables {
     private static Snapshot settings = new Snapshot(false, "", "");
     private static readonly object settingsMutex = new object();
@@ -63,7 +71,14 @@ namespace ROS2
       }
     }
 
-    /// <summary>Optional absolute search path prepended before falling back to platform defaults.</summary>
+    /// <summary>
+    /// Optional absolute directory prefix prepended directly to the library file name.
+    /// </summary>
+    /// <remarks>
+    /// Include the trailing directory separator, for example <c>/opt/ros/jazzy/lib/</c>.
+    /// If the combined path fails to load, the loader retries with the bare file name
+    /// using the platform default search paths.
+    /// </remarks>
     public static string absolutePath
     {
       get { return GetSnapshot().AbsolutePath; }
@@ -111,11 +126,17 @@ namespace ROS2
     }
   }
 
+  /// <summary>Native loader platform selected by <see cref="DllLoadUtilsFactory"/>.</summary>
   public enum Platform {
+    /// <summary>Linux/Unix loader using <c>libdl.so.2</c> and <c>.so</c> libraries.</summary>
     Unix,
+    /// <summary>macOS loader using <c>libdl.dylib</c> and <c>.dylib</c> libraries.</summary>
     MacOSX,
+    /// <summary>Windows desktop loader using kernel32 library loading APIs.</summary>
     WindowsDesktop,
+    /// <summary>Universal Windows Platform loader using packaged-library APIs.</summary>
     UWP,
+    /// <summary>Unsupported or unrecognized runtime platform.</summary>
     Unknown
   }
 
@@ -178,10 +199,23 @@ namespace ROS2
     }
   }
 
+  /// <summary>Platform-agnostic native library loader contract used by ros2cs.</summary>
   public interface DllLoadUtils {
+    /// <summary>
+    /// Load a ros2cs-style generated native library by appending the platform-specific
+    /// <c>_native</c> infix and native library extension.
+    /// </summary>
     IntPtr LoadLibrary (string fileName);
+
+    /// <summary>
+    /// Load a native library by appending only the platform-specific native library extension.
+    /// </summary>
     IntPtr LoadLibraryNoSuffix (string fileName);
+
+    /// <summary>Release a native library handle returned by this loader.</summary>
     void FreeLibrary (IntPtr handle);
+
+    /// <summary>Resolve a native symbol from a loaded library handle.</summary>
     IntPtr GetProcAddress (IntPtr dllHandle, string name);
   }
 
@@ -279,6 +313,7 @@ namespace ROS2
     }
   }
 
+  /// <summary>Native library loader for Universal Windows Platform packaged applications.</summary>
   public class DllLoadUtilsUWP : DllLoadUtils {
 
     [DllImport ("api-ms-win-core-libraryloader-l2-1-0.dll", SetLastError = true, ExactSpelling = true)]
@@ -398,6 +433,7 @@ namespace ROS2
     }
   }
 
+  /// <summary>Native library loader for Windows desktop processes.</summary>
   public class DllLoadUtilsWindowsDesktop : DllLoadUtils {
 
     [DllImport ("kernel32.dll", SetLastError = true)]
@@ -517,6 +553,7 @@ namespace ROS2
     }
   }
 
+  /// <summary>Native library loader for Linux/Unix processes using <c>dlopen</c>.</summary>
   internal class DllLoadUtilsUnix : DllLoadUtils {
 
     [DllImport ("libdl.so.2", ExactSpelling = true)]
@@ -531,10 +568,10 @@ namespace ROS2
     [DllImport ("libdl.so.2", ExactSpelling = true)]
     private static extern IntPtr dlerror ();
 
-    const int RTLD_NOW = 0x00002;
+    // RTLD_NOW (2): resolve all symbols immediately; dlopen fails if any symbol is missing.
+    const int RTLD_NOW = 2;
 
-    //TODO (adamdbrw) Somewhat hacky solution to open (and dereference) the problematic library
-    //that otherwise causes crashes in Unity Editor.
+    // Keep one preloaded dependency alive for Unity editor/player native plugin stability.
     // Tracks the exact preload target so path/name changes refresh the native handle.
     private static string preloadedLibraryKey = "";
     // Retains ownership of the preloaded dependency for the lifetime of the Unix loader.
@@ -633,6 +670,12 @@ namespace ROS2
     }
   }
 
+  /// <summary>Native library loader for macOS processes using <c>dlopen</c>.</summary>
+  /// <remarks>
+  /// Kept separate from <see cref="DllLoadUtilsUnix"/> because the P/Invoke library name
+  /// and native library suffix differ, and keeping each class explicit makes future
+  /// platform-specific loader changes localized.
+  /// </remarks>
   internal class DllLoadUtilsMacOSX : DllLoadUtils {
 
     [DllImport ("libdl.dylib", ExactSpelling = true)]
@@ -647,11 +690,13 @@ namespace ROS2
     [DllImport ("libdl.dylib", ExactSpelling = true)]
     private static extern IntPtr dlerror ();
 
+    // RTLD_NOW (2): resolve all symbols immediately; dlopen fails if any symbol is missing.
     const int RTLD_NOW = 2;
     private static string preloadedLibraryKey = "";
     private static NativeLibraryHandle preloadedLibraryHandle = null;
     private static readonly object preloadMutex = new object();
 
+    /// <summary>Preload a configured dependency once per absolute path/name pair.</summary>
     private void CheckPreloadLibraries(GlobalVariables.Snapshot settings)
     {
       string preloadKey = settings.AbsolutePath + "|" + settings.PreloadLibraryName;

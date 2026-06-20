@@ -26,11 +26,20 @@ namespace ROS2
   {
   }
 
-  /// <summary> Convenience interface to manipulate headers </summary>
+  /// <summary>Convenience interface for generated messages that expose a standard ROS 2 header.</summary>
   public interface MessageWithHeader : Message
   {
+    /// <summary>Set the header frame id string.</summary>
+    /// <param name="frameID">Frame identifier written to the message header.</param>
     void SetHeaderFrame(string frameID);
+
+    /// <summary>Get the header frame id string.</summary>
+    /// <returns>The current frame identifier from the message header.</returns>
     string GetHeaderFrame();
+
+    /// <summary>Update the split ROS 2 header timestamp.</summary>
+    /// <param name="sec">Whole seconds component of <c>builtin_interfaces/Time</c>.</param>
+    /// <param name="nanosec">Sub-second nanoseconds component of <c>builtin_interfaces/Time</c>.</param>
     void UpdateHeaderTime(int sec, uint nanosec);
   }
 }  // namespace ROS2

@@ -31,6 +31,10 @@ namespace ROS2
       protected UnsatisfiedLinkException(SerializationInfo info, StreamingContext context) : base(info, context) { }
     }
 
+    /// <summary>
+    /// Base exception for unsupported or unrecognized runtime platforms.
+    /// Prefer catching this type over the concrete <see cref="UnknownPlatformError"/>.
+    /// </summary>
     [Serializable]
     public class UnknownPlatformException : Exception {
       public UnknownPlatformException () : base() { }
@@ -51,6 +55,10 @@ namespace ROS2
       protected UnsatisfiedLinkError(SerializationInfo info, StreamingContext context) : base(info, context) { }
     }
 
+    /// <summary>
+    /// Concrete unsupported-platform error thrown by the loader factory.
+    /// Catch <see cref="UnknownPlatformException"/> to handle all platform detection failures.
+    /// </summary>
     [Serializable]
     public class UnknownPlatformError : UnknownPlatformException {
       public UnknownPlatformError () : base() { }
@@ -59,9 +67,16 @@ namespace ROS2
       protected UnknownPlatformError(SerializationInfo info, StreamingContext context) : base(info, context) { }
     }
 
+    /// <summary>
+    /// Thrown when a native ROS 2 call returns a non-success return code.
+    /// Distinct from <see cref="UnsatisfiedLinkException"/>, which signals a native library loader failure.
+    /// </summary>
     [Serializable]
     public class RuntimeError : Exception
     {
+      /// <summary>
+      /// The rcl/rmw return code, or <c>null</c> when the error originates from a managed-only path.
+      /// </summary>
       public int? ReturnCode { get; private set; }
 
       public RuntimeError() : base() {}
@@ -81,6 +96,7 @@ namespace ROS2
       }
     }
 
+    /// <summary>Thrown when ROS 2 operations are attempted before <c>Ros2cs.Init()</c> succeeds.</summary>
     [Serializable]
     public class NotInitializedException : InvalidOperationException
     {
@@ -90,6 +106,7 @@ namespace ROS2
       protected NotInitializedException(SerializationInfo info, StreamingContext context) : base(info, context) { }
     }
 
+    /// <summary>Thrown when a node name fails ROS 2 node-name validation.</summary>
     [Serializable]
     public class InvalidNodeNameException : ArgumentException
     {
@@ -99,6 +116,7 @@ namespace ROS2
       protected InvalidNodeNameException(SerializationInfo info, StreamingContext context) : base(info, context) { }
     }
 
+    /// <summary>Thrown when a node namespace fails ROS 2 namespace validation.</summary>
     [Serializable]
     public class InvalidNamespaceException : ArgumentException
     {
