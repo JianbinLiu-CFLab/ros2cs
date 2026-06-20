@@ -5,6 +5,8 @@
 # - Added custom colcon build/install base forwarding.
 # - Added test evidence metadata output.
 # - Added build-distro marker validation and zero-test-result rejection.
+# - Cleared stale colcon test result XML before each test run.
+# - Aligned local test package selection with CI.
 
 Param (
     [Parameter(Mandatory=$false)][switch]$help=$false,
@@ -141,6 +143,19 @@ function Get-ColconTestCount {
     return $count
 }
 
+function Clear-ColconTestResults {
+    param([string]$BuildBase)
+
+    if (-not (Test-Path -LiteralPath $BuildBase)) {
+        return
+    }
+
+    Get-ChildItem -LiteralPath $BuildBase -Recurse -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -eq "test_results" -or $_.Name -eq "Testing" } |
+        Sort-Object FullName -Descending |
+        ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force }
+}
+
 if (-not (Get-Command colcon -ErrorAction SilentlyContinue)) {
     Write-Host "Can't find colcon. Source your ROS 2 environment or install colcon first." -ForegroundColor Red
     exit 1
@@ -149,7 +164,8 @@ if (-not (Get-Command colcon -ErrorAction SilentlyContinue)) {
 $effectiveBuildBase = Get-EffectiveBuildBase -BuildBase $build_base
 $effectiveInstallBase = Get-EffectiveInstallBase -InstallBase $install_base
 Assert-TestDistroMatchesBuild -InstallBase $effectiveInstallBase
-$testArgs = @("test", "--merge-install", "--packages-select", "ros2cs_tests")
+Clear-ColconTestResults -BuildBase $effectiveBuildBase
+$testArgs = @("test", "--merge-install", "--packages-select", "rosidl_generator_cs", "ros2cs_tests")
 $resultArgs = @("test-result", "--verbose")
 
 if (-not [string]::IsNullOrWhiteSpace($build_base)) {

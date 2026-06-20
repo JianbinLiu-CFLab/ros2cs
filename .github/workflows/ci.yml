@@ -97,6 +97,7 @@ jobs:
         run: |
           . /opt/ros/jazzy/setup.sh
           . install/setup.sh
+          find build -type d \( -name test_results -o -name Testing \) -prune -exec rm -rf {} +
           set +e
           colcon test \
             --packages-select rosidl_generator_cs ros2cs_tests \
@@ -118,7 +119,14 @@ jobs:
               count += len(tree.findall(".//testcase"))
           print(count)
           PY
-          test_count=$(python3 count_colcon_tests.py)
+          if ! test_count=$(python3 count_colcon_tests.py); then
+            echo "Failed to count colcon test cases."
+            exit 1
+          fi
+          if ! [[ "$test_count" =~ ^[0-9]+$ ]]; then
+            echo "Invalid colcon test count: '$test_count'."
+            exit 1
+          fi
           if [ "$test_count" -le 0 ]; then
             echo "No test cases were executed; failing test gate."
             exit 1

@@ -19,6 +19,7 @@
 // - Added safe request message disposal.
 // - Isolated user callback exceptions from native response handling.
 // - Made disposal state volatile for node/entity visibility.
+// - Return a default response when a service callback throws so clients do not hang indefinitely.
 
 using System;
 using System.Collections.Generic;
@@ -210,7 +211,7 @@ namespace ROS2
         catch (Exception e)
         {
           logger.LogError("Unhandled exception in service callback for topic '" + topic + "': " + e);
-          return;
+          response = new O();
         }
 
         try

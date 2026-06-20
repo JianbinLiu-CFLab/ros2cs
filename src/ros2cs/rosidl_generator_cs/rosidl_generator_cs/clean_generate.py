@@ -20,6 +20,10 @@ import sys
 
 
 def _read_outputs(path):
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            "Declared outputs file does not exist: {0}".format(path))
+
     with open(path, 'r', encoding='utf-8') as handle:
         return [line.strip() for line in handle if line.strip()]
 
@@ -49,7 +53,12 @@ def main(argv=None):
         help='Arguments passed through to the generator entrypoint.')
     args = parser.parse_args(argv)
 
-    outputs = _read_outputs(args.outputs_file)
+    try:
+        outputs = _read_outputs(args.outputs_file)
+    except OSError as e:
+        print("rosidl_generator_cs clean wrapper failed to read outputs file: {0}".format(e), file=sys.stderr)
+        return 2
+
     _remove_outputs(outputs)
 
     generator_args = args.generator_args
@@ -57,7 +66,13 @@ def main(argv=None):
         generator_args = generator_args[1:]
 
     command = [sys.executable, args.generator] + generator_args
-    result = subprocess.run(command)
+    try:
+        result = subprocess.run(command)
+    except OSError as e:
+        _remove_outputs(outputs)
+        print("rosidl_generator_cs clean wrapper failed to run generator: {0}".format(e), file=sys.stderr)
+        return 2
+
     if result.returncode != 0:
         _remove_outputs(outputs)
     return result.returncode

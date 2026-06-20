@@ -60,7 +60,7 @@ namespace ROS2
     private static WaitSet WaitSet;
     private static bool destructorFinalizerSuppressed;
     private static volatile bool useDirectSpinFallback;
-    private static string directSpinFallbackReason;
+    private static volatile string directSpinFallbackReason;
     private static int directSpinFallbackLogged;
 
     /// <summary>Whether the current thread is executing subscription/client/service callbacks.</summary>

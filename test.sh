@@ -7,6 +7,8 @@
 # - Added custom colcon build/install base forwarding.
 # - Added test evidence metadata output.
 # - Added build-distro marker validation and zero-test-result rejection.
+# - Cleared stale colcon test result XML before each test run.
+# - Aligned local test package selection with CI.
 
 # Keep -e disabled so colcon test-result still runs and prints diagnostics after colcon test fails.
 set -u
@@ -107,6 +109,14 @@ print(count)
 PY
 }
 
+clear_colcon_test_results() {
+    if [ ! -d "$EFFECTIVE_BUILD_BASE" ]; then
+        return
+    fi
+
+    find "$EFFECTIVE_BUILD_BASE" -type d \( -name test_results -o -name Testing \) -prune -exec rm -rf {} +
+}
+
 write_test_evidence() {
     mkdir -p "$EFFECTIVE_BUILD_BASE"
     {
@@ -161,7 +171,8 @@ fi
 EFFECTIVE_BUILD_BASE="$(get_effective_build_base)"
 EFFECTIVE_INSTALL_BASE="$(get_effective_install_base)"
 assert_test_distro_matches_build
-TEST_ARGS=(test --merge-install --packages-select ros2cs_tests)
+clear_colcon_test_results
+TEST_ARGS=(test --merge-install --packages-select rosidl_generator_cs ros2cs_tests)
 RESULT_ARGS=(test-result --verbose)
 
 if [ -n "$BUILD_BASE" ]; then
@@ -178,9 +189,19 @@ test_exit_code=$?
 
 colcon "${RESULT_ARGS[@]}"
 result_exit_code=$?
-test_count="$(count_colcon_tests)"
+if ! test_count="$(count_colcon_tests)"; then
+    echo "Failed to count colcon test cases."
+    exit 1
+fi
 
 write_test_evidence
+
+case "$test_count" in
+    ''|*[!0-9]*)
+        echo "Invalid colcon test count: '$test_count'."
+        exit 1
+        ;;
+esac
 
 if [ "$test_count" -le 0 ]; then
     echo "No test cases were executed; failing test gate."

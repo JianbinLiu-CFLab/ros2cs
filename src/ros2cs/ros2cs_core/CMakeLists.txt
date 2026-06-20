@@ -3,6 +3,7 @@
 #
 # Modifications by Jianbin Liu:
 # - Updated standalone dependency closure and Jazzy runtime build metadata.
+# - Made standalone imported-target lookup fail loudly and versioned DLL sorting natural when supported.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -260,8 +261,12 @@ if(STANDALONE_BUILD)
         endif()
       endforeach()
       list(REMOVE_DUPLICATES ${_library_name}_MATCHES)
-      list(SORT ${_library_name}_MATCHES)
-      list(REVERSE ${_library_name}_MATCHES)
+      if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
+        list(SORT ${_library_name}_MATCHES COMPARE NATURAL ORDER DESCENDING)
+      else()
+        list(SORT ${_library_name}_MATCHES)
+        list(REVERSE ${_library_name}_MATCHES)
+      endif()
       if("${${_library_name}_MATCHES}" STREQUAL "")
         message( FATAL_ERROR "Can't find third party dependency: ${_library_name} (${_pattern})" )
       endif()
@@ -280,14 +285,19 @@ if(STANDALONE_BUILD)
 
   macro(fetch_target_lib _target)
     string(REGEX REPLACE "::" "_" _target_normalized ${_target})
+    set(${_target_normalized}_LIB_PATH "")
     set(_locations IMPORTED_LOCATION_NONE IMPORTED_LOCATION_NOCONFIG IMPORTED_LOCATION_RELEASE IMPORTED_LOCATION_RELWITHDEBINFO IMPORTED_LOCATION_DEBUG)
     foreach(_location ${_locations})
       get_target_property(${_target_normalized}_LIB_PATH ${_target} ${_location})
-      if(NOT "${${_target_normalized}_LIB_PATH}" STREQUAL "${_target_normalized}_LIB_PATH-NOTFOUND")
+      if(NOT "${${_target_normalized}_LIB_PATH}" STREQUAL "${_target_normalized}_LIB_PATH-NOTFOUND" AND NOT "${${_target_normalized}_LIB_PATH}" STREQUAL "")
         # message("+++++++++++ ${_target_normalized}_LIB_PATH: >> ${${_target_normalized}_LIB_PATH} with ${_location}")
         break()
       endif()
     endforeach()
+    if("${${_target_normalized}_LIB_PATH}" STREQUAL "" OR "${${_target_normalized}_LIB_PATH}" STREQUAL "${_target_normalized}_LIB_PATH-NOTFOUND")
+      message(FATAL_ERROR "Imported target ${_target} does not expose a standalone library path")
+    endif()
+    message(STATUS "Found standalone target dependency ${_target}: ${${_target_normalized}_LIB_PATH}")
   endmacro()
 
   macro(get_standalone_dependencies _library_name)
