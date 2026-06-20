@@ -13,6 +13,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modifications by Jianbin Liu:
+// - Added immutable managed graph-query result objects for topic names and type names.
+// - Keeps native flattened graph data out of public API ownership.
+
 using System.Collections.Generic;
 
 namespace ROS2

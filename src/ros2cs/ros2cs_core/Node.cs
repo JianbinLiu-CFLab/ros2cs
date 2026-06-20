@@ -53,6 +53,7 @@ namespace ROS2
     private HashSet<IClientBase> clients;
     private HashSet<IServiceBase> services;
     private readonly object mutex = new object();
+    // Poll graph discovery at 100 ms to stay responsive without busy-waiting DDS propagation.
     private static readonly TimeSpan GraphPollInterval = TimeSpan.FromMilliseconds(100);
     // Child entities read this outside node.mutex while holding their own mutex. Volatile preserves
     // visibility after rcl_node_fini without reversing the node -> child disposal lock order.
@@ -61,7 +62,7 @@ namespace ROS2
     public bool IsDisposed { get { return disposed; } }
 
     /// <summary> Node constructor </summary>
-    /// <description> Nodes are created through CreateNode method of Ros2cs class </description>
+    /// <remarks> Nodes are created through CreateNode method of Ros2cs class. </remarks>
     /// <param name="nodeName"> unique, non-namespaced node name </param>
     /// <param name="context"> (rcl) context for the node. Global context is passed to this method </param>
     internal Node(string nodeName, ref rcl_context_t context)
@@ -70,7 +71,7 @@ namespace ROS2
     }
 
     /// <summary> Node constructor </summary>
-    /// <description> Nodes are created through CreateNode method of Ros2cs class </description>
+    /// <remarks> Nodes are created through CreateNode method of Ros2cs class. </remarks>
     /// <param name="nodeName"> unique, non-namespaced node name </param>
     /// <param name="context"> (rcl) context for the node. Global context is passed to this method </param>
     /// <param name="options"> managed node options applied to native defaults before rcl_node_init </param>
@@ -295,6 +296,7 @@ namespace ROS2
 
         UIntPtr count = UIntPtr.Zero;
         Utils.CheckReturnEnum(NativeRcl.rcl_count_publishers(ref nodeHandle, topicName, ref count));
+        // rcl returns size_t; checked keeps a theoretically huge graph from truncating to int.
         return checked((int)count.ToUInt64());
       }
     }
@@ -309,6 +311,7 @@ namespace ROS2
 
         UIntPtr count = UIntPtr.Zero;
         Utils.CheckReturnEnum(NativeRcl.rcl_count_subscribers(ref nodeHandle, topicName, ref count));
+        // rcl returns size_t; checked keeps a theoretically huge graph from truncating to int.
         return checked((int)count.ToUInt64());
       }
     }
@@ -386,6 +389,7 @@ namespace ROS2
 
       rclcs_topic_names_and_types_t nativeResult =
         Marshal.PtrToStructure<rclcs_topic_names_and_types_t>(result);
+      // Native flattened result uses size_t; checked keeps impossible-but-valid ABI values explicit.
       int topicCount = checked((int)nativeResult.size.ToUInt64());
       List<TopicNamesAndTypes> topics = new List<TopicNamesAndTypes>(topicCount);
       int typeArraySize = Marshal.SizeOf<rclcs_string_array_t>();
@@ -398,6 +402,7 @@ namespace ROS2
         IntPtr typeArrayPtr = IntPtr.Add(nativeResult.types, i * typeArraySize);
         rclcs_string_array_t nativeTypes =
           Marshal.PtrToStructure<rclcs_string_array_t>(typeArrayPtr);
+        // Native flattened result uses size_t; checked avoids silent truncation on 64-bit targets.
         int typeCount = checked((int)nativeTypes.size.ToUInt64());
         string[] types = new string[typeCount];
         for (int j = 0; j < typeCount; j++)

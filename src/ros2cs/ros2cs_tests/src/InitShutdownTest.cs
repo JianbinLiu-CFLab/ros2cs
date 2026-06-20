@@ -30,6 +30,8 @@ namespace ROS2.Test
     [TestFixture]
     public class InitShutdownTest
     {
+        private const int SpinEntryDelayMs = 100;
+
         [TearDown]
         public void TearDown()
         {
@@ -159,7 +161,8 @@ namespace ROS2.Test
                 }
             });
 
-            Thread.Sleep(100);
+            // Give the spin task a chance to enter rcl_wait before shutdown serializes against it.
+            Thread.Sleep(SpinEntryDelayMs);
             Assert.DoesNotThrow(() => Ros2cs.Shutdown());
 
             Assert.That(spinTask.Wait(TimeSpan.FromSeconds(2)), Is.True);
@@ -211,7 +214,8 @@ namespace ROS2.Test
                 }
             });
 
-            Thread.Sleep(100);
+            // Give the spin loop a chance to enter its wait path before shutdown.
+            Thread.Sleep(SpinEntryDelayMs);
             Ros2cs.Shutdown();
 
             Assert.That(spinTask.Wait(TimeSpan.FromSeconds(2)), Is.True);
@@ -234,7 +238,8 @@ namespace ROS2.Test
                 }
             });
 
-            Thread.Sleep(100);
+            // Give the spin task a chance to enter rcl_wait before shutdown serializes against it.
+            Thread.Sleep(SpinEntryDelayMs);
             Assert.DoesNotThrow(() => Ros2cs.Shutdown());
 
             Assert.That(spinTask.Wait(TimeSpan.FromSeconds(2)), Is.True);

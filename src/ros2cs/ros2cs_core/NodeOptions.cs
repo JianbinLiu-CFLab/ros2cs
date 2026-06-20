@@ -13,6 +13,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Modifications by Jianbin Liu:
+// - Added opt-in node creation options for lightweight runtime profiles.
+// - Kept defaults compatible with existing ros2cs node behavior.
+
 namespace ROS2
 {
   /// <summary>Optional settings applied when creating a ros2cs node.</summary>
