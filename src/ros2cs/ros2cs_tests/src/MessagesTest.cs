@@ -204,6 +204,64 @@ namespace ROS2.Test
             Assert.That(msg.String_values, Is.EqualTo(expectedString));
         }
 
+        /// <summary>Verifies generated fixed-size array marshaling preserves primitive, string, and nested values.</summary>
+        [Test]
+        public void NativeRoundtripPreservesFixedSizeArrays()
+        {
+            bool[] expectedBool = new bool[] { true, false, true };
+            int[] expectedInt32 = new int[] { -7, 0, 42 };
+            string[] expectedString = new string[] { "fixed", "", "数组" };
+            int[] expectedNestedInt32 = new int[] { 11, 22, 33 };
+            byte[] expectedConstants = new byte[] { 1, 2, 3 };
+            int[] expectedDefaultsInt32 = new int[] { 101, 202, 303 };
+
+            using var msg = new test_msgs.msg.Arrays();
+            for (int i = 0; i < msg.Bool_values.Length; i++)
+            {
+                msg.Bool_values[i] = expectedBool[i];
+                msg.Int32_values[i] = expectedInt32[i];
+                msg.String_values[i] = expectedString[i];
+                msg.String_values_default[i] = "default-" + i;
+                msg.Basic_types_values[i] = new test_msgs.msg.BasicTypes
+                {
+                    Int32_value = expectedNestedInt32[i]
+                };
+                msg.Constants_values[i] = new test_msgs.msg.Constants
+                {
+                    Structure_needs_at_least_one_member = expectedConstants[i]
+                };
+                msg.Defaults_values[i] = new test_msgs.msg.Defaults
+                {
+                    Int32_value = expectedDefaultsInt32[i]
+                };
+            }
+
+            msg.WriteNativeMessage();
+            Array.Clear(msg.Bool_values, 0, msg.Bool_values.Length);
+            Array.Clear(msg.Int32_values, 0, msg.Int32_values.Length);
+            for (int i = 0; i < msg.String_values.Length; i++)
+            {
+                msg.String_values[i] = "";
+                msg.Basic_types_values[i].Int32_value = -1;
+                msg.Constants_values[i].Structure_needs_at_least_one_member = 0;
+                msg.Defaults_values[i].Int32_value = -1;
+            }
+
+            msg.ReadNativeMessage();
+
+            Assert.That(msg.Bool_values, Is.EqualTo(expectedBool));
+            Assert.That(msg.Int32_values, Is.EqualTo(expectedInt32));
+            Assert.That(msg.String_values, Is.EqualTo(expectedString));
+            for (int i = 0; i < expectedNestedInt32.Length; i++)
+            {
+                Assert.That(msg.Basic_types_values[i].Int32_value, Is.EqualTo(expectedNestedInt32[i]));
+                Assert.That(
+                    msg.Constants_values[i].Structure_needs_at_least_one_member,
+                    Is.EqualTo(expectedConstants[i]));
+                Assert.That(msg.Defaults_values[i].Int32_value, Is.EqualTo(expectedDefaultsInt32[i]));
+            }
+        }
+
         /// <summary>Fresh generated messages must not allocate native storage just to read from it.</summary>
         [Test]
         public void ReadNativeMessageWithoutNativeHandleThrows()

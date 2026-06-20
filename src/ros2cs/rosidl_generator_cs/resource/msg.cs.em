@@ -303,6 +303,7 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
 
     // Keep the generated native typesupport library loaded while delegates point into it.
     // This must be the ros2cs native overlay; the plain FastRTPS typesupport library does not export _native_* symbols.
+    // LoadLibrary appends the platform native-library suffix convention, including the "_native" infix used by CMake OUTPUT_NAME.
     string nativeLibraryName = "@(package_name)_@(message_class_lower)__rosidl_typesupport_c";
     native_library = NativeLibraryHandle.LoadLibrary(dllLoadUtils, nativeLibraryName);
     IntPtr nativelibrary = native_library.Handle;
@@ -477,6 +478,10 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
     { //TODO - (adam) this is a bit clunky. Is there a better way to marshal unsigned and bool types?
       int arraySize = 0;
       IntPtr pArr = native_read_field_@(member.name)(out arraySize, handle);
+      if (arraySize < 0)
+      {
+        throw new System.InvalidOperationException("Native field @(member.name) size exceeds supported Int32 range");
+      }
 @[    if isinstance(member.type, Array)]@
       if (arraySize != @(member.type.size))
       {
@@ -524,6 +529,10 @@ public class @(message_class) : @(internals_interface), @(parent_interface)
          isinstance(member.type.value_type, (NamedType, NamespacedType, AbstractGenericString))]@
     {
       int __native_array_size = native_get_array_size_@(member.name)(handle);
+      if (__native_array_size < 0)
+      {
+        throw new System.InvalidOperationException("Native field @(member.name) size exceeds supported Int32 range");
+      }
 @[    if isinstance(member.type, Array)]@
       if (__native_array_size != @(member.type.size))
       {

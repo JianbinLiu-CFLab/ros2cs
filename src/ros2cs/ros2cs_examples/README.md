@@ -53,7 +53,7 @@ on Windows, call the ROS 2 setup batch file for your installation.
     ros2 run ros2cs_examples ros2cs_talker.exe
     ```
 
-Listener will print out `"I heard: [Hello World: X]` messages sent by a talker.
+Listener will print out `"I heard: [Hello World: X]"` messages sent by a talker.
 
 ## Simple service/client
 

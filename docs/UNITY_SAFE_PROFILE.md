@@ -32,6 +32,18 @@ and downstream R2FU packages.
 - Add graph convenience APIs without changing existing message behavior.
 - Keep lightweight runtime behavior opt-in.
 
+## Validation Status
+
+Unity Player smoke and external ROS 2 echo validation are the target evidence for
+Unity-facing runtime claims. Build-only evidence is not enough for those claims.
+
+Recorded local R2FU Player or RViz2 acceptance evidence counts as runtime
+validation when it is tied to the same ros2cs commit and runtime artifact. For
+example, the Phase146B Lyrical Win64 run validated Unity Native R2FU, external
+Lyrical RViz2, TF, and raw plus deskewed PointCloud2 visualization together.
+That is strong local acceptance evidence; it is distinct from public CI matrix
+coverage, not weaker than build-only evidence.
+
 ## Lightweight Node Options
 
 `NodeOptions` defaults preserve the existing ros2cs node behavior. The existing

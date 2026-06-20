@@ -3,7 +3,7 @@
   <name>ros2cs_examples</name>
   <version>2.0.0</version>
   <description>Package containing examples of how to use the ros2cs API.</description>
-  <maintainer email="adam.dabrowski@robotec.ai">Adam Dabrowski</maintainer>
+  <maintainer email="jiliu@tu-dresden.de">Jianbin Liu</maintainer>
   <license>Apache License 2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

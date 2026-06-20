@@ -24,6 +24,7 @@ Modifications by Jianbin Liu:
 - Added optional short colcon build base support through -build_base or ROS2CS_BUILD_BASE.
 - Added optional colcon install base support through -install_base or ROS2CS_INSTALL_BASE.
 - Added ROS2CS_EVENT_HANDLER override and defaulted colcon output to console_cohesion+.
+- Added build evidence metadata and a default install-base distro guard.
 #>
 Param (
     [Parameter(Mandatory=$false)][switch]$help=$false,
@@ -74,6 +75,80 @@ function Get-CompilerLauncher {
     return $null
 }
 
+function Get-EffectiveInstallBase {
+    param([string]$InstallBase)
+
+    $repoRoot = (Get-Location).Path
+    if ([string]::IsNullOrWhiteSpace($InstallBase)) {
+        return (Join-Path $repoRoot "install")
+    }
+
+    if ([System.IO.Path]::IsPathRooted($InstallBase)) {
+        return $InstallBase
+    }
+
+    return (Join-Path $repoRoot $InstallBase)
+}
+
+function Get-GitCommit {
+    try {
+        $commit = (& git rev-parse HEAD 2>$null)
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($commit)) {
+            return $commit.Trim()
+        }
+    } catch {
+        # Build evidence should not make local source builds depend on git availability.
+    }
+
+    return "unknown"
+}
+
+function Assert-DefaultInstallBaseMatchesDistro {
+    param(
+        [string]$InstallBase,
+        [bool]$ExplicitInstallBase
+    )
+
+    if ($ExplicitInstallBase) {
+        return
+    }
+
+    $markerPath = Join-Path $InstallBase ".ros2cs_build_distro"
+    if (-not (Test-Path -LiteralPath $markerPath)) {
+        return
+    }
+
+    $recordedDistro = (Get-Content -LiteralPath $markerPath -Raw).Trim()
+    if (-not [string]::IsNullOrWhiteSpace($recordedDistro) -and $recordedDistro -ne $Env:ROS_DISTRO) {
+        throw "Default install base '$InstallBase' was last built for ROS_DISTRO='$recordedDistro', but current ROS_DISTRO='$Env:ROS_DISTRO'. Pass -install_base for an isolated build or remove the default install directory intentionally."
+    }
+}
+
+function Write-BuildEvidence {
+    param(
+        [string]$InstallBase,
+        [string]$Standalone,
+        [string]$BuildTesting
+    )
+
+    New-Item -ItemType Directory -Path $InstallBase -Force | Out-Null
+
+    $markerPath = Join-Path $InstallBase ".ros2cs_build_distro"
+    Set-Content -LiteralPath $markerPath -Value $Env:ROS_DISTRO -Encoding ASCII
+
+    $infoPath = Join-Path $InstallBase "ros2cs_build_info.txt"
+    $lines = @(
+        "ros2cs_commit=$(Get-GitCommit)",
+        "ros_distro=$Env:ROS_DISTRO",
+        "build_timestamp_utc=$([DateTimeOffset]::UtcNow.ToString('o'))",
+        "repo_path=$((Get-Location).Path)",
+        "install_base=$InstallBase",
+        "standalone=$Standalone",
+        "build_testing=$BuildTesting"
+    )
+    Set-Content -LiteralPath $infoPath -Value $lines -Encoding UTF8
+}
+
 if ([string]::IsNullOrEmpty($Env:ROS_DISTRO)) {
     Write-Host "Source your ros2 distro first (foxy, galactic, humble, jazzy, lyrical or rolling are supported)" -ForegroundColor Red
     exit 1
@@ -98,6 +173,9 @@ if($standalone) {
 
 $parallelWorkers = Get-ParallelWorkers
 $compilerLauncher = Get-CompilerLauncher
+$explicitInstallBase = -not [string]::IsNullOrWhiteSpace($install_base)
+$effectiveInstallBase = Get-EffectiveInstallBase -InstallBase $install_base
+Assert-DefaultInstallBaseMatchesDistro -InstallBase $effectiveInstallBase -ExplicitInstallBase $explicitInstallBase
 $eventHandler = if ([string]::IsNullOrWhiteSpace($Env:ROS2CS_EVENT_HANDLER)) {
     "console_cohesion+"
 } else {
@@ -146,3 +224,5 @@ colcon @colconArgs
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
+
+Write-BuildEvidence -InstallBase $effectiveInstallBase -Standalone $standalone_switch -BuildTesting $tests_switch

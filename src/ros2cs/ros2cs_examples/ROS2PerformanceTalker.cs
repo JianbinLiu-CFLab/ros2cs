@@ -76,7 +76,10 @@ namespace Examples
       return message;
     }
 
-    /// <summary>Dispose nested PointField wrappers owned by the reusable PointCloud2 example message.</summary>
+    /// <summary>
+    /// Dispose caller-supplied PointField wrappers assigned to the reusable PointCloud2 example message.
+    /// Generated message disposal releases only direct nested fields and read-owned sequence elements.
+    /// </summary>
     private static void DisposePointFields(sensor_msgs.msg.PointCloud2 message)
     {
       if (message?.Fields == null)

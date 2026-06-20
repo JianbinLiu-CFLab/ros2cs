@@ -5,6 +5,7 @@
 # - Added ROS environment checks and preserved failing test-result exit codes.
 # - Documented why this script does not use set -e.
 # - Added custom colcon build/install base forwarding.
+# - Added test evidence metadata output.
 
 # Keep -e disabled so colcon test-result still runs and prints diagnostics after colcon test fails.
 set -u
@@ -30,6 +31,39 @@ display_usage() {
 
 BUILD_BASE="${ROS2CS_BUILD_BASE:-}"
 INSTALL_BASE="${ROS2CS_INSTALL_BASE:-}"
+
+get_effective_build_base() {
+    if [ -z "$BUILD_BASE" ]; then
+        printf "%s/build" "$PWD"
+        return
+    fi
+
+    case "$BUILD_BASE" in
+        /*)
+            printf "%s" "$BUILD_BASE"
+            ;;
+        *)
+            printf "%s/%s" "$PWD" "$BUILD_BASE"
+            ;;
+    esac
+}
+
+get_git_commit() {
+    git rev-parse HEAD 2>/dev/null || printf "unknown"
+}
+
+write_test_evidence() {
+    mkdir -p "$EFFECTIVE_BUILD_BASE"
+    {
+        printf "ros2cs_commit=%s\n" "$(get_git_commit)"
+        printf "ros_distro=%s\n" "$ROS_DISTRO"
+        printf "test_timestamp_utc=%s\n" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+        printf "repo_path=%s\n" "$PWD"
+        printf "build_base=%s\n" "$EFFECTIVE_BUILD_BASE"
+        printf "colcon_test_exit_code=%s\n" "$test_exit_code"
+        printf "colcon_test_result_exit_code=%s\n" "$result_exit_code"
+    } > "$EFFECTIVE_BUILD_BASE/ros2cs_test_info.txt"
+}
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -68,6 +102,7 @@ if ! command -v colcon >/dev/null 2>&1; then
     exit 1
 fi
 
+EFFECTIVE_BUILD_BASE="$(get_effective_build_base)"
 TEST_ARGS=(test --merge-install --packages-select ros2cs_tests)
 RESULT_ARGS=(test-result --verbose)
 
@@ -85,6 +120,8 @@ test_exit_code=$?
 
 colcon "${RESULT_ARGS[@]}"
 result_exit_code=$?
+
+write_test_evidence
 
 if [ "$test_exit_code" -ne 0 ]; then
     exit "$test_exit_code"

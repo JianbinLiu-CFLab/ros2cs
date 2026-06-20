@@ -32,7 +32,7 @@ namespace Examples
       Console.WriteLine("Talker starting");
       using var runtime = new ROS2ExampleRuntime();
       using INode node = Ros2cs.CreateNode("talker");
-      using Publisher<std_msgs.msg.String> chatter_pub = node.CreatePublisher<std_msgs.msg.String>("chatter");
+      using IPublisher<std_msgs.msg.String> chatter_pub = node.CreatePublisher<std_msgs.msg.String>("chatter");
       using var msg = new std_msgs.msg.String();
 
       int i = 1;

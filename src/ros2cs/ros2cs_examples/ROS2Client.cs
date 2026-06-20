@@ -18,7 +18,6 @@
 
 
 using System;
-using System.Threading;
 using ROS2;
 
 namespace Examples
@@ -37,17 +36,12 @@ namespace Examples
       msg.A = 7;
       msg.B = 2;
 
-      DateTime waitDeadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
-      while (!my_client.IsServiceAvailable())
+      if (!my_client.TryWaitForService(TimeSpan.FromSeconds(30)))
       {
-        if (DateTime.UtcNow >= waitDeadline)
-        {
-          throw new TimeoutException("Timed out waiting for add_two_ints service.");
-        }
-        Thread.Sleep(TimeSpan.FromSeconds(0.25));
+        throw new TimeoutException("Timed out waiting for add_two_ints service.");
       }
 
-      using example_interfaces.srv.AddTwoInts_Response rsp = my_client.Call(msg);
+      using example_interfaces.srv.AddTwoInts_Response rsp = my_client.Call(msg, TimeSpan.FromSeconds(10));
       Console.WriteLine("Sum = " + rsp.Sum);
 
       Console.WriteLine("Client shutdown");

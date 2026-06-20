@@ -71,9 +71,9 @@ namespace Examples
 
     public new void Enqueue(double obj)
     {
-      base.Enqueue(obj);
       lock (syncObject)
       {
+        base.Enqueue(obj);
         while (base.Count > Size)
         {
           double outObj;
@@ -102,6 +102,7 @@ namespace Examples
 
       using (QualityOfServiceProfile qos = new QualityOfServiceProfile(QosPresetProfile.SENSOR_DATA))
       {
+        // counter and timeStamp are safe here because SpinOnce dispatches callbacks on the calling thread.
         using ISubscription<sensor_msgs.msg.PointCloud2> chatter_sub = node.CreateSubscription<sensor_msgs.msg.PointCloud2>(
           "perf_chatter",
           msg =>

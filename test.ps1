@@ -3,6 +3,7 @@
 # Modifications by Jianbin Liu:
 # - Added ROS environment checks and preserved failing test-result exit codes.
 # - Added custom colcon build/install base forwarding.
+# - Added test evidence metadata output.
 
 Param (
     [Parameter(Mandatory=$false)][switch]$help=$false,
@@ -32,11 +33,62 @@ if ($Env:ROS_DISTRO -notmatch '^[a-z][a-z0-9_]*$') {
     exit 1
 }
 
+function Get-EffectiveBuildBase {
+    param([string]$BuildBase)
+
+    $repoRoot = (Get-Location).Path
+    if ([string]::IsNullOrWhiteSpace($BuildBase)) {
+        return (Join-Path $repoRoot "build")
+    }
+
+    if ([System.IO.Path]::IsPathRooted($BuildBase)) {
+        return $BuildBase
+    }
+
+    return (Join-Path $repoRoot $BuildBase)
+}
+
+function Get-GitCommit {
+    try {
+        $commit = (& git rev-parse HEAD 2>$null)
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($commit)) {
+            return $commit.Trim()
+        }
+    } catch {
+        # Test evidence should not make local test runs depend on git availability.
+    }
+
+    return "unknown"
+}
+
+function Write-TestEvidence {
+    param(
+        [string]$BuildBase,
+        [int]$TestExitCode,
+        [int]$ResultExitCode
+    )
+
+    New-Item -ItemType Directory -Path $BuildBase -Force | Out-Null
+
+    $infoPath = Join-Path $BuildBase "ros2cs_test_info.txt"
+    $lines = @(
+        "ros2cs_commit=$(Get-GitCommit)",
+        "ros_distro=$Env:ROS_DISTRO",
+        "test_timestamp_utc=$([DateTimeOffset]::UtcNow.ToString('o'))",
+        "repo_path=$((Get-Location).Path)",
+        "build_base=$BuildBase",
+        "colcon_test_exit_code=$TestExitCode",
+        "colcon_test_result_exit_code=$ResultExitCode"
+    )
+    Set-Content -LiteralPath $infoPath -Value $lines -Encoding UTF8
+}
+
 if (-not (Get-Command colcon -ErrorAction SilentlyContinue)) {
     Write-Host "Can't find colcon. Source your ROS 2 environment or install colcon first." -ForegroundColor Red
     exit 1
 }
 
+$effectiveBuildBase = Get-EffectiveBuildBase -BuildBase $build_base
 $testArgs = @("test", "--merge-install", "--packages-select", "ros2cs_tests")
 $resultArgs = @("test-result", "--verbose")
 
@@ -54,6 +106,8 @@ $testExitCode = $LASTEXITCODE
 
 colcon @resultArgs
 $resultExitCode = $LASTEXITCODE
+
+Write-TestEvidence -BuildBase $effectiveBuildBase -TestExitCode $testExitCode -ResultExitCode $resultExitCode
 
 if ($testExitCode -ne 0) {
     exit $testExitCode
