@@ -27,6 +27,7 @@ namespace ROS2.Test
     [TestFixture]
     public class ClockTest
     {
+        // 2023-11-14 UTC; any current wall clock returned by RCL_SYSTEM_TIME should exceed this.
         private const int RecentUnixTimeFloor = 1700000000;
 
         [SetUp]
@@ -65,6 +66,7 @@ namespace ROS2.Test
             using var clock = new Clock();
             Ros2cs.Shutdown();
 
+            // rcl_clock_t is independent from rcl_context_t, so shutting down ros2cs must not invalidate it.
             RosTime timeNow = clock.Now;
 
             Assert.That(timeNow.sec, Is.GreaterThan(RecentUnixTimeFloor));
@@ -77,6 +79,7 @@ namespace ROS2.Test
             Ros2cs.Shutdown();
             Ros2cs.Init();
 
+            // Reinitializing the global context must not replace or poison an already-created clock.
             RosTime timeNow = clock.Now;
 
             Assert.That(timeNow.sec, Is.GreaterThan(RecentUnixTimeFloor));

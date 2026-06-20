@@ -85,6 +85,7 @@ namespace ROS2.Test
         /// <summary>Force finalizers in this child process so native crashes do not kill the NUnit runner.</summary>
         private static void ForceFinalizerSweep()
         {
+            // Three passes are a conservative runtime heuristic: one Collect may not flush every finalizable object.
             for (int i = 0; i < 3; ++i)
             {
                 GC.Collect();

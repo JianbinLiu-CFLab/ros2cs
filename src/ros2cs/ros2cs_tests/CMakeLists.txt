@@ -63,6 +63,8 @@ if(BUILD_TESTING)
   )
   set_tests_properties(ros2cs_tests_test PROPERTIES TIMEOUT 180)
 
+  # Keep the finalizer probe as a real child process: a native crash during finalization
+  # must be isolated from the in-process NUnit runner above.
   set(FINALIZER_PROBE_TARGET ros2cs_generated_message_finalizer_probe)
   add_dotnet_executable(${FINALIZER_PROBE_TARGET}
     src/GeneratedMessageFinalizerProbe.cs

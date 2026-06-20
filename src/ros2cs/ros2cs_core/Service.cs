@@ -32,9 +32,10 @@ namespace ROS2
     /// <typeparam name="I">Message Type to be received</typeparam>
     /// <typeparam name="O">Message Type to be send</typeparam>
     public class Service<I, O>: IService<I, O>, INodeChildEntity
-    where I : Message, new ()
+  where I : Message, new ()
     where O : Message, new ()
   {
+    /// <inheritdoc/>
     public rcl_service_t Handle { get { return serviceHandle; } }
     private rcl_service_t serviceHandle;
 
@@ -195,7 +196,7 @@ namespace ROS2
     /// <summary>
     /// Populates managed fields with native values and calls the callback with the created message
     /// </summary>
-    /// <remarks>Sending the Response is also takes care of by this method</remarks>
+    /// <remarks>Sending the response is also handled by this method.</remarks>
     /// <param name="message">Message that will be populated and provided to the callback</param>
     /// <param name="header">request id received when taking the Request</param>
     private void ProcessRequest(rcl_rmw_request_id_t header, MessageInternals message)

@@ -13,10 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Run rosidl_generator_cs while keeping declared outputs failure-atomic.
+
+The wrapper deletes declared outputs before invoking the generator and deletes
+them again after generator failure. That keeps CMake incremental builds from
+seeing stale or partial generated files as up to date after a failed run.
+"""
+
 import argparse
 import os
 import subprocess
 import sys
+
+
+WRAPPER_FAILURE_EXIT_CODE = 2
 
 
 def _read_outputs(path):
@@ -37,6 +47,7 @@ def _remove_outputs(outputs):
 
 
 def main(argv=None):
+    """Clean declared outputs, run the generator, and remove partial outputs on failure."""
     parser = argparse.ArgumentParser(
         description='Run rosidl_generator_cs after clearing declared outputs.')
     parser.add_argument(
@@ -57,7 +68,9 @@ def main(argv=None):
         outputs = _read_outputs(args.outputs_file)
     except OSError as e:
         print("rosidl_generator_cs clean wrapper failed to read outputs file: {0}".format(e), file=sys.stderr)
-        return 2
+        # Exit code 2 is reserved for wrapper/infrastructure failures. Generator
+        # failures return the generator's own exit code unchanged below.
+        return WRAPPER_FAILURE_EXIT_CODE
 
     _remove_outputs(outputs)
 
@@ -69,11 +82,15 @@ def main(argv=None):
     try:
         result = subprocess.run(command)
     except OSError as e:
+        # A spawn failure can still leave stale outputs from an earlier build; clear again
+        # so CMake does not treat them as successfully regenerated.
         _remove_outputs(outputs)
         print("rosidl_generator_cs clean wrapper failed to run generator: {0}".format(e), file=sys.stderr)
-        return 2
+        return WRAPPER_FAILURE_EXIT_CODE
 
     if result.returncode != 0:
+        # The generator may have written only a subset of outputs before failing. Remove
+        # every declared output so the next incremental build must regenerate all of them.
         _remove_outputs(outputs)
     return result.returncode
 

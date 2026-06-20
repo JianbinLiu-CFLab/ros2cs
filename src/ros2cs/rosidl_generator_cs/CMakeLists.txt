@@ -11,6 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# Modifications Copyright (c) 2026 Jianbin Liu.
+#
+# Modifications by Jianbin Liu:
+# - Added generator entrypoint tests for import, failure, and CMake naming contracts.
+# - Registered clean generation wrapper coverage in the package test suite.
 
 cmake_minimum_required(VERSION 3.22)
 

@@ -30,6 +30,12 @@ namespace ROS2.Test
         INode node;
         Publisher<std_msgs.msg.Int32> publisher;
         private const double SpinOnceTimeoutSeconds = 0.01;
+        private const int EndpointDiscoverySpins = 5;
+        private const int DefaultQosDepth = 10;
+        private const int DefaultQosDrainSpins = DefaultQosDepth + 1;
+        private const int SensorDataQosDepth = 5;
+        private const int IncompatibleQosWarmupSpins = 3;
+        private const int IncompatibleQosPublishAttempts = 3;
 
         [OneTimeSetUp]
         public void OneTimeSetUp()
@@ -62,7 +68,8 @@ namespace ROS2.Test
 
         private void AllowEndpointDiscovery()
         {
-            for (int i = 0; i < 5; i++)
+            // 5 spins at 10 ms is a short local DDS discovery window before publishing assertions.
+            for (int i = 0; i < EndpointDiscoverySpins; i++)
             {
                 Ros2cs.SpinOnce(node, SpinOnceTimeoutSeconds);
             }
@@ -165,12 +172,13 @@ namespace ROS2.Test
             using var published_msg = new std_msgs.msg.Int32();
             published_msg.Data = 42;
 
-            for (int i = 0; i < 10; i++)
+            // Exercise the default depth of 10, then spin once extra to drain callbacks fully.
+            for (int i = 0; i < DefaultQosDepth; i++)
             {
                 publisher.Publish(published_msg);
             }
 
-            for (int i = 0; i < 11; i++)
+            for (int i = 0; i < DefaultQosDrainSpins; i++)
             {
                 Ros2cs.SpinOnce(node, SpinOnceTimeoutSeconds);
             }
@@ -194,12 +202,13 @@ namespace ROS2.Test
             using var published_msg = new std_msgs.msg.Int32();
             published_msg.Data = 42;
 
-            for (int i = 0; i < 6; i++)
+            // Publish one more sample than SENSOR_DATA depth to prove the queue bound is enforced.
+            for (int i = 0; i < SensorDataQosDepth + 1; i++)
             {
                 publisher.Publish(published_msg);
             }
 
-            for (int i = 0; i < 11; i++)
+            for (int i = 0; i < DefaultQosDrainSpins; i++)
             {
                 Ros2cs.SpinOnce(node, SpinOnceTimeoutSeconds);
             }
@@ -224,11 +233,12 @@ namespace ROS2.Test
             using var publishedMsg = new std_msgs.msg.Int32();
             publishedMsg.Data = 42;
 
-            for (int i = 0; i < 3; i++)
+            // Warm up discovery before proving BEST_EFFORT publisher and RELIABLE subscriber stay unmatched.
+            for (int i = 0; i < IncompatibleQosWarmupSpins; i++)
             {
                 Ros2cs.SpinOnce(node, SpinOnceTimeoutSeconds);
             }
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < IncompatibleQosPublishAttempts; i++)
             {
                 bestEffortPublisher.Publish(publishedMsg);
                 Ros2cs.SpinOnce(node, SpinOnceTimeoutSeconds);

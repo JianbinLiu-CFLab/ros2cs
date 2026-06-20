@@ -34,6 +34,8 @@ namespace ROS2.Test
         private static readonly string SERVICE_NAME = "test_service";
         private static readonly TimeSpan SpinTimeout = TimeSpan.FromSeconds(5);
         private static readonly TimeSpan ServiceDisappearanceTimeout = TimeSpan.FromSeconds(10);
+        private static readonly TimeSpan ReentrantCallTimeout = TimeSpan.FromMilliseconds(100);
+        private const int ConcurrentRequestCount = 10;
 
         private INode Node;
 
@@ -147,8 +149,9 @@ namespace ROS2.Test
                 msg =>
                 {
                     callbackTriggered = true;
+                    // The reentry guard must throw before this short timeout can become relevant.
                     callException = Assert.Throws<InvalidOperationException>(
-                        () => Client.Call(CreateRequest(1, 2), TimeSpan.FromMilliseconds(100)));
+                        () => Client.Call(CreateRequest(1, 2), ReentrantCallTimeout));
                 });
 
             using var publishedMsg = new std_msgs.msg.Int32();
@@ -198,7 +201,8 @@ namespace ROS2.Test
                 HandleRequest
             );
             Task<AddTwoInts_Response>[] tasks = Enumerable
-                .Range(0, 10)
+                // Ten requests exercise sequence tracking without making the test slow or flaky.
+                .Range(0, ConcurrentRequestCount)
                 .Select(i => Client.CallAsync(CreateRequest(i, 100 - i)))
                 .ToArray();
             SpinUntil(() => tasks.All(task => task.IsCompleted), "Timed out waiting for concurrent service responses.");

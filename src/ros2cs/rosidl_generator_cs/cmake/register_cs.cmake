@@ -11,6 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# Modifications Copyright (c) 2026 Jianbin Liu.
+#
+# Modifications by Jianbin Liu:
+# - Registered the clean_generate.py wrapper as a generator dependency.
 
 macro(rosidl_generator_cs_extras BIN GENERATOR_FILES TEMPLATE_DIR)
   find_package(ament_cmake_core QUIET REQUIRED)
@@ -21,6 +26,8 @@ macro(rosidl_generator_cs_extras BIN GENERATOR_FILES TEMPLATE_DIR)
     "rosidl_generator_cs_generate_interfaces.cmake"
   )
 
+  # DotNetCore is the only supported backend in this fork; generate_cs_impl.py
+  # passes the value through to templates that emit the generated C# project.
   set(CSBUILD_TOOL "DotNetCore")
 
   normalize_path(BIN_NORMALIZED "${BIN}")

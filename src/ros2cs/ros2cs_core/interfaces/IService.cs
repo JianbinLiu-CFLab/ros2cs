@@ -28,11 +28,12 @@ namespace ROS2
     /// Tries to get a request message from rcl/rmw layers
     /// </summary>
     /// <remarks>
-    /// Invokes the callback if successful. The request wrapper passed to the callback is owned by
-    /// ros2cs and is disposed after the callback returns. The response returned by the callback is
-    /// also disposed by ros2cs after it is copied into native memory.
-    /// If the callback throws, no response is sent and matching clients stay pending until canceled,
-    /// timed out through a synchronous call, or disposed.
+    /// Invokes the callback if a request is successfully taken. The request wrapper passed to the
+    /// callback is owned by ros2cs and is disposed after the response path finishes. The response
+    /// returned by the callback is disposed after it is copied into native memory, unless it is the
+    /// same object as the request wrapper, which is already disposed once as the request. If the
+    /// callback throws, ros2cs logs the exception and sends a default response so matching clients
+    /// do not remain pending indefinitely.
     /// Implementations must check disposed state and <see cref="Ros2cs.Ok"/> under their own mutex
     /// before any native take call because shutdown can invalidate a spin snapshot before callbacks run.
     /// </remarks>
@@ -55,6 +56,7 @@ namespace ROS2
   /// <typeparam name="I">Message Type to be received</typeparam>
   /// <typeparam name="O">Message Type to be send</typeparam>
   /// <seealso cref="INode.CreateService"/>
+  /// <remarks>The generic parameters record the managed request and response message types.</remarks>
   public interface IService<I, O>: IServiceBase
     where I: Message
     where O: Message

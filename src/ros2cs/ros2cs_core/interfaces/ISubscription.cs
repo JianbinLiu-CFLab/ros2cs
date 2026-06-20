@@ -21,19 +21,20 @@ using System;
 namespace ROS2
 {
   /// <summary> Non-generic base interface for all subscriptions </summary>
-  /// <description> Use Ros2cs.CreateSubscription to construct </description>
+  /// <remarks> Use <see cref="INode.CreateSubscription{T}(string, Action{T}, QualityOfServiceProfile)"/> to construct. </remarks>
   public interface ISubscriptionBase : IExtendedDisposable
   {
     /// <remarks>
-    /// The subscription callback receives a message wrapper owned by ros2cs. Callers must not
-    /// retain or dispose that callback argument; ros2cs disposes it after the callback returns.
+    /// When a message is successfully taken, the subscription callback receives a message wrapper
+    /// owned by ros2cs. Callers must not retain or dispose that callback argument; ros2cs disposes
+    /// it after the callback returns.
     /// Implementations must check disposed state and <see cref="Ros2cs.Ok"/> under their own mutex
     /// before any native take call because shutdown can invalidate a spin snapshot before callbacks run.
     /// </remarks>
     // Internal spin entry point; kept on the public interface for compatibility.
     void TakeMessage();
 
-    /// <summary> topic name which was used when calling Ros2cs.CreateSubscription </summary>
+    /// <summary> Topic name used when calling <see cref="INode.CreateSubscription{T}(string, Action{T}, QualityOfServiceProfile)"/>. </summary>
     string Topic {get;}
 
     // Internal wait-set handle; kept on the public interface for compatibility.
@@ -44,5 +45,6 @@ namespace ROS2
   }
 
   /// <summary> Generic base interface for all subscriptions </summary>
+  /// <remarks>The generic parameter records the managed message type accepted by the callback.</remarks>
   public interface ISubscription<T>: ISubscriptionBase where T: Message {}
 }

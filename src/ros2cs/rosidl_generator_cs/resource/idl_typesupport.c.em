@@ -1,4 +1,5 @@
 @#######################################################################
+@# Derived from RobotecAI rosidl_generator_cs templates, Apache-2.0.
 @# Modifications Copyright (c) 2026 Jianbin Liu.
 @#
 @# Modifications by Jianbin Liu:
@@ -37,7 +38,7 @@ TEMPLATE(
 }@
 
 @[end for]@
-@# TODO (adamdbrw): Add actions
+@# Actions are intentionally skipped until ros2cs has generated action support.
 
 @#######################################################################
 @# Handle service

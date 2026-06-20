@@ -24,6 +24,10 @@ namespace ROS2.Test
     [TestFixture]
     public class LargeMessageTest
     {
+        private const int LargeSequenceLength = 1024;
+        private const double FirstSentinelValue = 3.14;
+        private const double LastSentinelValue = -42.5;
+
         INode subscriptionNode;
         INode publisherNode;
         Publisher<std_msgs.msg.Float64MultiArray> publisher;
@@ -61,18 +65,19 @@ namespace ROS2.Test
                 });
 
             using var largeMsg = new std_msgs.msg.Float64MultiArray();
-            largeMsg.Data = new double[1024];
-            largeMsg.Data[0] = 3.14;
-            largeMsg.Data[1023] = -42.5;
+            // Guard variable-length sequence marshaling across the DDS boundary and verify both ends survive.
+            largeMsg.Data = new double[LargeSequenceLength];
+            largeMsg.Data[0] = FirstSentinelValue;
+            largeMsg.Data[LargeSequenceLength - 1] = LastSentinelValue;
 
             publisher.Publish(largeMsg);
             Ros2cs.SpinOnce(subscriptionNode, 0.1);
 
             Assert.That(callbackTriggered, Is.True);
             Assert.That(receivedData, Is.Not.Null);
-            Assert.That(receivedData.Length, Is.EqualTo(1024));
-            Assert.That(receivedData[0], Is.EqualTo(3.14));
-            Assert.That(receivedData[1023], Is.EqualTo(-42.5));
+            Assert.That(receivedData.Length, Is.EqualTo(LargeSequenceLength));
+            Assert.That(receivedData[0], Is.EqualTo(FirstSentinelValue));
+            Assert.That(receivedData[LargeSequenceLength - 1], Is.EqualTo(LastSentinelValue));
         }
     }
 }

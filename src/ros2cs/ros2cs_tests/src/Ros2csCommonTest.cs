@@ -85,6 +85,7 @@ namespace ROS2.Test
         [Test]
         public void BenchmarkDisposeIsIdempotent()
         {
+            // Simulates repeated cleanup paths around tight benchmark scopes and process shutdown.
             var benchmark = new Benchmark("common-test");
 
             benchmark.Dispose();

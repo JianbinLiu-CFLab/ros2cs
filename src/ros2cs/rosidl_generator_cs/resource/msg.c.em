@@ -1,4 +1,5 @@
 @#######################################################################
+@# Derived from RobotecAI rosidl_generator_cs templates, Apache-2.0.
 @# Modifications Copyright (c) 2026 Jianbin Liu.
 @#
 @# Modifications by Jianbin Liu:
@@ -129,6 +130,7 @@ bool @(msg_typename)_native_write_field_@(member.name)(@(get_c_type(member.type.
   bool size_changed = previous_sequence_size != (size_t)size;
   if (size_changed && previous_sequence_capacity != 0)
   {
+    // Supports reusing the same native message by releasing the old sequence before reinitializing.
     rosidl_runtime_c__@(member.type.value_type.typename)__Sequence__fini(&ros_message->@(member.name));
   }
   if (size_changed)
@@ -236,6 +238,7 @@ void * @(msg_typename)_native_get_nested_message_handle_@(member.name)(void *mes
 {
   @(msg_typename) *ros_message = (@(msg_typename) *)message_handle;
   @(n_type) *nested_message = &(ros_message->@(member.name));
+  // Returned nested message pointers are borrowed from the parent message and must not be freed.
   return (void *)nested_message;
 }
 @[end if]@
@@ -260,6 +263,7 @@ void * @(msg_typename)_native_get_nested_message_handle_@(member.name)(void *mes
     return NULL;
   @(n_type) *nested_message = &(ros_message->@(member.name).data[index]);
 @[    end if]@
+  // Returned nested message pointers are borrowed from the parent message and must not be freed.
   return (void *)nested_message;
 }
 @[    end if]@
@@ -268,7 +272,7 @@ ROSIDL_GENERATOR_C_EXPORT
 int @(msg_typename)_native_get_array_size_@(member.name)(void *message_handle)
 {
 @[    if isinstance(member.type, Array)]@
-  (void)message_handle;  //TODO - message handle not used
+  (void)message_handle;  // Fixed-size arrays do not need the parent handle to report their IDL size.
   return @(member.type.size);
 @[    elif isinstance(member.type, AbstractSequence)]@
   @(msg_typename) *ros_message = (@(msg_typename) *)message_handle;
@@ -284,8 +288,8 @@ bool @(msg_typename)_native_init_sequence_@(member.name)(void *message_handle, i
   if (size < 0)
     return false;
 @[    if isinstance(member.type, Array)]@
-  //TODO - remove this function call for Arrays altogether
-  (void)message_handle; //TODO - message handle not used
+  // Arrays are fixed-size in IDL; the managed template still calls this for a uniform write path.
+  (void)message_handle;
   if (size != @(member.type.size))
     return false;
   return true;
@@ -300,7 +304,7 @@ bool @(msg_typename)_native_init_sequence_@(member.name)(void *message_handle, i
   bool size_changed = previous_sequence_size != (size_t)size;
   if (size_changed && previous_sequence_capacity != 0)
   {
-    @(n_type)__Sequence__fini(&ros_message->@(member.name)); //Supports same message reuse
+    @(n_type)__Sequence__fini(&ros_message->@(member.name)); // Supports same message reuse.
   }
   if (size_changed)
   {

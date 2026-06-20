@@ -21,10 +21,13 @@ using System;
 namespace ROS2
 {
   /// <summary> Non-generic base interface for all publishers </summary>
-  /// <description> Use Ros2cs.CreatePublisher to construct.
-  /// This interface is useful for managing publisher collections and disposal </description>
+  /// <remarks>
+  /// Use <see cref="INode.CreatePublisher{T}(string, QualityOfServiceProfile)"/> to construct.
+  /// This interface is useful for managing publisher collections and disposal.
+  /// </remarks>
   public interface IPublisherBase: IExtendedDisposable
   {
+    /// <summary>Topic name used when creating the publisher.</summary>
     string Topic {get;}
   }
 
@@ -33,8 +36,10 @@ namespace ROS2
       where T: Message
   {
     /// <summary> Publish a message </summary>
-    /// <description> Message memory is copied into native structures and the message
-    /// can be safely changed or disposed after this call </description>
+    /// <remarks>
+    /// Message memory is copied into native structures and the message can be safely changed or
+    /// disposed after this call.
+    /// </remarks>
     void Publish(T msg);
   }
 }

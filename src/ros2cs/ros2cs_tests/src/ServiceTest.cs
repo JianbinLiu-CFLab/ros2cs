@@ -30,6 +30,8 @@ namespace ROS2.Test
     public class ServiceTest
     {
         private static readonly string SERVICE_NAME = "test_service";
+        private static readonly TimeSpan ServiceResponseTimeout = TimeSpan.FromSeconds(5);
+        private static readonly TimeSpan ServiceTakeRetryDelay = TimeSpan.FromMilliseconds(10);
 
         private INode Node;
 
@@ -111,7 +113,7 @@ namespace ROS2.Test
             using var client = Node.CreateClient<AddTwoInts_Request, AddTwoInts_Response>(SERVICE_NAME, qos);
 
             Task<AddTwoInts_Response> pendingResponse = client.CallAsync(CreateRequest(4, 5));
-            DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+            DateTime deadline = DateTime.UtcNow + ServiceResponseTimeout;
             while (!pendingResponse.IsCompleted && DateTime.UtcNow < deadline)
             {
                 Ros2cs.SpinOnce(Node, 0.1);
@@ -137,16 +139,18 @@ namespace ROS2.Test
             using var client = Node.CreateClient<AddTwoInts_Request, AddTwoInts_Response>(SERVICE_NAME);
             Task<AddTwoInts_Response> pendingResponse = client.CallAsync(CreateRequest(1, 2));
 
-            DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+            DateTime deadline = DateTime.UtcNow + ServiceResponseTimeout;
             while (!callbackCalled && DateTime.UtcNow < deadline)
             {
                 Assert.DoesNotThrow(() => Service.TakeMessage());
-                Thread.Sleep(10);
+                // Back off between direct take attempts while waiting for the request to arrive.
+                Thread.Sleep(ServiceTakeRetryDelay);
             }
 
             Assert.That(callbackCalled, Is.True);
 
-            deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+            // Service.TakeMessage catches callback exceptions and sends a default response so clients do not hang.
+            deadline = DateTime.UtcNow + ServiceResponseTimeout;
             while (!pendingResponse.IsCompleted && DateTime.UtcNow < deadline)
             {
                 Ros2cs.SpinOnce(Node, 0.1);

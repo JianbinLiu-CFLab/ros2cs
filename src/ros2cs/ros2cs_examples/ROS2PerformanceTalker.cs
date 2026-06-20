@@ -26,6 +26,13 @@ namespace Examples
   /// <summary> A talker class meant to gauge performance of Ros2cs </summary>
   public class ROS2PerformanceTalker
   {
+    private const uint PointFieldBytes = 16; // Four float32 fields: x, y, z, intensity.
+    private const byte PointFieldFloat32 = 7;
+    private const float DummyX = 1.0f;
+    private const float DummyY = 2.0f;
+    private const float DummyZ = 3.0f;
+    private const float DummyIntensity = 100.0f;
+
     private static void AssignField(ref sensor_msgs.msg.PointField pf, string n, uint off, byte dt, uint count)
     {
       pf.Name = n;
@@ -37,15 +44,14 @@ namespace Examples
     private static sensor_msgs.msg.PointCloud2 PrepMessage(int messageSize)
     {
       uint count = (uint)messageSize; //point per message
-      uint fieldsSize = 16;
-      uint rowSize = count * fieldsSize;
+      uint rowSize = count * PointFieldBytes;
       sensor_msgs.msg.PointCloud2 message = new sensor_msgs.msg.PointCloud2()
       {
         Height = 1,
         Width = count,
         Is_bigendian = false,
         Is_dense = true,
-        Point_step = fieldsSize,
+        Point_step = PointFieldBytes,
         Row_step = rowSize,
         Data = new byte[rowSize * 1]
       };
@@ -56,20 +62,20 @@ namespace Examples
         message.Fields[i] = new sensor_msgs.msg.PointField();
       }
 
-      AssignField(ref message.Fields[0], "x", 0, 7, 1);
-      AssignField(ref message.Fields[1], "y", 4, 7, 1);
-      AssignField(ref message.Fields[2], "z", 8, 7, 1);
-      AssignField(ref message.Fields[3], "intensity", 12, 7, 1);
+      AssignField(ref message.Fields[0], "x", 0, PointFieldFloat32, 1);
+      AssignField(ref message.Fields[1], "y", 4, PointFieldFloat32, 1);
+      AssignField(ref message.Fields[2], "z", 8, PointFieldFloat32, 1);
+      AssignField(ref message.Fields[3], "intensity", 12, PointFieldFloat32, 1);
       float[] pointsArray = new float[count * message.Fields.Length];
 
       var floatIndex = 0;
       for (int i = 0; i < count; ++i)
       {
-        float intensity = 100;
-        pointsArray[floatIndex++] = 1;
-        pointsArray[floatIndex++] = 2;
-        pointsArray[floatIndex++] = 3;
-        pointsArray[floatIndex++] = intensity;
+        // Dummy point values keep payload generation deterministic; latency is the benchmark target.
+        pointsArray[floatIndex++] = DummyX;
+        pointsArray[floatIndex++] = DummyY;
+        pointsArray[floatIndex++] = DummyZ;
+        pointsArray[floatIndex++] = DummyIntensity;
       }
       System.Buffer.BlockCopy(pointsArray, 0, message.Data, 0, message.Data.Length);
       message.SetHeaderFrame("pc");

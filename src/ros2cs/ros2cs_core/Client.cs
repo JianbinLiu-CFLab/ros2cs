@@ -23,7 +23,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -52,6 +51,7 @@ namespace ROS2
     IReadOnlyDictionary<long, Task> IClientBase.PendingRequests {get { return (IReadOnlyDictionary<long, Task>)this.PendingRequests; }}
 
     private string topic;
+    // Poll service graph discovery every 100 ms to balance discovery latency against CPU usage.
     private static readonly TimeSpan GraphPollInterval = TimeSpan.FromMilliseconds(100);
 
     /// <inheritdoc/>
@@ -63,9 +63,9 @@ namespace ROS2
     /// Mapping from request id without Response to <see cref="TaskCompletionSource"/>.
     /// </summary>
     /// <remarks>
-    /// The <see cref="TaskCompletionSource.Task"/> is stored separately to allow
-    /// <see cref="Cancel"/> to work even if the source returns multiple tasks. Internal callers
-    /// that need both locks must acquire <c>mutex</c> before <c>Requests</c>.
+    /// The <see cref="TaskCompletionSource.Task"/> is stored separately so <see cref="Cancel"/>
+    /// can remove entries by the task object exposed to callers. Internal callers that need both
+    /// locks must acquire <c>mutex</c> before <c>Requests</c>.
     /// </remarks>
     private Dictionary<long, (TaskCompletionSource<O>, Task<O>)> Requests;
     private Dictionary<Task<O>, long> RequestSequencesByTask;
@@ -367,7 +367,7 @@ namespace ROS2
       }
       else
       {
-        Debug.Print("received unknown sequence number or got disposed");
+        logger.LogWarning("Received response with unknown sequence number or after client disposal");
         return false;
       }
     }
@@ -395,7 +395,7 @@ namespace ROS2
     /// <summary>
     /// Associate a task with a sequence number
     /// </summary>
-    /// <param name="source">source used to controll the <see cref="Task"/></param>
+    /// <param name="source">source used to control the <see cref="Task"/></param>
     /// <param name="sequence_number">sequence number received when sending the Request</param>
     /// <returns>The associated task.</returns>
     private Task<O> RegisterSource(TaskCompletionSource<O> source, long sequence_number)
