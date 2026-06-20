@@ -37,9 +37,12 @@ and downstream R2FU packages.
 Unity Player smoke and external ROS 2 echo validation are the target evidence for
 Unity-facing runtime claims. Build-only evidence is not enough for those claims.
 
-This ros2cs maintenance branch can document APIs and profile boundaries on its
-own, but it should only mark R2FU Player validation as complete when the paired
-ROS2 For Unity runtime artifact evidence is recorded for the same ros2cs commit.
+Recorded local R2FU Player or RViz2 acceptance evidence counts as runtime
+validation when it is tied to the same ros2cs commit and runtime artifact. For
+example, the Phase146B Lyrical Win64 run validated Unity Native R2FU, external
+Lyrical RViz2, TF, and raw plus deskewed PointCloud2 visualization together.
+That is strong local acceptance evidence; it is distinct from public CI matrix
+coverage, not weaker than build-only evidence.
 
 ## Lightweight Node Options
 
