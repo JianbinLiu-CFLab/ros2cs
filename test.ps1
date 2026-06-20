@@ -7,8 +7,10 @@
     also rejects stale/zero test results and writes local test evidence metadata.
 .PARAMETER build_base
     Optional colcon build base directory. Can also be set with ROS2CS_BUILD_BASE.
+    Defaults to build-$ROS_DISTRO to match build.ps1 isolation.
 .PARAMETER install_base
     Optional colcon install base directory. Can also be set with ROS2CS_INSTALL_BASE.
+    Defaults to install-$ROS_DISTRO to avoid cross-distro runtime DLL shadowing.
 .PARAMETER help
     Show help and exit.
 
@@ -22,6 +24,7 @@ Modifications by Jianbin Liu:
 - Added build-distro marker validation and zero-test-result rejection.
 - Cleared stale colcon test result XML before each test run.
 - Aligned local test package selection with CI.
+- Isolated default build/install bases per ROS_DISTRO to prevent mixed Jazzy/Lyrical test environments.
 
 Fail-fast PowerShell settings are enabled immediately after parameter parsing;
 colcon exit codes are captured explicitly later so test-result diagnostics still run.
@@ -40,8 +43,8 @@ if ($help) {
     Write-Host "Usage: .\test.ps1 [-build_base PATH] [-install_base PATH]"
     Write-Host ""
     Write-Host "Options:"
-    Write-Host "  -build_base PATH    Optional colcon build base directory. Can also be set with ROS2CS_BUILD_BASE."
-    Write-Host "  -install_base PATH  Optional colcon install base directory. Can also be set with ROS2CS_INSTALL_BASE."
+    Write-Host "  -build_base PATH    Optional colcon build base directory. Defaults to build-`$ROS_DISTRO."
+    Write-Host "  -install_base PATH  Optional colcon install base directory. Defaults to install-`$ROS_DISTRO."
     exit 0
 }
 
@@ -61,7 +64,7 @@ function Get-EffectiveBuildBase {
 
     $repoRoot = (Get-Location).Path
     if ([string]::IsNullOrWhiteSpace($BuildBase)) {
-        return (Join-Path $repoRoot "build")
+        return (Join-Path $repoRoot "build-$Env:ROS_DISTRO")
     }
 
     if ([System.IO.Path]::IsPathRooted($BuildBase)) {
@@ -76,7 +79,7 @@ function Get-EffectiveInstallBase {
 
     $repoRoot = (Get-Location).Path
     if ([string]::IsNullOrWhiteSpace($InstallBase)) {
-        return (Join-Path $repoRoot "install")
+        return (Join-Path $repoRoot "install-$Env:ROS_DISTRO")
     }
 
     if ([System.IO.Path]::IsPathRooted($InstallBase)) {
@@ -186,17 +189,14 @@ $effectiveInstallBase = Get-EffectiveInstallBase -InstallBase $install_base
 Assert-TestDistroMatchesBuild -InstallBase $effectiveInstallBase
 Clear-ColconTestResults -BuildBase $effectiveBuildBase
 # --merge-install matches the build layout and keeps install/setup.* sourcing simple.
-$testArgs = @("test", "--merge-install", "--packages-select", "rosidl_generator_cs", "ros2cs_tests")
-$resultArgs = @("test-result", "--verbose")
-
-if (-not [string]::IsNullOrWhiteSpace($build_base)) {
-    $testArgs += @("--build-base", "$build_base")
-    $resultArgs += @("--test-result-base", "$build_base")
-}
-
-if (-not [string]::IsNullOrWhiteSpace($install_base)) {
-    $testArgs += @("--install-base", "$install_base")
-}
+$testArgs = @(
+    "test",
+    "--build-base", "$effectiveBuildBase",
+    "--install-base", "$effectiveInstallBase",
+    "--merge-install",
+    "--packages-select", "rosidl_generator_cs", "ros2cs_tests"
+)
+$resultArgs = @("test-result", "--test-result-base", "$effectiveBuildBase", "--verbose")
 
 colcon @testArgs
 $testExitCode = $LASTEXITCODE

@@ -10,6 +10,7 @@
 # - Added build-distro marker validation and zero-test-result rejection.
 # - Cleared stale colcon test result XML before each test run.
 # - Aligned local test package selection with CI.
+# - Isolated default build/install bases per ROS_DISTRO to prevent mixed Jazzy/Lyrical test environments.
 
 # Runs the local ros2cs test gate for rosidl_generator_cs and ros2cs_tests.
 # The script intentionally separates colcon test from colcon test-result so
@@ -34,8 +35,8 @@ display_usage() {
     echo "test.sh [--build-base PATH] [--install-base PATH]"
     echo ""
     echo "Options:"
-    echo "--build-base PATH - optional colcon build base directory."
-    echo "--install-base PATH - optional colcon install base directory."
+    echo "--build-base PATH - optional colcon build base directory. Defaults to build-\$ROS_DISTRO."
+    echo "--install-base PATH - optional colcon install base directory. Defaults to install-\$ROS_DISTRO."
 }
 
 BUILD_BASE="${ROS2CS_BUILD_BASE:-}"
@@ -43,7 +44,7 @@ INSTALL_BASE="${ROS2CS_INSTALL_BASE:-}"
 
 get_effective_build_base() {
     if [ -z "$BUILD_BASE" ]; then
-        printf "%s/build" "$PWD"
+        printf "%s/build-%s" "$PWD" "$ROS_DISTRO"
         return
     fi
 
@@ -59,7 +60,7 @@ get_effective_build_base() {
 
 get_effective_install_base() {
     if [ -z "$INSTALL_BASE" ]; then
-        printf "%s/install" "$PWD"
+        printf "%s/install-%s" "$PWD" "$ROS_DISTRO"
         return
     fi
 
@@ -179,17 +180,14 @@ EFFECTIVE_INSTALL_BASE="$(get_effective_install_base)"
 assert_test_distro_matches_build
 clear_colcon_test_results
 # --merge-install matches the build layout and keeps install/setup.* sourcing simple.
-TEST_ARGS=(test --merge-install --packages-select rosidl_generator_cs ros2cs_tests)
-RESULT_ARGS=(test-result --verbose)
-
-if [ -n "$BUILD_BASE" ]; then
-    TEST_ARGS+=(--build-base "$BUILD_BASE")
-    RESULT_ARGS+=(--test-result-base "$BUILD_BASE")
-fi
-
-if [ -n "$INSTALL_BASE" ]; then
-    TEST_ARGS+=(--install-base "$INSTALL_BASE")
-fi
+TEST_ARGS=(
+    test
+    --build-base "$EFFECTIVE_BUILD_BASE"
+    --install-base "$EFFECTIVE_INSTALL_BASE"
+    --merge-install
+    --packages-select rosidl_generator_cs ros2cs_tests
+)
+RESULT_ARGS=(test-result --test-result-base "$EFFECTIVE_BUILD_BASE" --verbose)
 
 colcon "${TEST_ARGS[@]}"
 test_exit_code=$?
