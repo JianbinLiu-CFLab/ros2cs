@@ -54,7 +54,7 @@ namespace ROS2
   /// <summary>Managed mirror of rcl_context_t with explicit native field order.</summary>
   [StructLayout(LayoutKind.Sequential)]
   public struct rcl_context_t
-{
+  {
     private IntPtr global_arguments;
     private IntPtr impl;
     // Native rcl stores this as fixed 8-byte instance id storage, not a pointer.
@@ -81,7 +81,7 @@ namespace ROS2
   public struct rcl_node_t
   {
     private IntPtr context;
-    private IntPtr rcl_node_impl_t;
+    private IntPtr impl;
   }
 
   /// <summary>Managed mirror of rcl_publisher_t with explicit native field order.</summary>
@@ -119,7 +119,7 @@ namespace ROS2
     // Native writer_guid is 16 inline bytes. Keep it blittable to avoid a byte[] allocation per take.
     private long writer_guid_0;
     private long writer_guid_1;
-    /// Sequence number of this service
+    /// <summary>Native rmw_request_id_t sequence_number, explicitly marshalled as signed 64-bit.</summary>
     [MarshalAs(UnmanagedType.I8)]
     public long sequence_number;
   };
@@ -129,6 +129,7 @@ namespace ROS2
   public struct rcl_wait_set_t
   {
     private IntPtr subscriptions;
+    // Native size_t fields are mirrored with UIntPtr.
     internal UIntPtr size_of_subscriptions;
     private IntPtr guard_conditions;
     internal UIntPtr size_of_guard_conditions;
@@ -144,6 +145,10 @@ namespace ROS2
   }
 
   /// <summary>Documentation-only mirror of rcl_clock_t. Managed clock ownership uses an opaque IntPtr wrapper.</summary>
+  /// <remarks>
+  /// Fields mirror the native layout for size validation only. Runtime clock calls use the opaque
+  /// pointer returned by rclcs_ros_clock_create; managed code must not read or mutate these fields.
+  /// </remarks>
   [StructLayout(LayoutKind.Sequential)]
   public struct rcl_clock_t
   {
@@ -155,7 +160,10 @@ namespace ROS2
     rcl_allocator_t allocator;
   }
 
-  /// <summary>Managed mirror of rclcs_string_array_t with explicit native field order.</summary>
+  /// <summary>
+  /// Managed mirror of the fork-specific rclcs_string_array_t flattened graph result helper.
+  /// </summary>
+  /// <remarks>This is not an rcl or rcutils ABI type.</remarks>
   [StructLayout(LayoutKind.Sequential)]
   internal struct rclcs_string_array_t
   {
@@ -163,7 +171,10 @@ namespace ROS2
     internal UIntPtr size;
   }
 
-  /// <summary>Managed mirror of rclcs_topic_names_and_types_t with explicit native field order.</summary>
+  /// <summary>
+  /// Managed mirror of the fork-specific rclcs_topic_names_and_types_t flattened graph result helper.
+  /// </summary>
+  /// <remarks>This is not an rcl ABI type; dispose native instances with rclcs_dispose_topic_names_and_types.</remarks>
   [StructLayout(LayoutKind.Sequential)]
   internal struct rclcs_topic_names_and_types_t
   {
