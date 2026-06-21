@@ -377,6 +377,28 @@ if(STANDALONE_BUILD)
         list(APPEND REQ_STANDALONE_LIBS ${rmw_cyclonedds_cpp_rmw_cyclonedds_cpp_LIB_PATH})
       endif()
 
+      # Get rmw_zenoh_cpp and its zenoh-c vendor runtime for distros that ship them (e.g. Lyrical).
+      # rmw_zenoh_cpp reuses the FastRTPS typesupport already in the closure; the only new native
+      # libraries are rmw_zenoh_cpp.dll and the self-contained zenohc.dll.
+      if("${_library_name}" STREQUAL "rmw_zenoh_cpp")
+        fetch_target_lib(rmw_zenoh_cpp::rmw_zenoh_cpp)
+        list(APPEND REQ_STANDALONE_LIBS ${rmw_zenoh_cpp_rmw_zenoh_cpp_LIB_PATH})
+        if(NOT TARGET zenohc::shared)
+          find_package(zenohc QUIET)
+        endif()
+        # zenohc exposes a plain IMPORTED_LOCATION (bin/zenohc.dll), not the per-config
+        # IMPORTED_LOCATION_<CONFIG> that fetch_target_lib expects, so read it directly.
+        set(_zenohc_dll "")
+        if(TARGET zenohc::shared)
+          get_target_property(_zenohc_dll zenohc::shared IMPORTED_LOCATION)
+        endif()
+        if(_zenohc_dll AND NOT "${_zenohc_dll}" STREQUAL "_zenohc_dll-NOTFOUND")
+          list(APPEND REQ_STANDALONE_LIBS ${_zenohc_dll})
+        else()
+          message(FATAL_ERROR "rmw_zenoh_cpp requested for standalone deploy but zenohc.dll (zenohc::shared IMPORTED_LOCATION) was not found")
+        endif()
+      endif()
+
       # Get cyclonedds iceoryx dependency for ros2 galaxy (unix only)
       if(UNIX AND NOT ros2_distro STREQUAL "foxy")
         if("${_library_name}" STREQUAL "iceoryx_binding_c" )
@@ -528,6 +550,13 @@ if(STANDALONE_BUILD)
       yaml-cpp
       tinyxml2
     )
+  endif()
+
+  # rmw_zenoh_cpp and the zenoh-c runtime ship only in distros that bundle them (Lyrical).
+  # Add it Lyrical-only so other distros (e.g. Jazzy) do not fail find_package in the loop below.
+  # FastRTPS remains the default RMW; this is purely additive (selectable via RMW_IMPLEMENTATION).
+  if(ros2_distro STREQUAL "lyrical")
+    list(APPEND ros2_standalone_libs rmw_zenoh_cpp)
   endif()
   
   if(UNIX AND NOT ros2_distro STREQUAL "foxy")
