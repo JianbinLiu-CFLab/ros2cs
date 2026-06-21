@@ -7,7 +7,7 @@
 > - Documented Ninja as the required Windows Jazzy generator policy for VS 2026 / VS 18 toolchains.
 > - Updated the current Windows verification status for Windows 10 LTSC + ROS 2 Jazzy and .NET 10 tests/examples.
 > - Updated tests/examples target framework references to .NET 10.
-> - Clarified Lyrical preview evidence boundaries and build metadata output.
+> - Documented the supported ROS 2 Lyrical Windows runtime and artifact line.
 
 ## Building
 
@@ -16,29 +16,30 @@
 Current GREEN evidence for this maintenance branch is:
 
 - Windows 10 IoT Enterprise LTSC 2021 (`10.0.19044`).
-- ROS 2 Jazzy from the local pixi-based Windows distribution.
+- ROS 2 Jazzy and ROS 2 Lyrical from local pixi-based Windows distributions.
 - `RMW_IMPLEMENTATION=rmw_fastrtps_cpp`.
 - MSVC compiler with Ninja generator.
-- `ros2cs` source workspace build/test.
+- `ros2cs` source workspace build/test for Jazzy and Lyrical.
+- ROS2 For Unity Windows standalone artifact rebuild/packaging for Jazzy and Lyrical.
 - `ros2cs_common`, `ros2cs_core`, and generated message assemblies on `netstandard2.0`.
 - `ros2cs_tests` and `ros2cs_examples` on `net10.0`.
-- Latest public maintenance preview: [`v0.6.0-jazzy-preview.1`](https://github.com/JianbinLiu-CFLab/ros2cs/releases/tag/v0.6.0-jazzy-preview.1).
+- Latest public maintenance release: [`v0.7.0`](https://github.com/JianbinLiu-CFLab/ros2cs/releases/tag/v0.7.0).
 
 Windows 11 is an expected target but was not the OS used for the current local validation. Older ROS 2 distributions in this README are legacy context unless fresh evidence is added.
 
-ROS 2 Lyrical is available as a preview probe line through
-`ros2_lyrical.repos`. The environment entry helper used by local validation
-lives in the outer `ros2unity/tools` workspace and is not part of this public
-ros2cs repository. Lyrical is not a replacement for the Jazzy maintenance
-preview until the Lyrical build, test, R2FU artifact, and Unity smoke plans have
-passed.
+ROS 2 Lyrical is a supported Windows runtime and artifact line for this fork
+through `ros2_lyrical.repos`. The environment entry helper used by local
+validation lives in the outer `ros2unity/tools` workspace and is not part of
+this public ros2cs repository. Jazzy remains the default maintenance and CI
+baseline, while Lyrical is supported for the validated Windows FastRTPS runtime
+and ROS2 For Unity artifact path.
 
 Lyrical Win64 has local/manual acceptance evidence for the ROS2 For Unity
 RViz2/PointCloud2 path: the Phase146B workflow validated Unity Native R2FU,
 external Lyrical RViz2, TF, and raw plus deskewed point cloud visualization
-together for the recorded local artifact. Treat that as runtime evidence for
-that exact path and artifact, not as public CI matrix coverage or a replacement
-for the Jazzy maintenance default.
+together for the recorded local artifact. Treat that as strong runtime evidence
+for that Windows/Lyrical/FastRTPS path and artifact, not as public CI matrix
+coverage for every platform, RMW implementation, or wait-set mode.
 
 Lyrical validation evidence must record whether `ROS2CS_SPIN_FALLBACK` was set.
 The direct fallback path bypasses `rcl_wait`, so it is fallback-runtime evidence,
@@ -47,7 +48,7 @@ separate run with `ROS2CS_SPIN_FALLBACK=waitset`.
 
 ### Prerequisites
 
-*  ROS2 installed on the system. For this maintenance branch, the verified target is ROS 2 Jazzy.
+*  ROS2 installed on the system. For this maintenance branch, the verified Windows targets are ROS 2 Jazzy and ROS 2 Lyrical.
 *  vcstool package - [see here](https://github.com/dirk-thomas/vcstool)
 *  .NET 10 SDK for tests/examples.
 *  `ros2cs_common`, `ros2cs_core`, and generated message assemblies remain compatible with `netstandard2.0`.
@@ -72,9 +73,9 @@ separate run with `ROS2CS_SPIN_FALLBACK=waitset`.
 - Clone this project.
 - Source your ROS2 installation.
   - Legacy example: `C:\dev\ros2_foxy\local_setup.ps1`
-  - Current maintenance target: ROS 2 Jazzy.
-  - Preview probe target: ROS 2 Lyrical via `ros2_lyrical.repos`; source an
-    equivalent local Lyrical environment before importing repositories.
+  - Current default maintenance target: ROS 2 Jazzy.
+  - Supported Lyrical target: ROS 2 Lyrical via `ros2_lyrical.repos`; source
+    an equivalent local Lyrical environment before importing repositories.
 - Navigate to the top project folder and pull required repositories (`get_repos.ps1`)
   - You can run script with `--get-custom-messages` argument to fetch extra messages from `custom_messages.repos` file.
   - It will use `vcstool` to download required ROS2 packages. By default, this will get repositories as set in `${ROS_DISTRO}`.
