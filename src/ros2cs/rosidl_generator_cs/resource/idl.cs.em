@@ -39,7 +39,7 @@ from rosidl_parser.definition import Message
 TEMPLATE(
     'msg.cs.em',
     package_name=package_name, interface_path=interface_path,
-    message=message,
+    message=message, include_parts=include_parts,
     get_dotnet_type=get_dotnet_type, get_field_name=get_field_name,
     constant_value_to_dotnet=constant_value_to_dotnet,
     get_c_type=get_c_type, get_marshal_type=get_marshal_type,
@@ -63,7 +63,7 @@ from rosidl_parser.definition import Service
 TEMPLATE(
     'srv.cs.em',
     package_name=package_name, interface_path=interface_path,service=service,
-    message=service.request_message,
+    message=service.request_message, include_parts=include_parts,
     get_dotnet_type=get_dotnet_type, get_field_name=get_field_name,
     constant_value_to_dotnet=constant_value_to_dotnet,
     get_c_type=get_c_type, get_marshal_type=get_marshal_type,
@@ -76,7 +76,7 @@ TEMPLATE(
 TEMPLATE(
     'srv.cs.em',
     package_name=package_name, interface_path=interface_path,service=service,
-    message=service.response_message,
+    message=service.response_message, include_parts=include_parts,
     get_dotnet_type=get_dotnet_type, get_field_name=get_field_name,
     constant_value_to_dotnet=constant_value_to_dotnet,
     get_c_type=get_c_type, get_marshal_type=get_marshal_type,

@@ -91,6 +91,7 @@ endfunction()
 
 # Get a list of typesupport implementations from valid rmw implementations.
 rosidl_generator_cs_get_typesupports(_typesupport_impls)
+list_append_unique(_typesupport_impls rosidl_typesupport_c)
 
 if(_typesupport_impls STREQUAL "")
   message(WARNING "No valid typesupport for .NET generator. .NET messages will not be generated.")
