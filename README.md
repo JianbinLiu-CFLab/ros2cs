@@ -8,6 +8,7 @@ Ros2cs
 > - Clarified Windows 10 LTSC validation, .NET target framework split, and legacy Ubuntu status.
 > - Declared the JianbinLiu-CFLab `main` branch as the maintained integration line.
 > - Updated tests/examples target framework references to .NET 10.
+> - Documented the supported ROS 2 Lyrical Windows runtime and artifact line.
 
 A C# .NET library for ROS2, including C# implementation of rcl APIs, message generation, tests and examples.
 
@@ -19,12 +20,12 @@ For the JianbinLiu-CFLab fork, `main` is the maintained integration line.
 
 The upstream RobotecAI repository and its historical branches remain the original source and licensing history, but they are no longer used as the active integration target for this Jazzy/R2FU line. Upstream changes should be reviewed and cherry-picked deliberately rather than merged blindly.
 
-Downstream projects should use the latest public maintenance preview for a
+Downstream projects should use the latest public maintenance release for a
 stable, reproducible pin:
 
 ```text
 https://github.com/JianbinLiu-CFLab/ros2cs.git
-version: v0.6.0-jazzy-preview.1
+version: v0.7.0
 ```
 
 Use `main` only when intentionally tracking current development:
@@ -36,7 +37,7 @@ version: main
 
 Release notes and artifacts:
 
-- https://github.com/JianbinLiu-CFLab/ros2cs/releases/tag/v0.6.0-jazzy-preview.1
+- https://github.com/JianbinLiu-CFLab/ros2cs/releases/tag/v0.7.0
 
 ### Features
 
@@ -51,10 +52,11 @@ This maintenance branch keeps the historical ros2cs platform goals, but current 
 
 Verified in the current local validation:
 
-- Windows 10 IoT Enterprise LTSC 2021 (`10.0.19044`) with ROS 2 Jazzy.
+- Windows 10 IoT Enterprise LTSC 2021 (`10.0.19044`) with ROS 2 Jazzy and ROS 2 Lyrical.
 - `RMW_IMPLEMENTATION=rmw_fastrtps_cpp`.
 - MSVC toolchain with Ninja generator.
-- `ros2cs` workspace build/test for the Jazzy source workspace.
+- `ros2cs` workspace build/test for the Jazzy and Lyrical source workspaces.
+- ROS2 For Unity Windows standalone artifact validation for the Jazzy and Lyrical runtime artifacts.
 - `ros2cs_common`, `ros2cs_core`, and generated message assemblies remain `netstandard2.0`.
 - `ros2cs_tests` and `ros2cs_examples` target `net10.0`.
 
@@ -70,7 +72,7 @@ Not yet verified in the current maintenance round:
 - Ubuntu 24.04 outside the CI container setup.
 - Windows 11.
 - ROS 2 Foxy / Galactic / Humble / Rolling on this branch.
-- Unity / R2FU runtime import and Player validation.
+- Broad cross-platform Unity Player validation beyond the recorded Windows Jazzy/Lyrical artifact path.
 
 ### Platform goals and legacy matrix
 
@@ -81,13 +83,14 @@ Historical/project OS targets:
 - Windows 10 / Windows 10 LTSC (powershell)
 - Windows 11 (powershell)
 
-> The current Jazzy validation evidence is Windows 10 LTSC locally and Ubuntu
-> 24.04 in CI. Treat Windows 11, Ubuntu 20.04/22.04, and native/non-container
-> Ubuntu 24.04 entries as expected or legacy targets until they have fresh
-> build/test evidence.
+> The current Jazzy and Lyrical Windows validation evidence is Windows 10 LTSC
+> locally. Ubuntu 24.04 CI currently covers Jazzy. Treat Windows 11, Ubuntu
+> 20.04/22.04, native/non-container Ubuntu 24.04, and non-FastRTPS RMW entries
+> as expected or legacy targets until they have fresh build/test evidence.
 
 Historical/project ROS2 distribution targets:
 - Jazzy
+- Lyrical
 - Humble
 - Galactic
 - Foxy
@@ -110,7 +113,7 @@ After cloning the project and importing .repos, you can simply put your message 
 Please follow the OS-specific instructions for your build:
 
 - [Ubuntu Instructions](README-UBUNTU.md) - legacy, not recently verified for this Jazzy maintenance branch
-- [Windows Instructions](README-WINDOWS.md) - current validation target is Windows 10 LTSC + Jazzy
+- [Windows Instructions](README-WINDOWS.md) - current validation targets are Windows 10 LTSC + Jazzy/Lyrical
 
 Windows build profiles for full validation, daily core/test iteration, and
 generator/template iteration are documented in
