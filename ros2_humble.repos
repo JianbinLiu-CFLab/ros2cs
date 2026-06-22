@@ -2,6 +2,7 @@
 #
 # Modifications by Jianbin Liu:
 # - Added legacy/unmaintained status header.
+# - Pointed dotnet_cmake_module to the maintained fork commit with fixed test registration.
 #
 # Legacy distro file - not maintained on JianbinLiu-CFLab/main.
 # Use ros2_jazzy.repos for the active maintenance line.
@@ -37,8 +38,8 @@ repositories:
     version: humble
   external/build_tools/dotnet_cmake_module:
     type: git
-    url: https://github.com/RobotecAI/dotnet_cmake_module
-    version: 1.1.0
+    url: https://github.com/JianbinLiu-CFLab/dotnet_cmake_module.git
+    version: f64cee9b55fcb14079b7f298375d8ad426318c06
   external/build_tools/ament_cmake_export_assemblies:
     type: git
     url: https://github.com/RobotecAI/ament_cmake_export_assemblies

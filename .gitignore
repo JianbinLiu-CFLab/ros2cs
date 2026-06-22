@@ -9,4 +9,7 @@ src/custom_messages
 install
 build
 log
+install-*
+build-*
+log-*
 .idea/

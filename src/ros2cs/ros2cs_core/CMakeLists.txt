@@ -250,7 +250,7 @@ if(STANDALONE_BUILD)
   endfunction()
 
   macro(get_standalone_third_party_dependencies_with_pattern _library_name _pattern)
-    find_file(${_library_name}_PATH NAMES ${ARGN} "${_library_name}")
+    find_file(${_library_name}_PATH NAMES ${ARGN})
     if("${${_library_name}_PATH}" STREQUAL "${_library_name}_PATH-NOTFOUND")
       set(${_library_name}_MATCHES "")
       get_standalone_dll_search_paths(_standalone_dll_search_paths)
@@ -583,9 +583,11 @@ if(STANDALONE_BUILD)
       yaml.dll
       yaml-cpp.dll
       spdlog.dll
-      fmt.dll
       tinyxml2.dll
     )
+    if(NOT ros2_distro STREQUAL "humble")
+      list(APPEND third_party_standalone_libs fmt.dll)
+    endif()
     foreach(third_party_lib ${third_party_standalone_libs})
       get_standalone_third_party_dependencies(${third_party_lib})
     endforeach()
