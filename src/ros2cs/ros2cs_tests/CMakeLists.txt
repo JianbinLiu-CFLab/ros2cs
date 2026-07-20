@@ -38,8 +38,9 @@ if(BUILD_TESTING)
   set(ROS2CS_NATIVE_FIXTURE_SOURCE_DIRECTORY
     "${CMAKE_CURRENT_BINARY_DIR}/native_loader_fixture"
   )
+  # Keep the copied fixture safely above MAX_PATH even when the workspace uses a short build root.
   set(ROS2CS_LONG_PATH_NATIVE_FIXTURE_DIRECTORY
-    "${CMAKE_CURRENT_BINARY_DIR}/long_path_native_loader_fixture/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/cccccccccccccccccccccccccccccccccccccccccccccccc"
+    "${CMAKE_CURRENT_BINARY_DIR}/long_path_native_loader_fixture/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/cccccccccccccccccccccccccccccccccccccccccccccccc/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
   )
   set(ROS2CS_LONG_PATH_NATIVE_FIXTURE_LIBRARY_STEM "ros2cs_long_path_native_fixture")
   file(TO_NATIVE_PATH "${ROS2CS_NATIVE_FIXTURE_SOURCE_DIRECTORY}" ROS2CS_NATIVE_FIXTURE_SOURCE_DIRECTORY)
