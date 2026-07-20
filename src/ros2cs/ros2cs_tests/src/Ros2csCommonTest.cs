@@ -2,8 +2,14 @@
 //
 // Modifications by Jianbin Liu:
 // - Added isolated coverage for ros2cs_common primitives.
+// - Added Windows native-loader registration and extended-length path coverage.
 
 using System;
+using System.Collections.Concurrent;
+using System.IO;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using NUnit.Framework;
 
 namespace ROS2.Test
@@ -83,6 +89,158 @@ namespace ROS2.Test
         }
 
         [Test]
+        public void RegisteredNativeDirectoriesAreDeduplicatedAndResetWithLoaderSettings()
+        {
+            GlobalVariables.RegisterNativeLibraryDirectory(@"C:\unity\custom-plugins");
+            GlobalVariables.RegisterNativeLibraryDirectory(@"C:\unity\custom-plugins");
+            GlobalVariables.RegisterNativeLibraryDirectory(@"C:\unity\other-plugins");
+
+            CollectionAssert.AreEqual(
+                new[] { @"C:\unity\custom-plugins", @"C:\unity\other-plugins" },
+                GlobalVariables.GetRegisteredNativeLibraryDirectories());
+
+            GlobalVariables.SetLoaderSettings(false, "", "");
+
+            CollectionAssert.IsEmpty(GlobalVariables.GetRegisteredNativeLibraryDirectories());
+        }
+
+        [Test]
+        public void RegisteredNativeDirectoriesReturnDefensiveSnapshotCopies()
+        {
+            GlobalVariables.RegisterNativeLibraryDirectory(@"C:\unity\custom-plugins");
+
+            string[] firstSnapshot = GlobalVariables.GetRegisteredNativeLibraryDirectories();
+            firstSnapshot[0] = @"C:\unity\tampered";
+
+            CollectionAssert.AreEquivalent(
+                new[] { @"C:\unity\custom-plugins" },
+                GlobalVariables.GetRegisteredNativeLibraryDirectories());
+        }
+
+        [Test]
+        public void RegisteredNativeDirectoriesRemainDeduplicatedDuringConcurrentRegistration()
+        {
+            var failures = new ConcurrentQueue<Exception>();
+
+            Parallel.For(0, 128, index =>
+            {
+                try
+                {
+                    GlobalVariables.RegisterNativeLibraryDirectory(
+                        index % 2 == 0
+                            ? @"C:\unity\custom-plugins"
+                            : @"C:\unity\other-plugins");
+                    string[] snapshot = GlobalVariables.GetRegisteredNativeLibraryDirectories();
+                    if (snapshot.Length > 2)
+                    {
+                        throw new InvalidOperationException("Registered directory snapshot contains duplicates.");
+                    }
+                }
+                catch (Exception exception)
+                {
+                    failures.Enqueue(exception);
+                }
+            });
+
+            Assert.That(failures, Is.Empty);
+            CollectionAssert.AreEqual(
+                new[] { @"C:\unity\custom-plugins", @"C:\unity\other-plugins" },
+                GlobalVariables.GetRegisteredNativeLibraryDirectories());
+        }
+
+        [Test]
+        public void WindowsRegisteredDirectoryUsesAnExtendedLengthCandidatePath()
+        {
+            string directory = @"C:\long\workspace\Packages\typesupport\Runtime\Ros2ForUnity\Plugins\Windows\x86_64";
+            string library = "unity2foxglove_foxrun_interfaces_v1_phase181_state48_d288_ed82_f1_envelope__rosidl_typesupport_c_native.dll";
+
+            string candidate = DllLoadUtilsWindowsDesktop.BuildRegisteredLibraryPath(directory, library);
+
+            Assert.That(candidate, Is.EqualTo(@"\\?\C:\long\workspace\Packages\typesupport\Runtime\Ros2ForUnity\Plugins\Windows\x86_64\" + library));
+        }
+
+        [Test]
+        public void WindowsRegisteredUncDirectoryUsesAnExtendedLengthCandidatePath()
+        {
+            string directory = @"\\server\share\Ros2ForUnity\Plugins\Windows\x86_64";
+            const string library = "custom_typesupport.dll";
+
+            string candidate = DllLoadUtilsWindowsDesktop.BuildRegisteredLibraryPath(directory, library);
+
+            Assert.That(candidate, Is.EqualTo(@"\\?\UNC\server\share\Ros2ForUnity\Plugins\Windows\x86_64\custom_typesupport.dll"));
+        }
+
+        [Test]
+        public void WindowsRegisteredDirectoryPreservesAnAlreadyExtendedLengthCandidatePath()
+        {
+            string directory = @"\\?\C:\long\workspace\Plugins\Windows\x86_64";
+            const string library = "custom_typesupport.dll";
+
+            string candidate = DllLoadUtilsWindowsDesktop.BuildRegisteredLibraryPath(directory, library);
+
+            Assert.That(candidate, Is.EqualTo(@"\\?\C:\long\workspace\Plugins\Windows\x86_64\custom_typesupport.dll"));
+        }
+
+        [Test]
+        public void WindowsDesktopLoaderDeclaresTheUnicodeLoadLibraryEntryPoint()
+        {
+            MethodInfo method = typeof(DllLoadUtilsWindowsDesktop).GetMethod(
+                "LoadLibraryW",
+                BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.That(method, Is.Not.Null);
+
+            var attribute = (DllImportAttribute)Attribute.GetCustomAttribute(method, typeof(DllImportAttribute));
+            Assert.That(attribute, Is.Not.Null);
+            Assert.That(attribute.EntryPoint, Is.EqualTo("LoadLibraryW"));
+            Assert.That(attribute.CharSet, Is.EqualTo(CharSet.Unicode));
+            Assert.That(attribute.ExactSpelling, Is.True);
+        }
+
+        [Test]
+        public void WindowsDesktopLoaderLoadsTheRegisteredLongPathFixture()
+        {
+            RequireWindows();
+
+            string fixturePath = PrepareLongPathFixture();
+            Assert.That(fixturePath.Length, Is.GreaterThan(260));
+            Assert.That(File.Exists(fixturePath), Is.True);
+
+            GlobalVariables.RegisterNativeLibraryDirectory(LongPathNativeFixture.Directory);
+            var loader = (DllLoadUtils)new DllLoadUtilsWindowsDesktop();
+            IntPtr handle = IntPtr.Zero;
+            try
+            {
+                handle = loader.LoadLibraryNoSuffix(LongPathNativeFixture.LibraryStem);
+                Assert.That(handle, Is.Not.EqualTo(IntPtr.Zero));
+            }
+            finally
+            {
+                loader.FreeLibrary(handle);
+            }
+        }
+
+        [Test]
+        public void WindowsDesktopLoaderDoesNotFallbackAfterExistingRegisteredCandidateFails()
+        {
+            RequireWindows();
+
+            const string libraryStem = "ros2cs_invalid_registered_native_fixture";
+            PrepareLongPathFixture();
+            string candidate = DllLoadUtilsWindowsDesktop.BuildRegisteredLibraryPath(
+                LongPathNativeFixture.Directory,
+                libraryStem + ".dll");
+            File.WriteAllText(candidate, "not a native library");
+
+            GlobalVariables.RegisterNativeLibraryDirectory(LongPathNativeFixture.Directory);
+            var loader = (DllLoadUtils)new DllLoadUtilsWindowsDesktop();
+
+            UnsatisfiedLinkError exception = Assert.Throws<UnsatisfiedLinkError>(
+                () => loader.LoadLibraryNoSuffix(libraryStem));
+
+            StringAssert.Contains(candidate, exception.Message);
+        }
+
+        [Test]
         public void BenchmarkDisposeIsIdempotent()
         {
             // Simulates repeated cleanup paths around tight benchmark scopes and process shutdown.
@@ -101,6 +259,31 @@ namespace ROS2.Test
 
             Assert.That(exception, Is.InstanceOf<UnsatisfiedLinkException>());
             Assert.That(exception.Message, Is.EqualTo("missing native library"));
+        }
+
+        private static void RequireWindows()
+        {
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                Assert.Ignore("Windows-only native loader coverage.");
+            }
+        }
+
+        private static string PrepareLongPathFixture()
+        {
+            string sourcePath = Path.Combine(
+                LongPathNativeFixture.SourceDirectory,
+                LongPathNativeFixture.LibraryFileName);
+            Assert.That(File.Exists(sourcePath), Is.True);
+
+            // MSVC cannot link directly to a >MAX_PATH output path, so only the test fixture
+            // is copied into the isolated build tree. Product packaging never uses this path.
+            Directory.CreateDirectory(LongPathNativeFixture.ExtendedDirectory);
+            string fixturePath = Path.Combine(
+                LongPathNativeFixture.ExtendedDirectory,
+                LongPathNativeFixture.LibraryFileName);
+            File.Copy(sourcePath, fixturePath, true);
+            return fixturePath;
         }
     }
 }

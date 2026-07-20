@@ -7,6 +7,7 @@
 # - Added a generated message finalizer child-process probe.
 # - Added isolated ros2cs_common primitive coverage.
 # - Raised the CTest timeout for the expanded managed test suite.
+# - Added a Windows extended-length native loader fixture for ros2cs_common coverage.
 #
 
 cmake_minimum_required(VERSION 3.6)
@@ -32,6 +33,31 @@ if(BUILD_TESTING)
     ${CSHARP_BUILDER_OUTPUT_PATH}/${CSHARP_TARGET_FRAMEWORK}/
   )
 
+  # MSVC cannot link directly above MAX_PATH. Build the fixture normally; the test copies it
+  # into this isolated long path before exercising LoadLibraryW.
+  set(ROS2CS_NATIVE_FIXTURE_SOURCE_DIRECTORY
+    "${CMAKE_CURRENT_BINARY_DIR}/native_loader_fixture"
+  )
+  set(ROS2CS_LONG_PATH_NATIVE_FIXTURE_DIRECTORY
+    "${CMAKE_CURRENT_BINARY_DIR}/long_path_native_loader_fixture/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/cccccccccccccccccccccccccccccccccccccccccccccccc"
+  )
+  set(ROS2CS_LONG_PATH_NATIVE_FIXTURE_LIBRARY_STEM "ros2cs_long_path_native_fixture")
+  file(TO_NATIVE_PATH "${ROS2CS_NATIVE_FIXTURE_SOURCE_DIRECTORY}" ROS2CS_NATIVE_FIXTURE_SOURCE_DIRECTORY)
+  file(TO_NATIVE_PATH "${ROS2CS_LONG_PATH_NATIVE_FIXTURE_DIRECTORY}" ROS2CS_LONG_PATH_NATIVE_FIXTURE_DIRECTORY)
+  configure_file(
+    src/LongPathNativeFixture.cs.in
+    "${CMAKE_CURRENT_BINARY_DIR}/LongPathNativeFixture.cs"
+    @ONLY
+  )
+
+  add_library(${ROS2CS_LONG_PATH_NATIVE_FIXTURE_LIBRARY_STEM} SHARED
+    src/LongPathNativeFixture.c
+  )
+  set_target_properties(${ROS2CS_LONG_PATH_NATIVE_FIXTURE_LIBRARY_STEM} PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${ROS2CS_NATIVE_FIXTURE_SOURCE_DIRECTORY}"
+    RUNTIME_OUTPUT_DIRECTORY "${ROS2CS_NATIVE_FIXTURE_SOURCE_DIRECTORY}"
+  )
+
   set(ASSEMBLIES_DEP_DLLS
       ${ros2cs_core_ASSEMBLIES_DLL}
       ${ros2cs_common_ASSEMBLIES_DLL}
@@ -54,6 +80,7 @@ if(BUILD_TESTING)
     src/ServiceTest.cs
     src/SubscriptionTest.cs
     src/TestUtils.cs
+    "${CMAKE_CURRENT_BINARY_DIR}/LongPathNativeFixture.cs"
   )
 
   add_dotnet_test(ros2cs_tests
@@ -61,6 +88,7 @@ if(BUILD_TESTING)
     INCLUDE_DLLS
     ${ASSEMBLIES_DEP_DLLS}
   )
+  add_dependencies(ros2cs_tests ${ROS2CS_LONG_PATH_NATIVE_FIXTURE_LIBRARY_STEM})
   set_tests_properties(ros2cs_tests_test PROPERTIES TIMEOUT 180)
 
   # Keep the finalizer probe as a real child process: a native crash during finalization

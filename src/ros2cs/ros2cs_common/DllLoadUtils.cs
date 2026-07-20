@@ -20,11 +20,13 @@
 // - Reworked Linux preload tracking to avoid stale handles.
 // - Serialized native library handle disposal and symbol lookup diagnostics.
 // - Made native loader settings an atomic snapshot and applied them on macOS.
+// - Added Windows registered native directories and extended-length LoadLibraryW candidates.
 
 // Based on http://dimitry-i.blogspot.com.es/2013/01/mononet-how-to-dynamically-load-native.html
 
 using System;
 using System.ComponentModel;
+using System.IO;
 using System.Runtime;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -40,7 +42,8 @@ namespace ROS2
   /// across already-loaded assemblies.
   /// </remarks>
   public class GlobalVariables {
-    private static Snapshot settings = new Snapshot(false, "", "");
+    private static readonly string[] EmptyRegisteredNativeLibraryDirectories = new string[0];
+    private static Snapshot settings = new Snapshot(false, "", "", EmptyRegisteredNativeLibraryDirectories);
     private static readonly object settingsMutex = new object();
 
     /// <summary>Whether a native dependency should be preloaded before loading ros2cs libraries.</summary>
@@ -52,7 +55,7 @@ namespace ROS2
         lock (settingsMutex)
         {
           Snapshot current = GetSnapshot();
-          SetSnapshot(new Snapshot(value, current.PreloadLibraryName, current.AbsolutePath));
+          SetSnapshot(new Snapshot(value, current.PreloadLibraryName, current.AbsolutePath, current.RegisteredNativeLibraryDirectories));
         }
       }
     }
@@ -66,7 +69,7 @@ namespace ROS2
         lock (settingsMutex)
         {
           Snapshot current = GetSnapshot();
-          SetSnapshot(new Snapshot(current.PreloadLibrary, value, current.AbsolutePath));
+          SetSnapshot(new Snapshot(current.PreloadLibrary, value, current.AbsolutePath, current.RegisteredNativeLibraryDirectories));
         }
       }
     }
@@ -76,8 +79,9 @@ namespace ROS2
     /// </summary>
     /// <remarks>
     /// Include the trailing directory separator, for example <c>/opt/ros/jazzy/lib/</c>.
-    /// If the combined path fails to load, the loader retries with the bare file name
-    /// using the platform default search paths.
+    /// If the combined path does not identify an existing library, the loader retries
+    /// with the bare file name using the platform default search paths. On Windows, an
+    /// existing explicit candidate that fails to load is reported without a same-name fallback.
     /// </remarks>
     public static string absolutePath
     {
@@ -87,9 +91,43 @@ namespace ROS2
         lock (settingsMutex)
         {
           Snapshot current = GetSnapshot();
-          SetSnapshot(new Snapshot(current.PreloadLibrary, current.PreloadLibraryName, value));
+          SetSnapshot(new Snapshot(current.PreloadLibrary, current.PreloadLibraryName, value, current.RegisteredNativeLibraryDirectories));
         }
       }
+    }
+
+    /// <summary>
+    /// Register an explicit native-plugin directory for the Windows desktop loader.
+    /// </summary>
+    /// <remarks>
+    /// Directories are normalized, de-duplicated case-insensitively, and kept in
+    /// registration order. Register all directories before the first native load.
+    /// </remarks>
+    public static void RegisterNativeLibraryDirectory(string directory)
+    {
+      string normalizedDirectory = NormalizeNativeLibraryDirectory(directory);
+      lock (settingsMutex)
+      {
+        Snapshot current = GetSnapshot();
+        foreach (string registeredDirectory in current.RegisteredNativeLibraryDirectories)
+        {
+          if (String.Equals(registeredDirectory, normalizedDirectory, StringComparison.OrdinalIgnoreCase))
+          {
+            return;
+          }
+        }
+
+        string[] updatedDirectories = new string[current.RegisteredNativeLibraryDirectories.Length + 1];
+        Array.Copy(current.RegisteredNativeLibraryDirectories, updatedDirectories, current.RegisteredNativeLibraryDirectories.Length);
+        updatedDirectories[updatedDirectories.Length - 1] = normalizedDirectory;
+        SetSnapshot(new Snapshot(current.PreloadLibrary, current.PreloadLibraryName, current.AbsolutePath, updatedDirectories));
+      }
+    }
+
+    /// <summary>Return a defensive copy of the registered native-plugin directories.</summary>
+    public static string[] GetRegisteredNativeLibraryDirectories()
+    {
+      return CopyRegisteredNativeLibraryDirectories(GetSnapshot().RegisteredNativeLibraryDirectories);
     }
 
     internal sealed class Snapshot
@@ -97,12 +135,14 @@ namespace ROS2
       internal readonly bool PreloadLibrary;
       internal readonly string PreloadLibraryName;
       internal readonly string AbsolutePath;
+      internal readonly string[] RegisteredNativeLibraryDirectories;
 
-      internal Snapshot(bool preloadLibrary, string preloadLibraryName, string absolutePath)
+      internal Snapshot(bool preloadLibrary, string preloadLibraryName, string absolutePath, string[] registeredNativeLibraryDirectories)
       {
         PreloadLibrary = preloadLibrary;
         PreloadLibraryName = preloadLibraryName ?? "";
         AbsolutePath = absolutePath ?? "";
+        RegisteredNativeLibraryDirectories = CopyRegisteredNativeLibraryDirectories(registeredNativeLibraryDirectories);
       }
     }
 
@@ -116,8 +156,38 @@ namespace ROS2
     {
       lock (settingsMutex)
       {
-        SetSnapshot(new Snapshot(preloadLibrary, preloadLibraryName, absolutePath));
+        SetSnapshot(new Snapshot(preloadLibrary, preloadLibraryName, absolutePath, EmptyRegisteredNativeLibraryDirectories));
       }
+    }
+
+    private static string NormalizeNativeLibraryDirectory(string directory)
+    {
+      if (String.IsNullOrWhiteSpace(directory))
+      {
+        throw new ArgumentException("Native library directory cannot be empty.", nameof(directory));
+      }
+
+      string normalizedDirectory = Path.GetFullPath(directory);
+      string rootDirectory = Path.GetPathRoot(normalizedDirectory);
+      int endIndex = normalizedDirectory.Length;
+      while (endIndex > rootDirectory.Length &&
+        (normalizedDirectory[endIndex - 1] == Path.DirectorySeparatorChar || normalizedDirectory[endIndex - 1] == Path.AltDirectorySeparatorChar))
+      {
+        endIndex--;
+      }
+      return endIndex == normalizedDirectory.Length ? normalizedDirectory : normalizedDirectory.Substring(0, endIndex);
+    }
+
+    private static string[] CopyRegisteredNativeLibraryDirectories(string[] directories)
+    {
+      if (directories == null || directories.Length == 0)
+      {
+        return new string[0];
+      }
+
+      string[] copy = new string[directories.Length];
+      Array.Copy(directories, copy, directories.Length);
+      return copy;
     }
 
     private static void SetSnapshot(Snapshot snapshot)
@@ -436,8 +506,8 @@ namespace ROS2
   /// <summary>Native library loader for Windows desktop processes.</summary>
   public class DllLoadUtilsWindowsDesktop : DllLoadUtils {
 
-    [DllImport ("kernel32.dll", SetLastError = true)]
-    private static extern IntPtr LoadLibrary (string fileName);
+    [DllImport ("kernel32.dll", EntryPoint = "LoadLibraryW", CharSet = CharSet.Unicode, SetLastError = true, ExactSpelling = true)]
+    private static extern IntPtr LoadLibraryW ([MarshalAs(UnmanagedType.LPWStr)] string fileName);
 
     [DllImport ("kernel32.dll", SetLastError = true, ExactSpelling = true)]
     private static extern int FreeLibrary (IntPtr handle);
@@ -458,7 +528,7 @@ namespace ROS2
     private IntPtr LoadExactLibrary(string libraryName)
     {
       Ros2csLogger.GetInstance().LogDebug(() => "Loading library: " + libraryName);
-      IntPtr ptr = LoadLibrary(libraryName);
+      IntPtr ptr = LoadLibraryW(libraryName);
       if (ptr == IntPtr.Zero)
       {
         throw new UnsatisfiedLinkError(LastLoadErrorMessage(libraryName));
@@ -474,12 +544,12 @@ namespace ROS2
         CheckPreloadLibraries(settings);
       }
 
-      return LoadWithFallback(libraryName, settings.AbsolutePath);
+      return LoadWithFallback(libraryName, settings);
     }
 
     private void CheckPreloadLibraries(GlobalVariables.Snapshot settings)
     {
-      string preloadKey = settings.AbsolutePath + "|" + settings.PreloadLibraryName;
+      string preloadKey = GetPreloadKey(settings);
       if (settings.PreloadLibraryName == "")
       {
         return;
@@ -492,7 +562,7 @@ namespace ROS2
           return;
         }
 
-        IntPtr libPtr = LoadWithFallback(settings.PreloadLibraryName, settings.AbsolutePath);
+        IntPtr libPtr = LoadWithFallback(settings.PreloadLibraryName, settings);
         NativeLibraryHandle newHandle = NativeLibraryHandle.FromHandle(this, libPtr);
         NativeLibraryHandle oldHandle = preloadedLibraryHandle;
         preloadedLibraryHandle = newHandle;
@@ -505,12 +575,17 @@ namespace ROS2
       }
     }
 
-    private IntPtr LoadWithFallback(string libraryName, string absolutePath)
+    private IntPtr LoadWithFallback(string libraryName, GlobalVariables.Snapshot settings)
     {
-      if (!String.IsNullOrEmpty(absolutePath))
+      if (!String.IsNullOrEmpty(settings.AbsolutePath))
       {
-        string libraryPath = ApplyAbsolutePath(absolutePath, libraryName);
-        IntPtr ptr = LoadLibrary(libraryPath);
+        string libraryPath = ApplyAbsolutePath(settings.AbsolutePath, libraryName);
+        if (File.Exists(libraryPath))
+        {
+          return LoadExactLibrary(libraryPath);
+        }
+
+        IntPtr ptr = LoadLibraryW(libraryPath);
         if (ptr != IntPtr.Zero)
         {
           return ptr;
@@ -520,7 +595,54 @@ namespace ROS2
         Ros2csLogger.GetInstance().LogDebug(() => "Could not find " + libraryPath + ": Win32 error " + errorCode + ". Fallback to " + libraryName);
       }
 
+      foreach (string directory in settings.RegisteredNativeLibraryDirectories)
+      {
+        string candidatePath = BuildRegisteredLibraryPath(directory, libraryName);
+        if (!File.Exists(candidatePath))
+        {
+          continue;
+        }
+
+        // An existing exact candidate must either load or fail visibly; never fall back to a same-name DLL.
+        return LoadExactLibrary(candidatePath);
+      }
+
       return LoadExactLibrary(libraryName);
+    }
+
+    /// <summary>
+    /// Build the exact extended-length candidate used for a registered Windows plugin directory.
+    /// </summary>
+    public static string BuildRegisteredLibraryPath(string directory, string libraryName)
+    {
+      if (String.IsNullOrWhiteSpace(directory))
+      {
+        throw new ArgumentException("Native library directory cannot be empty.", nameof(directory));
+      }
+      if (String.IsNullOrWhiteSpace(libraryName) || Path.IsPathRooted(libraryName))
+      {
+        throw new ArgumentException("Native library name must be a relative file name.", nameof(libraryName));
+      }
+
+      return ToExtendedLengthPath(Path.Combine(directory, libraryName));
+    }
+
+    private static string GetPreloadKey(GlobalVariables.Snapshot settings)
+    {
+      return settings.AbsolutePath + "|" + settings.PreloadLibraryName + "|" + String.Join("|", settings.RegisteredNativeLibraryDirectories);
+    }
+
+    private static string ToExtendedLengthPath(string path)
+    {
+      if (path.StartsWith(@"\\?\", StringComparison.OrdinalIgnoreCase))
+      {
+        return path;
+      }
+      if (path.StartsWith(@"\\", StringComparison.Ordinal))
+      {
+        return @"\\?\UNC\" + path.Substring(2);
+      }
+      return @"\\?\" + path;
     }
 
     private static string ApplyAbsolutePath(string absolutePath, string libraryName)

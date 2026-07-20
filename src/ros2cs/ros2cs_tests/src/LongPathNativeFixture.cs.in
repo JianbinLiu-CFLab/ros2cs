@@ -1,0 +1,28 @@
+// Copyright (c) 2026 Jianbin Liu.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Modifications by Jianbin Liu:
+// - Provides the CMake-generated long-path native test fixture location.
+
+namespace ROS2.Test
+{
+    internal static class LongPathNativeFixture
+    {
+        internal const string SourceDirectory = @"@ROS2CS_NATIVE_FIXTURE_SOURCE_DIRECTORY@";
+        internal const string Directory = @"@ROS2CS_LONG_PATH_NATIVE_FIXTURE_DIRECTORY@";
+        internal const string ExtendedDirectory = @"\\?\@ROS2CS_LONG_PATH_NATIVE_FIXTURE_DIRECTORY@";
+        internal const string LibraryStem = "@ROS2CS_LONG_PATH_NATIVE_FIXTURE_LIBRARY_STEM@";
+        internal const string LibraryFileName = "@ROS2CS_LONG_PATH_NATIVE_FIXTURE_LIBRARY_STEM@.dll";
+    }
+}
