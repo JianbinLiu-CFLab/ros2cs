@@ -366,7 +366,12 @@ namespace ROS2
 
         try
         {
-          if (handle != IntPtr.Zero)
+          // The finalizer can run after a host such as Unity has started
+          // unloading its Mono/native runtime. Calling a native loader entry
+          // point then is unsafe and can terminate the process. Explicit
+          // ownership still releases immediately; process teardown lets the
+          // operating system reclaim an undisposed handle.
+          if (disposing && handle != IntPtr.Zero)
           {
             dllLoadUtils.FreeLibrary(handle);
           }

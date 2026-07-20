@@ -8,6 +8,7 @@ using System;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using NUnit.Framework;
@@ -252,6 +253,36 @@ namespace ROS2.Test
         }
 
         [Test]
+        public void NativeLibraryHandleFinalizerNeverInvokesNativeUnload()
+        {
+            var loader = new RecordingDllLoadUtils();
+            WeakReference handleReference = CreateUnreleasedNativeLibraryHandle(loader);
+
+            for (int attempt = 0; handleReference.IsAlive && attempt < 3; attempt++)
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+            }
+
+            Assert.That(handleReference.IsAlive, Is.False);
+            Assert.That(loader.FreeLibraryCalls, Is.EqualTo(0));
+            GC.KeepAlive(loader);
+        }
+
+        [Test]
+        public void NativeLibraryHandleExplicitDisposeInvokesNativeUnloadExactlyOnce()
+        {
+            var loader = new RecordingDllLoadUtils();
+            var handle = NativeLibraryHandle.FromHandle(loader, new IntPtr(1));
+
+            handle.Dispose();
+            handle.Dispose();
+
+            Assert.That(loader.FreeLibraryCalls, Is.EqualTo(1));
+        }
+
+        [Test]
         public void BenchmarkDisposeIsIdempotent()
         {
             // Simulates repeated cleanup paths around tight benchmark scopes and process shutdown.
@@ -270,6 +301,28 @@ namespace ROS2.Test
 
             Assert.That(exception, Is.InstanceOf<UnsatisfiedLinkException>());
             Assert.That(exception.Message, Is.EqualTo("missing native library"));
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static WeakReference CreateUnreleasedNativeLibraryHandle(RecordingDllLoadUtils loader)
+        {
+            return new WeakReference(NativeLibraryHandle.FromHandle(loader, new IntPtr(1)));
+        }
+
+        private sealed class RecordingDllLoadUtils : DllLoadUtils
+        {
+            public int FreeLibraryCalls { get; private set; }
+
+            public IntPtr LoadLibrary(string fileName) => new IntPtr(1);
+
+            public IntPtr LoadLibraryNoSuffix(string fileName) => new IntPtr(1);
+
+            public void FreeLibrary(IntPtr handle)
+            {
+                FreeLibraryCalls++;
+            }
+
+            public IntPtr GetProcAddress(IntPtr dllHandle, string name) => IntPtr.Zero;
         }
 
         private static void RequireWindows()
