@@ -136,10 +136,13 @@ jobs:
             echo "Failed to count colcon test cases."
             exit 1
           fi
-          if ! [[ "$test_count" =~ ^[0-9]+$ ]]; then
-            echo "Invalid colcon test count: '$test_count'."
-            exit 1
-          fi
+          # GitHub executes this block with POSIX sh, where Bash [[ regex ]] syntax is unavailable.
+          case "$test_count" in
+            ''|*[!0-9]*)
+              echo "Invalid colcon test count: '$test_count'."
+              exit 1
+              ;;
+          esac
           if [ "$test_count" -le 0 ]; then
             echo "No test cases were executed; failing test gate."
             exit 1
