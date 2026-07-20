@@ -91,12 +91,14 @@ namespace ROS2.Test
         [Test]
         public void RegisteredNativeDirectoriesAreDeduplicatedAndResetWithLoaderSettings()
         {
-            GlobalVariables.RegisterNativeLibraryDirectory(@"C:\unity\custom-plugins");
-            GlobalVariables.RegisterNativeLibraryDirectory(@"C:\unity\custom-plugins");
-            GlobalVariables.RegisterNativeLibraryDirectory(@"C:\unity\other-plugins");
+            string customDirectory = GetTestNativeDirectory("custom-plugins");
+            string otherDirectory = GetTestNativeDirectory("other-plugins");
+            GlobalVariables.RegisterNativeLibraryDirectory(customDirectory);
+            GlobalVariables.RegisterNativeLibraryDirectory(customDirectory);
+            GlobalVariables.RegisterNativeLibraryDirectory(otherDirectory);
 
             CollectionAssert.AreEqual(
-                new[] { @"C:\unity\custom-plugins", @"C:\unity\other-plugins" },
+                new[] { customDirectory, otherDirectory },
                 GlobalVariables.GetRegisteredNativeLibraryDirectories());
 
             GlobalVariables.SetLoaderSettings(false, "", "");
@@ -107,19 +109,22 @@ namespace ROS2.Test
         [Test]
         public void RegisteredNativeDirectoriesReturnDefensiveSnapshotCopies()
         {
-            GlobalVariables.RegisterNativeLibraryDirectory(@"C:\unity\custom-plugins");
+            string customDirectory = GetTestNativeDirectory("custom-plugins");
+            GlobalVariables.RegisterNativeLibraryDirectory(customDirectory);
 
             string[] firstSnapshot = GlobalVariables.GetRegisteredNativeLibraryDirectories();
-            firstSnapshot[0] = @"C:\unity\tampered";
+            firstSnapshot[0] = GetTestNativeDirectory("tampered");
 
             CollectionAssert.AreEquivalent(
-                new[] { @"C:\unity\custom-plugins" },
+                new[] { customDirectory },
                 GlobalVariables.GetRegisteredNativeLibraryDirectories());
         }
 
         [Test]
         public void RegisteredNativeDirectoriesRemainDeduplicatedDuringConcurrentRegistration()
         {
+            string customDirectory = GetTestNativeDirectory("custom-plugins");
+            string otherDirectory = GetTestNativeDirectory("other-plugins");
             var failures = new ConcurrentQueue<Exception>();
 
             Parallel.For(0, 128, index =>
@@ -128,8 +133,8 @@ namespace ROS2.Test
                 {
                     GlobalVariables.RegisterNativeLibraryDirectory(
                         index % 2 == 0
-                            ? @"C:\unity\custom-plugins"
-                            : @"C:\unity\other-plugins");
+                            ? customDirectory
+                            : otherDirectory);
                     string[] snapshot = GlobalVariables.GetRegisteredNativeLibraryDirectories();
                     if (snapshot.Length > 2)
                     {
@@ -143,14 +148,16 @@ namespace ROS2.Test
             });
 
             Assert.That(failures, Is.Empty);
-            CollectionAssert.AreEqual(
-                new[] { @"C:\unity\custom-plugins", @"C:\unity\other-plugins" },
+            CollectionAssert.AreEquivalent(
+                new[] { customDirectory, otherDirectory },
                 GlobalVariables.GetRegisteredNativeLibraryDirectories());
         }
 
         [Test]
         public void WindowsRegisteredDirectoryUsesAnExtendedLengthCandidatePath()
         {
+            RequireWindows();
+
             string directory = @"C:\long\workspace\Packages\typesupport\Runtime\Ros2ForUnity\Plugins\Windows\x86_64";
             string library = "unity2foxglove_foxrun_interfaces_v1_phase181_state48_d288_ed82_f1_envelope__rosidl_typesupport_c_native.dll";
 
@@ -162,6 +169,8 @@ namespace ROS2.Test
         [Test]
         public void WindowsRegisteredUncDirectoryUsesAnExtendedLengthCandidatePath()
         {
+            RequireWindows();
+
             string directory = @"\\server\share\Ros2ForUnity\Plugins\Windows\x86_64";
             const string library = "custom_typesupport.dll";
 
@@ -173,6 +182,8 @@ namespace ROS2.Test
         [Test]
         public void WindowsRegisteredDirectoryPreservesAnAlreadyExtendedLengthCandidatePath()
         {
+            RequireWindows();
+
             string directory = @"\\?\C:\long\workspace\Plugins\Windows\x86_64";
             const string library = "custom_typesupport.dll";
 
@@ -267,6 +278,11 @@ namespace ROS2.Test
             {
                 Assert.Ignore("Windows-only native loader coverage.");
             }
+        }
+
+        private static string GetTestNativeDirectory(string name)
+        {
+            return Path.GetFullPath(Path.Combine(Path.GetTempPath(), "ros2cs-native-directory-tests", name));
         }
 
         private static string PrepareLongPathFixture()
