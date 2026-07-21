@@ -21,6 +21,7 @@
 // - Serialized native library handle disposal and symbol lookup diagnostics.
 // - Made native loader settings an atomic snapshot and applied them on macOS.
 // - Added Windows registered native directories and extended-length LoadLibraryW candidates.
+// - Prevented NativeLibraryHandle finalizers from invoking native loader APIs during host shutdown.
 
 // Based on http://dimitry-i.blogspot.com.es/2013/01/mononet-how-to-dynamically-load-native.html
 
@@ -290,7 +291,11 @@ namespace ROS2
   }
 
   /// <summary>Owns a loaded native library and releases it when disposed.</summary>
-  /// <remarks>Keeps native libraries alive while delegates created from them remain reachable.</remarks>
+  /// <remarks>
+  /// Keeps native libraries alive while delegates created from them remain reachable.
+  /// Only explicit <see cref="Dispose()"/> invokes the native loader; finalization
+  /// clears managed ownership and leaves process-exit cleanup to the operating system.
+  /// </remarks>
   public sealed class NativeLibraryHandle : IDisposable
   {
     private readonly DllLoadUtils dllLoadUtils;
@@ -342,6 +347,7 @@ namespace ROS2
       return new NativeLibraryHandle(dllLoadUtils, handle);
     }
 
+    /// <summary>Clears managed ownership without invoking a native loader API during host teardown.</summary>
     ~NativeLibraryHandle()
     {
       Dispose(false);
@@ -354,7 +360,9 @@ namespace ROS2
       GC.SuppressFinalize(this);
     }
 
-    /// <summary>Shared dispose path used by explicit disposal and the finalizer.</summary>
+    /// <summary>
+    /// Releases managed ownership for both paths and unloads natively only for explicit disposal.
+    /// </summary>
     private void Dispose(bool disposing)
     {
       lock (mutex)

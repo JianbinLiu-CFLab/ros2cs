@@ -3,6 +3,7 @@
 // Modifications by Jianbin Liu:
 // - Added isolated coverage for ros2cs_common primitives.
 // - Added Windows native-loader registration and extended-length path coverage.
+// - Added NativeLibraryHandle explicit-dispose and finalizer ownership regressions.
 
 using System;
 using System.Collections.Concurrent;
@@ -252,6 +253,7 @@ namespace ROS2.Test
             StringAssert.Contains(candidate, exception.Message);
         }
 
+        /// <summary>Ensures the finalizer does not invoke a native loader unload.</summary>
         [Test]
         public void NativeLibraryHandleFinalizerNeverInvokesNativeUnload()
         {
@@ -270,6 +272,7 @@ namespace ROS2.Test
             GC.KeepAlive(loader);
         }
 
+        /// <summary>Ensures repeated explicit disposal unloads through the loader exactly once.</summary>
         [Test]
         public void NativeLibraryHandleExplicitDisposeInvokesNativeUnloadExactlyOnce()
         {
@@ -303,12 +306,14 @@ namespace ROS2.Test
             Assert.That(exception.Message, Is.EqualTo("missing native library"));
         }
 
+        /// <summary>Creates an unreleased handle without leaving a JIT-visible strong reference.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static WeakReference CreateUnreleasedNativeLibraryHandle(RecordingDllLoadUtils loader)
         {
             return new WeakReference(NativeLibraryHandle.FromHandle(loader, new IntPtr(1)));
         }
 
+        /// <summary>Fake loader that records only the unload calls relevant to ownership tests.</summary>
         private sealed class RecordingDllLoadUtils : DllLoadUtils
         {
             public int FreeLibraryCalls { get; private set; }
