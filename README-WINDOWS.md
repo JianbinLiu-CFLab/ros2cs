@@ -23,7 +23,7 @@ Current GREEN evidence for this maintenance branch is:
 - ROS2 For Unity Windows standalone artifact rebuild/packaging for Jazzy and Lyrical.
 - `ros2cs_common`, `ros2cs_core`, and generated message assemblies on `netstandard2.0`.
 - `ros2cs_tests` and `ros2cs_examples` on `net10.0`.
-- Latest public maintenance release: [`v0.8.3`](https://github.com/JianbinLiu-CFLab/ros2cs/releases/tag/v0.8.3).
+- Latest public maintenance release: [`v0.9.0`](https://github.com/JianbinLiu-CFLab/ros2cs/releases/tag/v0.9.0).
 
 Windows 11 is an expected target but was not the OS used for the current local validation. Older ROS 2 distributions in this README are legacy context unless fresh evidence is added.
 

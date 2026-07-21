@@ -25,7 +25,7 @@ stable, reproducible pin:
 
 ```text
 https://github.com/JianbinLiu-CFLab/ros2cs.git
-version: v0.8.3
+version: v0.9.0
 ```
 
 Use `main` only when intentionally tracking current development:
@@ -37,7 +37,7 @@ version: main
 
 Release notes and artifacts:
 
-- https://github.com/JianbinLiu-CFLab/ros2cs/releases/tag/v0.8.3
+- https://github.com/JianbinLiu-CFLab/ros2cs/releases/tag/v0.9.0
 
 ### Features
 
