@@ -5,6 +5,7 @@
 # - Updated the C# test target framework to .NET 10.
 # - Preserved the final newline for consistent generated build files.
 # - Added a generated message finalizer child-process probe.
+# - Added a NativeLibraryHandle finalizer child-process probe.
 # - Added isolated ros2cs_common primitive coverage.
 # - Raised the CTest timeout for the expanded managed test suite.
 # - Added a Windows extended-length native loader fixture for ros2cs_common coverage.
@@ -110,6 +111,26 @@ if(BUILD_TESTING)
   set_tests_properties(
     ${FINALIZER_PROBE_TARGET}_test
     PROPERTIES PASS_REGULAR_EXPRESSION "GENERATED_MESSAGE_FINALIZER_PROBE_PASS"
+  )
+
+  # Keep NativeLibraryHandle finalization isolated too. The fake loader checks ownership
+  # semantics without trying to recreate Unity's partially unloaded native host.
+  set(NATIVE_LIBRARY_HANDLE_FINALIZER_PROBE_TARGET ros2cs_native_library_handle_finalizer_probe)
+  add_dotnet_executable(${NATIVE_LIBRARY_HANDLE_FINALIZER_PROBE_TARGET}
+    src/NativeLibraryHandleFinalizerProbe.cs
+    INCLUDE_DLLS
+    ${ASSEMBLIES_DEP_DLLS}
+  )
+
+  ament_add_test(
+    ${NATIVE_LIBRARY_HANDLE_FINALIZER_PROBE_TARGET}_test
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    WORKING_DIRECTORY "${DOTNET_OUTPUT_PATH}"
+    COMMAND dotnet "${NATIVE_LIBRARY_HANDLE_FINALIZER_PROBE_TARGET}.dll"
+  )
+  set_tests_properties(
+    ${NATIVE_LIBRARY_HANDLE_FINALIZER_PROBE_TARGET}_test
+    PROPERTIES PASS_REGULAR_EXPRESSION "NATIVE_LIBRARY_HANDLE_FINALIZER_PROBE_PASS"
   )
 
   install_dotnet(${PROJECT_NAME} DESTINATION lib/tests)

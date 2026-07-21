@@ -3,11 +3,13 @@
 // Modifications by Jianbin Liu:
 // - Added isolated coverage for ros2cs_common primitives.
 // - Added Windows native-loader registration and extended-length path coverage.
+// - Added NativeLibraryHandle explicit-dispose and finalizer ownership regressions.
 
 using System;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using NUnit.Framework;
@@ -251,6 +253,38 @@ namespace ROS2.Test
             StringAssert.Contains(candidate, exception.Message);
         }
 
+        /// <summary>Ensures the finalizer does not invoke a native loader unload.</summary>
+        [Test]
+        public void NativeLibraryHandleFinalizerNeverInvokesNativeUnload()
+        {
+            var loader = new RecordingDllLoadUtils();
+            WeakReference handleReference = CreateUnreleasedNativeLibraryHandle(loader);
+
+            for (int attempt = 0; handleReference.IsAlive && attempt < 3; attempt++)
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+            }
+
+            Assert.That(handleReference.IsAlive, Is.False);
+            Assert.That(loader.FreeLibraryCalls, Is.EqualTo(0));
+            GC.KeepAlive(loader);
+        }
+
+        /// <summary>Ensures repeated explicit disposal unloads through the loader exactly once.</summary>
+        [Test]
+        public void NativeLibraryHandleExplicitDisposeInvokesNativeUnloadExactlyOnce()
+        {
+            var loader = new RecordingDllLoadUtils();
+            var handle = NativeLibraryHandle.FromHandle(loader, new IntPtr(1));
+
+            handle.Dispose();
+            handle.Dispose();
+
+            Assert.That(loader.FreeLibraryCalls, Is.EqualTo(1));
+        }
+
         [Test]
         public void BenchmarkDisposeIsIdempotent()
         {
@@ -270,6 +304,30 @@ namespace ROS2.Test
 
             Assert.That(exception, Is.InstanceOf<UnsatisfiedLinkException>());
             Assert.That(exception.Message, Is.EqualTo("missing native library"));
+        }
+
+        /// <summary>Creates an unreleased handle without leaving a JIT-visible strong reference.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static WeakReference CreateUnreleasedNativeLibraryHandle(RecordingDllLoadUtils loader)
+        {
+            return new WeakReference(NativeLibraryHandle.FromHandle(loader, new IntPtr(1)));
+        }
+
+        /// <summary>Fake loader that records only the unload calls relevant to ownership tests.</summary>
+        private sealed class RecordingDllLoadUtils : DllLoadUtils
+        {
+            public int FreeLibraryCalls { get; private set; }
+
+            public IntPtr LoadLibrary(string fileName) => new IntPtr(1);
+
+            public IntPtr LoadLibraryNoSuffix(string fileName) => new IntPtr(1);
+
+            public void FreeLibrary(IntPtr handle)
+            {
+                FreeLibraryCalls++;
+            }
+
+            public IntPtr GetProcAddress(IntPtr dllHandle, string name) => IntPtr.Zero;
         }
 
         private static void RequireWindows()
