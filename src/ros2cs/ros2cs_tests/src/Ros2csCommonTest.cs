@@ -4,6 +4,7 @@
 // - Added isolated coverage for ros2cs_common primitives.
 // - Added Windows native-loader registration and extended-length path coverage.
 // - Added NativeLibraryHandle explicit-dispose and finalizer ownership regressions.
+// - Added direct-spin fallback log-severity coverage.
 
 using System;
 using System.Collections.Concurrent;
@@ -68,6 +69,45 @@ namespace ROS2.Test
             Ros2csLogger.GetInstance().LogDebug(() => "debug message");
 
             Assert.That(callbackMessage, Is.EqualTo("[ROS2CS] debug message"));
+        }
+
+        [Test]
+        public void DirectSpinFallbackIsReportedOnceAsInformation()
+        {
+            FieldInfo loggedField = typeof(Ros2cs).GetField(
+                "directSpinFallbackLogged",
+                BindingFlags.NonPublic | BindingFlags.Static);
+            MethodInfo logMethod = typeof(Ros2cs).GetMethod(
+                "LogDirectSpinFallbackOnce",
+                BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.That(loggedField, Is.Not.Null);
+            Assert.That(logMethod, Is.Not.Null);
+
+            int previousLoggedValue = (int)loggedField.GetValue(null);
+            int informationCount = 0;
+            int warningCount = 0;
+            string informationMessage = null;
+            Ros2csLogger.SetCallback(LogLevel.INFO, message =>
+            {
+                informationCount++;
+                informationMessage = (string)message;
+            });
+            Ros2csLogger.SetCallback(LogLevel.WARNING, _ => warningCount++);
+
+            try
+            {
+                loggedField.SetValue(null, 0);
+                logMethod.Invoke(null, new object[] { "ROS_DISTRO=lyrical" });
+                logMethod.Invoke(null, new object[] { "ROS_DISTRO=lyrical" });
+
+                Assert.That(informationCount, Is.EqualTo(1));
+                Assert.That(warningCount, Is.Zero);
+                StringAssert.Contains("using direct spin fallback without rcl_wait", informationMessage);
+            }
+            finally
+            {
+                loggedField.SetValue(null, previousLoggedValue);
+            }
         }
 
         [Test]

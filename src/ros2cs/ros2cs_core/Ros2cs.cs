@@ -518,12 +518,12 @@ namespace ROS2
       return lyrical;
     }
 
-    /// <summary>Emit the direct spin fallback mode once so preview behavior is visible in logs.</summary>
+    /// <summary>Emit the direct spin fallback mode once as informational runtime context.</summary>
     private static void LogDirectSpinFallbackOnce(string reason)
     {
       if (Interlocked.Exchange(ref directSpinFallbackLogged, 1) == 0)
       {
-        Ros2csLogger.GetInstance().LogWarning(
+        Ros2csLogger.GetInstance().LogInfo(
           reason + " detected; using direct spin fallback without rcl_wait. " +
           "Shutdown remains serialized, but callback delivery is bounded by the spin timeout.");
       }
