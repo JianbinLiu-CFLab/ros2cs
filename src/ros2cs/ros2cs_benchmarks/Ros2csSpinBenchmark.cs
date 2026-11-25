@@ -28,7 +28,9 @@ namespace Ros2csSpinBenchmarks
   {
     private const int SchemaVersion = 1;
     private const string SpinFallbackEnvironmentVariable = "ROS2CS_SPIN_FALLBACK";
-    private const double SpinTimeoutSeconds = 0.0;
+    private const double IdleSpinTimeoutSeconds = 0.0;
+    private const double ActiveSpinTimeoutSeconds = 0.01;
+    private const double DeliveryTimeoutSeconds = 5.0;
 
     public static int Main(string[] args)
     {
@@ -71,11 +73,10 @@ namespace Ros2csSpinBenchmarks
         Ros2cs.Init();
         initialized = true;
         result.Rmw = Ros2cs.GetRMWImplementation();
-        result.Metrics.NativeMemoryStartBytes = GetPrivateMemoryBytes();
 
         BenchmarkRun run = ExecuteBenchmark(arguments);
         result.Metrics = run.Metrics;
-        result.Metrics.NativeMemoryStartBytes = result.Metrics.NativeMemoryStartBytes ?? run.NativeMemoryStartBytes;
+        result.Metrics.NativeMemoryStartBytes = run.NativeMemoryStartBytes;
         result.Status = "PASS";
         Console.WriteLine(
           "ROS2CS_SPIN_BENCHMARK_PASS distro={0} mode={1} entities={2} load={3} throughput={4:F3}",
@@ -116,6 +117,7 @@ namespace Ros2csSpinBenchmarks
 
     private static BenchmarkRun ExecuteBenchmark(BenchmarkArguments arguments)
     {
+      long nativeMemoryStartBytes = GetPrivateMemoryBytes();
       var state = new BenchmarkState(arguments.EntityCount, arguments.LoadProfile);
       try
       {
@@ -123,16 +125,14 @@ namespace Ros2csSpinBenchmarks
         CreateEntities(node, state);
 
         RunSpinIterations(node, state, arguments.WarmupIterations);
-        state.PublishedAt.Clear();
-        lock (state.LatencyLock)
-        {
-          state.LatenciesMs.Clear();
-        }
+        DrainMessages(node, state);
+        state.ResetMeasurement();
 
         long wallStart = Stopwatch.GetTimestamp();
         long cpuStart = Process.GetCurrentProcess().TotalProcessorTime.Ticks;
         long allocatedStart = GC.GetAllocatedBytesForCurrentThread();
         RunSpinIterations(node, state, arguments.Iterations);
+        DrainMessages(node, state);
         long allocatedEnd = GC.GetAllocatedBytesForCurrentThread();
         long wallTicks = Stopwatch.GetTimestamp() - wallStart;
         long cpuEnd = Process.GetCurrentProcess().TotalProcessorTime.Ticks;
@@ -146,7 +146,7 @@ namespace Ros2csSpinBenchmarks
           : metrics.CpuSeconds / wallSeconds / Environment.ProcessorCount * 100.0;
         metrics.ThroughputMessagesPerSecond = wallSeconds <= 0.0
           ? 0.0
-          : (double)state.ReceivedMessages / wallSeconds;
+          : (double)Interlocked.Read(ref state.ReceivedMessages) / wallSeconds;
 
         List<double> latencySamples;
         lock (state.LatencyLock)
@@ -158,8 +158,7 @@ namespace Ros2csSpinBenchmarks
         metrics.LatencyP99Ms = Percentile(latencySamples, 99.0);
 
         MeasureCreateRemove(node, metrics);
-        metrics.NativeMemoryStartBytes = GetPrivateMemoryBytes();
-        return new BenchmarkRun(metrics, metrics.NativeMemoryStartBytes.Value);
+        return new BenchmarkRun(metrics, nativeMemoryStartBytes);
       }
       finally
       {
@@ -206,7 +205,34 @@ namespace Ros2csSpinBenchmarks
       for (int i = 0; i < iterations; i++)
       {
         PublishActiveMessages(state, i);
-        Ros2cs.SpinOnce(node, SpinTimeoutSeconds);
+        Ros2cs.SpinOnce(node, state.HasActivePublishers
+          ? ActiveSpinTimeoutSeconds
+          : IdleSpinTimeoutSeconds);
+      }
+    }
+
+    private static void DrainMessages(INode node, BenchmarkState state)
+    {
+      if (Interlocked.Read(ref state.PublishedMessages) == 0)
+      {
+        return;
+      }
+
+      long deadline = Stopwatch.GetTimestamp() +
+        (long)(DeliveryTimeoutSeconds * Stopwatch.Frequency);
+      while (Interlocked.Read(ref state.ReceivedMessages) <
+        Interlocked.Read(ref state.PublishedMessages) &&
+        Stopwatch.GetTimestamp() < deadline)
+      {
+        Ros2cs.SpinOnce(node, ActiveSpinTimeoutSeconds);
+      }
+
+      long receivedMessages = Interlocked.Read(ref state.ReceivedMessages);
+      long publishedMessages = Interlocked.Read(ref state.PublishedMessages);
+      if (receivedMessages != publishedMessages)
+      {
+        throw new InvalidOperationException("Message delivery incomplete: received " +
+          receivedMessages + " of " + publishedMessages + " published messages");
       }
     }
 
@@ -225,6 +251,7 @@ namespace Ros2csSpinBenchmarks
         state.PublishedAt[key] = Stopwatch.GetTimestamp();
         state.Messages[i].Data = sequence;
         state.Publishers[i].Publish(state.Messages[i]);
+        Interlocked.Increment(ref state.PublishedMessages);
       }
     }
 
@@ -350,7 +377,13 @@ namespace Ros2csSpinBenchmarks
       internal readonly List<double> LatenciesMs = new List<double>();
       internal readonly object LatencyLock = new object();
       internal long Sequence;
+      internal long PublishedMessages;
       internal long ReceivedMessages;
+
+      internal bool HasActivePublishers
+      {
+        get { return Publishers.Count > 0; }
+      }
 
       internal BenchmarkState(int entityCount, string loadProfile)
       {
@@ -376,6 +409,17 @@ namespace Ros2csSpinBenchmarks
         return LoadProfile == "high" ||
           LoadProfile == "few-active" ||
           (LoadProfile == "low" && iteration % 10 == 0);
+      }
+
+      internal void ResetMeasurement()
+      {
+        PublishedAt.Clear();
+        lock (LatencyLock)
+        {
+          LatenciesMs.Clear();
+        }
+        Interlocked.Exchange(ref PublishedMessages, 0);
+        Interlocked.Exchange(ref ReceivedMessages, 0);
       }
     }
 
