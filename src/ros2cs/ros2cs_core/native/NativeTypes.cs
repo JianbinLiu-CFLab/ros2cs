@@ -128,16 +128,16 @@ namespace ROS2
   [StructLayout(LayoutKind.Sequential)]
   public struct rcl_wait_set_t
   {
-    private IntPtr subscriptions;
+    internal IntPtr subscriptions;
     // Native size_t fields are mirrored with UIntPtr.
     internal UIntPtr size_of_subscriptions;
     private IntPtr guard_conditions;
     internal UIntPtr size_of_guard_conditions;
     private IntPtr timers;
     internal UIntPtr size_of_timers;
-    private IntPtr clients;
+    internal IntPtr clients;
     internal UIntPtr size_of_clients;
-    private IntPtr services;
+    internal IntPtr services;
     internal UIntPtr size_of_services;
     private IntPtr events;
     internal UIntPtr size_of_events;

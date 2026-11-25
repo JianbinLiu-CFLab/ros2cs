@@ -58,6 +58,12 @@ namespace ROS2
       new Lazy<string>(() => Utils.PtrToString(NativeRmwInterface.rmw_native_interface_get_implementation_identifier()));
     private const string DirectSpinFallbackEnvVar = "ROS2CS_SPIN_FALLBACK";
     private static WaitSet WaitSet;
+
+    /// <summary>Expose the process wait set to friend tests without widening the public API.</summary>
+    internal static WaitSet GetWaitSetForTests()
+    {
+      return WaitSet;
+    }
     private static bool destructorFinalizerSuppressed;
     private static volatile bool useDirectSpinFallback;
     private static volatile string directSpinFallbackReason;
