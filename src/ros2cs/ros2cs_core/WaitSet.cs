@@ -18,8 +18,10 @@
 // - Added disposed-state checks for spin and entity registration.
 // - Removed the unused wrapper Clear method; resizing is the active spin path.
 // - Removed the unused unbounded wait overload.
+// - Pinned per-kind handle storage so rcl never retains a stack-local handle address.
 
 using System;
+using System.Runtime.InteropServices;
 
 namespace ROS2
 {
@@ -29,6 +31,13 @@ namespace ROS2
     FULL,
     // The wait set or target entity was disposed before it could be registered.
     DISPOSED
+  }
+
+  internal enum WaitSetEntityKind
+  {
+    Subscription,
+    Client,
+    Service
   }
 
   /// <summary>Disposable wrapper around rcl_wait_set_t used by Ros2cs spinning.</summary>
@@ -47,6 +56,15 @@ namespace ROS2
     private rcl_wait_set_t Handle;
     private readonly object mutex = new object();
     private volatile bool disposed;
+    private rcl_subscription_t[] subscriptionStorage;
+    private rcl_client_t[] clientStorage;
+    private rcl_service_t[] serviceStorage;
+    private GCHandle subscriptionStoragePin;
+    private GCHandle clientStoragePin;
+    private GCHandle serviceStoragePin;
+    private int subscriptionStorageIndex;
+    private int clientStorageIndex;
+    private int serviceStorageIndex;
 
     internal WaitSet(ref rcl_context_t context, rcl_allocator_t allocator)
     {
@@ -103,6 +121,7 @@ namespace ROS2
         }
         finally
         {
+          ReleaseHandleStorage();
           disposed = true;
         }
       }
@@ -126,18 +145,64 @@ namespace ROS2
             ServiceCount == serviceCount)
         {
           Utils.CheckReturnEnum(NativeRcl.rcl_wait_set_clear(ref Handle));
+          ResetStorageCursors();
           return;
         }
 
-        Utils.CheckReturnEnum(NativeRcl.rcl_wait_set_resize(
-          ref Handle,
-          (UIntPtr)subscriptionCount,
-          (UIntPtr)0, // guard conditions are not registered by ros2cs
-          (UIntPtr)0, // timers are not exposed by ros2cs
-          (UIntPtr)clientCount,
-          (UIntPtr)serviceCount,
-          (UIntPtr)0)); // events are not registered by ros2cs
-        Utils.CheckReturnEnum(NativeRcl.rcl_wait_set_clear(ref Handle));
+        rcl_subscription_t[] newSubscriptionStorage = null;
+        rcl_client_t[] newClientStorage = null;
+        rcl_service_t[] newServiceStorage = null;
+        GCHandle newSubscriptionStoragePin = default(GCHandle);
+        GCHandle newClientStoragePin = default(GCHandle);
+        GCHandle newServiceStoragePin = default(GCHandle);
+        try
+        {
+          newSubscriptionStorage = CreatePinnedStorage<rcl_subscription_t>(
+            subscriptionCount,
+            out newSubscriptionStoragePin);
+          newClientStorage = CreatePinnedStorage<rcl_client_t>(
+            clientCount,
+            out newClientStoragePin);
+          newServiceStorage = CreatePinnedStorage<rcl_service_t>(
+            serviceCount,
+            out newServiceStoragePin);
+        }
+        catch
+        {
+          ReleasePin(ref newSubscriptionStoragePin);
+          ReleasePin(ref newClientStoragePin);
+          ReleasePin(ref newServiceStoragePin);
+          throw;
+        }
+
+        try
+        {
+          Utils.CheckReturnEnum(NativeRcl.rcl_wait_set_clear(ref Handle));
+          Utils.CheckReturnEnum(NativeRcl.rcl_wait_set_resize(
+            ref Handle,
+            (UIntPtr)subscriptionCount,
+            (UIntPtr)0, // guard conditions are not registered by ros2cs
+            (UIntPtr)0, // timers are not exposed by ros2cs
+            (UIntPtr)clientCount,
+            (UIntPtr)serviceCount,
+            (UIntPtr)0)); // events are not registered by ros2cs
+        }
+        catch
+        {
+          ReleasePin(ref newSubscriptionStoragePin);
+          ReleasePin(ref newClientStoragePin);
+          ReleasePin(ref newServiceStoragePin);
+          throw;
+        }
+
+        ReleaseHandleStorage();
+        subscriptionStorage = newSubscriptionStorage;
+        clientStorage = newClientStorage;
+        serviceStorage = newServiceStorage;
+        subscriptionStoragePin = newSubscriptionStoragePin;
+        clientStoragePin = newClientStoragePin;
+        serviceStoragePin = newServiceStoragePin;
+        ResetStorageCursors();
       }
     }
 
@@ -170,12 +235,22 @@ namespace ROS2
             return AddResult.DISPOSED;
           }
 
-          rcl_subscription_t subscription_handle = subscription.Handle;
+          if (!TryGetNextStorageSlot(subscriptionStorage, ref subscriptionStorageIndex, out int storageIndex))
+          {
+            index = default(ulong);
+            return AddResult.FULL;
+          }
+
+          subscriptionStorage[storageIndex] = subscription.Handle;
           ret = NativeRcl.rcl_wait_set_add_subscription(
             ref Handle,
-            ref subscription_handle,
+            ref subscriptionStorage[storageIndex],
             ref native_index
           );
+          if ((RCLReturnEnum)ret != RCLReturnEnum.RCL_RET_OK)
+          {
+            subscriptionStorageIndex--;
+          }
         }
 
         if ((RCLReturnEnum)ret == RCLReturnEnum.RCL_RET_WAIT_SET_FULL)
@@ -221,12 +296,22 @@ namespace ROS2
             return AddResult.DISPOSED;
           }
 
-          rcl_client_t client_handle = client.Handle;
+          if (!TryGetNextStorageSlot(clientStorage, ref clientStorageIndex, out int storageIndex))
+          {
+            index = default(ulong);
+            return AddResult.FULL;
+          }
+
+          clientStorage[storageIndex] = client.Handle;
           ret = NativeRcl.rcl_wait_set_add_client(
             ref Handle,
-            ref client_handle,
+            ref clientStorage[storageIndex],
             ref native_index
           );
+          if ((RCLReturnEnum)ret != RCLReturnEnum.RCL_RET_OK)
+          {
+            clientStorageIndex--;
+          }
         }
 
         if ((RCLReturnEnum)ret == RCLReturnEnum.RCL_RET_WAIT_SET_FULL)
@@ -273,12 +358,22 @@ namespace ROS2
             return AddResult.DISPOSED;
           }
 
-          rcl_service_t service_handle = service.Handle;
+          if (!TryGetNextStorageSlot(serviceStorage, ref serviceStorageIndex, out int storageIndex))
+          {
+            index = default(ulong);
+            return AddResult.FULL;
+          }
+
+          serviceStorage[storageIndex] = service.Handle;
           ret = NativeRcl.rcl_wait_set_add_service(
             ref Handle,
-            ref service_handle,
+            ref serviceStorage[storageIndex],
             ref native_index
           );
+          if ((RCLReturnEnum)ret != RCLReturnEnum.RCL_RET_OK)
+          {
+            serviceStorageIndex--;
+          }
         }
 
         if ((RCLReturnEnum)ret == RCLReturnEnum.RCL_RET_WAIT_SET_FULL)
@@ -315,6 +410,29 @@ namespace ROS2
       }
     }
 
+    /// <summary>Return the managed storage address used for a registered handle slot.</summary>
+    internal IntPtr GetManagedHandleAddress(WaitSetEntityKind kind, ulong index)
+    {
+      lock (mutex)
+      {
+        return GetStorageAddress(kind, index);
+      }
+    }
+
+    /// <summary>Return the native wait-set slot address for a registered handle index.</summary>
+    internal IntPtr GetNativeHandleAddress(WaitSetEntityKind kind, ulong index)
+    {
+      lock (mutex)
+      {
+        IntPtr slots = GetNativeSlots(kind);
+        if (slots == IntPtr.Zero || index > Int32.MaxValue)
+        {
+          return IntPtr.Zero;
+        }
+        return Marshal.ReadIntPtr(slots, checked((int)index * IntPtr.Size));
+      }
+    }
+
     /// <summary>Convert managed timeouts to rcl nanoseconds without silent overflow.</summary>
     internal static long ToNanoseconds(TimeSpan timeout)
     {
@@ -329,6 +447,106 @@ namespace ROS2
       {
         throw new ObjectDisposedException(nameof(WaitSet));
       }
+    }
+
+    private static T[] CreatePinnedStorage<T>(ulong count, out GCHandle pin) where T : struct
+    {
+      if (count > Int32.MaxValue)
+      {
+        throw new ArgumentOutOfRangeException(nameof(count));
+      }
+
+      T[] storage = new T[checked((int)count)];
+      pin = default(GCHandle);
+      if (storage.Length > 0)
+      {
+        pin = GCHandle.Alloc(storage, GCHandleType.Pinned);
+      }
+      return storage;
+    }
+
+    private static bool TryGetNextStorageSlot<T>(T[] storage, ref int cursor, out int index)
+    {
+      if (storage == null || cursor >= storage.Length)
+      {
+        index = default(int);
+        return false;
+      }
+
+      index = cursor++;
+      return true;
+    }
+
+    private IntPtr GetStorageAddress(WaitSetEntityKind kind, ulong index)
+    {
+      if (index > Int32.MaxValue)
+      {
+        return IntPtr.Zero;
+      }
+
+      int elementIndex = checked((int)index);
+      switch (kind)
+      {
+        case WaitSetEntityKind.Subscription:
+          return GetArrayElementAddress(subscriptionStoragePin, subscriptionStorage, elementIndex);
+        case WaitSetEntityKind.Client:
+          return GetArrayElementAddress(clientStoragePin, clientStorage, elementIndex);
+        case WaitSetEntityKind.Service:
+          return GetArrayElementAddress(serviceStoragePin, serviceStorage, elementIndex);
+        default:
+          throw new ArgumentOutOfRangeException(nameof(kind));
+      }
+    }
+
+    private IntPtr GetNativeSlots(WaitSetEntityKind kind)
+    {
+      switch (kind)
+      {
+        case WaitSetEntityKind.Subscription:
+          return Handle.subscriptions;
+        case WaitSetEntityKind.Client:
+          return Handle.clients;
+        case WaitSetEntityKind.Service:
+          return Handle.services;
+        default:
+          throw new ArgumentOutOfRangeException(nameof(kind));
+      }
+    }
+
+    private static IntPtr GetArrayElementAddress<T>(GCHandle pin, T[] storage, int index) where T : struct
+    {
+      if (!pin.IsAllocated || storage == null || index < 0 || index >= storage.Length)
+      {
+        return IntPtr.Zero;
+      }
+      return IntPtr.Add(pin.AddrOfPinnedObject(), checked(index * Marshal.SizeOf(typeof(T))));
+    }
+
+    private void ResetStorageCursors()
+    {
+      subscriptionStorageIndex = 0;
+      clientStorageIndex = 0;
+      serviceStorageIndex = 0;
+    }
+
+    private void ReleaseHandleStorage()
+    {
+      ReleasePin(ref subscriptionStoragePin);
+      ReleasePin(ref clientStoragePin);
+      ReleasePin(ref serviceStoragePin);
+      subscriptionStorage = null;
+      clientStorage = null;
+      serviceStorage = null;
+      ResetStorageCursors();
+    }
+
+    private static void ReleasePin(ref GCHandle pin)
+    {
+      if (pin.IsAllocated)
+      {
+        pin.Free();
+      }
+      pin = default(GCHandle);
     }
   }
 }
