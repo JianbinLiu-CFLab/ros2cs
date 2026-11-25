@@ -260,6 +260,10 @@ namespace ROS2
     {
       if (!Ros2cs.TryEnterWaitSetMutex(disposing))
       {
+        if (!disposing)
+        {
+          GC.ReRegisterForFinalize(this);
+        }
         return;
       }
 
