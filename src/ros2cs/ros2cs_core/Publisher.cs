@@ -83,20 +83,20 @@ namespace ROS2
 
     ~Publisher()
     {
-      Dispose(false);
+      Dispose(false, false);
     }
 
     /// <summary>Release the publisher and its native options.</summary>
     public void Dispose()
     {
-      Dispose(true);
+      Dispose(true, true);
       GC.SuppressFinalize(this);
     }
 
     /// <summary>Release this publisher during node disposal without re-entering node removal.</summary>
     void INodeChildEntity.DisposeFromNode(bool disposing)
     {
-      Dispose(disposing);
+      Dispose(disposing, false);
       if (disposing)
       {
         GC.SuppressFinalize(this);
@@ -104,41 +104,32 @@ namespace ROS2
     }
 
     /// <summary>Shared publisher disposal path used by explicit disposal, node disposal, and finalization.</summary>
-    private void Dispose(bool disposing)
+    private void Dispose(bool disposing, bool log)
     {
-      List<Exception> disposeExceptions = null;
-      lock (mutex)
+      if (!Ros2cs.TryEnterWaitSetMutex(disposing))
       {
-        if (disposed)
-        {
-          return;
-        }
+        return;
+      }
 
-        try
+      List<Exception> disposeExceptions = null;
+      try
+      {
+        lock (mutex)
         {
-          if (!node.IsDisposed)
+          if (disposed)
           {
-            int ret = NativeRcl.rcl_publisher_fini(ref publisherHandle, ref node.nodeHandle);
-            if (disposing)
-            {
-              Utils.CheckReturnEnum(ret);
-            }
+            return;
           }
-        }
-        catch (Exception e)
-        {
-          if (disposing)
-          {
-            Utils.AddException(ref disposeExceptions, e);
-          }
-        }
-        finally
-        {
+
           try
           {
-            if (publisherOptions != IntPtr.Zero)
+            if (!node.IsDisposed)
             {
-              NativeRclInterface.rclcs_publisher_dispose_options(publisherOptions);
+              int ret = NativeRcl.rcl_publisher_fini(ref publisherHandle, ref node.nodeHandle);
+              if (disposing)
+              {
+                Utils.CheckReturnEnum(ret);
+              }
             }
           }
           catch (Exception e)
@@ -150,15 +141,39 @@ namespace ROS2
           }
           finally
           {
-            publisherOptions = IntPtr.Zero;
-            disposed = true;
+            try
+            {
+              if (publisherOptions != IntPtr.Zero)
+              {
+                NativeRclInterface.rclcs_publisher_dispose_options(publisherOptions);
+              }
+            }
+            catch (Exception e)
+            {
+              if (disposing)
+              {
+                Utils.AddException(ref disposeExceptions, e);
+              }
+            }
+            finally
+            {
+              publisherOptions = IntPtr.Zero;
+              disposed = true;
+            }
           }
         }
+      }
+      finally
+      {
+        Ros2cs.ExitWaitSetMutex();
       }
 
       if (disposing)
       {
-        logger.LogInfo("Publisher destroyed");
+        if (log)
+        {
+          logger.LogInfo("Publisher destroyed");
+        }
         Utils.ThrowCollectedExceptions(disposeExceptions);
       }
     }

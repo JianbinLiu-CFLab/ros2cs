@@ -79,6 +79,7 @@ if(BUILD_TESTING)
     src/NativeMethodsTest.cs
     src/Ros2csCommonTest.cs
     src/WaitSetHandleLifetimeTest.cs
+    src/WaitSetLifecycleRaceTest.cs
     src/ClientTest.cs
     src/ServiceTest.cs
     src/SubscriptionTest.cs
