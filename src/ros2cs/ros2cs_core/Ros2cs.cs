@@ -44,6 +44,7 @@ namespace ROS2
     private static readonly object contextMutex = new object();
     // Wait set access is serialized separately so shutdown waits for at most the active SpinOnce timeout.
     private static readonly object waitSetMutex = new object();
+    private const int FinalizerWaitSetMutexTimeoutMs = 100;
     [ThreadStatic]
     // Tracks callback execution per spinning thread to reject deadlock-prone synchronous client calls.
     private static int spinCallbackDepth;
@@ -64,10 +65,41 @@ namespace ROS2
     {
       return WaitSet;
     }
+
+    /// <summary>Expose the wait-set gate to deterministic lifecycle tests.</summary>
+    internal static object GetWaitSetMutexForTests()
+    {
+      return waitSetMutex;
+    }
+
+    /// <summary>Report whether a wait-set native wait is currently in progress.</summary>
+    internal static bool IsWaitSetWaitActiveForTests
+    {
+      get { return waitSetWaitActive; }
+    }
+
+    /// <summary>Enter the wait-set gate for explicit disposal or bounded finalization.</summary>
+    internal static bool TryEnterWaitSetMutex(bool explicitDisposal)
+    {
+      if (explicitDisposal)
+      {
+        Monitor.Enter(waitSetMutex);
+        return true;
+      }
+
+      return Monitor.TryEnter(waitSetMutex, FinalizerWaitSetMutexTimeoutMs);
+    }
+
+    /// <summary>Leave the wait-set gate acquired by a disposal path.</summary>
+    internal static void ExitWaitSetMutex()
+    {
+      Monitor.Exit(waitSetMutex);
+    }
     private static bool destructorFinalizerSuppressed;
     private static volatile bool useDirectSpinFallback;
     private static volatile string directSpinFallbackReason;
     private static int directSpinFallbackLogged;
+    private static volatile bool waitSetWaitActive;
 
     /// <summary>Whether the current thread is executing subscription/client/service callbacks.</summary>
     internal static bool IsInSpinCallback
@@ -138,7 +170,7 @@ namespace ROS2
           {
             try
             {
-              node.Dispose();
+              ((Node)node).DisposeFromShutdown();
             }
             catch (Exception e)
             {
@@ -448,11 +480,16 @@ namespace ROS2
           }
           try
           {
+            waitSetWaitActive = true;
             success = WaitSet.Wait(TimeSpan.FromSeconds(timeoutSec));
           }
           catch (WaitSetEmptyException)
           {
             return false;
+          }
+          finally
+          {
+            waitSetWaitActive = false;
           }
         }
       }

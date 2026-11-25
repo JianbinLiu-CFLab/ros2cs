@@ -124,63 +124,64 @@ namespace ROS2
     /// <summary> Finalizer supporting IDisposable model </summary>
     ~Node()
     {
-      Dispose(false);
+      Dispose(false, false);
     }
 
     /// <summary> Release managed and native resources. IDisposable implementation </summary>
     public void Dispose()
     {
-      Dispose(true);
+      Dispose(true, true);
+      GC.SuppressFinalize(this);
+    }
+
+    /// <summary>Release this node during coordinated shutdown without logging under the wait-set gate.</summary>
+    internal void DisposeFromShutdown()
+    {
+      Dispose(true, false);
       GC.SuppressFinalize(this);
     }
 
     /// <summary>Shared node disposal path used by explicit disposal and the finalizer.</summary>
-    private void Dispose(bool disposing)
+    private void Dispose(bool disposing, bool log)
     {
-      lock (mutex)
+      if (!Ros2cs.TryEnterWaitSetMutex(disposing))
       {
-        if (disposed)
+        if (!disposing)
         {
-          return;
+          GC.ReRegisterForFinalize(this);
         }
+        return;
+      }
 
-        List<Exception> exceptions = null;
-
-        // Even finalizer cleanup must fini children before rcl_node_fini; rcl does not cascade this.
-        DisposeChildren(subscriptions, disposing, ref exceptions);
-        subscriptions.Clear();
-
-        DisposeChildren(publishers, disposing, ref exceptions);
-        publishers.Clear();
-
-        DisposeChildren(clients, disposing, ref exceptions);
-        clients.Clear();
-
-        DisposeChildren(services, disposing, ref exceptions);
-        services.Clear();
-
-        try
+      List<Exception> exceptions = null;
+      try
+      {
+        lock (mutex)
         {
-          int ret = NativeRcl.rcl_node_fini(ref nodeHandle);
-          if (disposing)
+          if (disposed)
           {
-            Utils.CheckReturnEnum(ret);
+            return;
           }
-        }
-        catch (Exception e)
-        {
-          if (disposing)
-          {
-            AddException(ref exceptions, e);
-          }
-        }
-        finally
-        {
+
+          // Even finalizer cleanup must fini children before rcl_node_fini; rcl does not cascade this.
+          DisposeChildren(subscriptions, disposing, ref exceptions);
+          subscriptions.Clear();
+
+          DisposeChildren(publishers, disposing, ref exceptions);
+          publishers.Clear();
+
+          DisposeChildren(clients, disposing, ref exceptions);
+          clients.Clear();
+
+          DisposeChildren(services, disposing, ref exceptions);
+          services.Clear();
+
           try
           {
-            if (defaultNodeOptions != IntPtr.Zero)
+            int ret = NativeRcl.rcl_node_fini(ref nodeHandle);
+            if (disposing)
             {
-              Utils.CheckReturnEnum(NativeRclInterface.rclcs_node_dispose_options(defaultNodeOptions));
+              Utils.CheckReturnEnum(ret);
             }
           }
           catch (Exception e)
@@ -192,18 +193,42 @@ namespace ROS2
           }
           finally
           {
-            defaultNodeOptions = IntPtr.Zero;
-            disposed = true;
+            try
+            {
+              if (defaultNodeOptions != IntPtr.Zero)
+              {
+                Utils.CheckReturnEnum(NativeRclInterface.rclcs_node_dispose_options(defaultNodeOptions));
+              }
+            }
+            catch (Exception e)
+            {
+              if (disposing)
+              {
+                AddException(ref exceptions, e);
+              }
+            }
+            finally
+            {
+              defaultNodeOptions = IntPtr.Zero;
+              disposed = true;
+            }
           }
         }
+      }
+      finally
+      {
+        Ros2cs.ExitWaitSetMutex();
+      }
 
-        if (disposing)
+      if (disposing)
+      {
+        if (log)
         {
           logger.LogInfo("Node " + name + " destroyed");
-          if (exceptions != null && exceptions.Count > 0)
-          {
-            throw new AggregateException(exceptions);
-          }
+        }
+        if (exceptions != null && exceptions.Count > 0)
+        {
+          throw new AggregateException(exceptions);
         }
       }
     }
@@ -435,24 +460,37 @@ namespace ROS2
     /// <see cref="INode.RemoveClient"/>
     public bool RemoveClient(IClientBase client)
     {
-      lock (mutex)
+      string topic = null;
+      Ros2cs.TryEnterWaitSetMutex(true);
+      try
       {
-        if (clients.Contains(client))
+        lock (mutex)
         {
-          logger.LogInfo("Removing client for topic " + client.Topic);
+          if (!clients.Contains(client))
+          {
+            return false;
+          }
+
+          topic = client.Topic;
           try
           {
             // Child disposal is idempotent; its disposed flag prevents double-fini if node disposal races.
-            client.Dispose();
+            ((INodeChildEntity)client).DisposeFromNode(true);
           }
           finally
           {
             clients.Remove(client);
           }
-          return true;
+
         }
-        return false;
       }
+      finally
+      {
+        Ros2cs.ExitWaitSetMutex();
+      }
+
+      logger.LogInfo("Removing client for topic " + topic);
+      return true;
     }
 
     /// <summary> Create a service for this node for a given topic, callback, qos and message type </summary>
@@ -474,23 +512,35 @@ namespace ROS2
     /// <see cref="INode.RemoveService"/>
     public bool RemoveService(IServiceBase service)
     {
-      lock (mutex)
+      string topic = null;
+      Ros2cs.TryEnterWaitSetMutex(true);
+      try
       {
-        if (services.Contains(service))
+        lock (mutex)
         {
-          logger.LogInfo("Removing service for topic " + service.Topic);
+          if (!services.Contains(service))
+          {
+            return false;
+          }
+
+          topic = service.Topic;
           try
           {
-            service.Dispose();
+            ((INodeChildEntity)service).DisposeFromNode(true);
           }
           finally
           {
             services.Remove(service);
           }
-          return true;
         }
-        return false;
       }
+      finally
+      {
+        Ros2cs.ExitWaitSetMutex();
+      }
+
+      logger.LogInfo("Removing service for topic " + topic);
+      return true;
     }
 
     /// <summary> Create a publisher for this node for a given topic, qos and message type </summary>
@@ -527,46 +577,70 @@ namespace ROS2
     /// <see cref="INode.RemovePublisher"/>
     public bool RemovePublisher(IPublisherBase publisher)
     {
-      lock (mutex)
+      string topic = null;
+      Ros2cs.TryEnterWaitSetMutex(true);
+      try
       {
-        if (publishers.Contains(publisher))
+        lock (mutex)
         {
-          logger.LogInfo("Removing publisher for topic " + publisher.Topic);
+          if (!publishers.Contains(publisher))
+          {
+            return false;
+          }
+
+          topic = publisher.Topic;
           try
           {
-            publisher.Dispose();
+            ((INodeChildEntity)publisher).DisposeFromNode(true);
           }
           finally
           {
             publishers.Remove(publisher);
           }
-          return true;
         }
-        return false;
       }
+      finally
+      {
+        Ros2cs.ExitWaitSetMutex();
+      }
+
+      logger.LogInfo("Removing publisher for topic " + topic);
+      return true;
     }
 
     /// <summary> Remove a subscription </summary>
     /// <see cref="INode.RemoveSubscription"/>
     public bool RemoveSubscription(ISubscriptionBase subscription)
     {
-      lock (mutex)
+      string topic = null;
+      Ros2cs.TryEnterWaitSetMutex(true);
+      try
       {
-        if (subscriptions.Contains(subscription))
+        lock (mutex)
         {
-          logger.LogInfo("Removing subscription for topic " + subscription.Topic);
+          if (!subscriptions.Contains(subscription))
+          {
+            return false;
+          }
+
+          topic = subscription.Topic;
           try
           {
-            subscription.Dispose();
+            ((INodeChildEntity)subscription).DisposeFromNode(true);
           }
           finally
           {
             subscriptions.Remove(subscription);
           }
-          return true;
         }
-        return false;
       }
+      finally
+      {
+        Ros2cs.ExitWaitSetMutex();
+      }
+
+      logger.LogInfo("Removing subscription for topic " + topic);
+      return true;
     }
   }
 }

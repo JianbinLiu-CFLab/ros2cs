@@ -129,20 +129,20 @@ namespace ROS2
 
     ~Client()
     {
-      Dispose(false);
+      Dispose(false, false);
     }
 
     /// <summary>Release the client and fail any still-pending requests.</summary>
     public void Dispose()
     {
-      Dispose(true);
+      Dispose(true, true);
       GC.SuppressFinalize(this);
     }
 
     /// <summary>Release this client during node disposal without re-entering node removal.</summary>
     void INodeChildEntity.DisposeFromNode(bool disposing)
     {
-      Dispose(disposing);
+      Dispose(disposing, false);
       if (disposing)
       {
         GC.SuppressFinalize(this);
@@ -150,52 +150,47 @@ namespace ROS2
     }
 
     /// <summary>Shared client disposal path used by explicit disposal, node disposal, and finalization.</summary>
-    private void Dispose(bool disposing)
+    private void Dispose(bool disposing, bool log)
     {
-      List<Exception> disposeExceptions = null;
-      lock (mutex)
+      if (!Ros2cs.TryEnterWaitSetMutex(disposing))
       {
-        if (disposed)
+        if (!disposing)
         {
-          return;
+          GC.ReRegisterForFinalize(this);
         }
+        return;
+      }
 
-        // Complete pending calls so callers do not wait forever after shutdown/reconnect.
-        lock (Requests)
+      List<Exception> disposeExceptions = null;
+      try
+      {
+        lock (mutex)
         {
-          foreach (var source in Requests.Values)
+          if (disposed)
           {
-            source.Item1.TrySetException(new ObjectDisposedException("client has been disposed"));
+            return;
           }
-          Requests.Clear();
-          RequestSequencesByTask.Clear();
-        }
 
-        try
-        {
-          if (!node.IsDisposed)
+          // Complete pending calls so callers do not wait forever after shutdown/reconnect.
+          lock (Requests)
           {
-            int ret = NativeRcl.rcl_client_fini(ref clientHandle, ref node.nodeHandle);
-            if (disposing)
+            foreach (var source in Requests.Values)
             {
-              Utils.CheckReturnEnum(ret);
+              source.Item1.TrySetException(new ObjectDisposedException("client has been disposed"));
             }
+            Requests.Clear();
+            RequestSequencesByTask.Clear();
           }
-        }
-        catch (Exception e)
-        {
-          if (disposing)
-          {
-            Utils.AddException(ref disposeExceptions, e);
-          }
-        }
-        finally
-        {
+
           try
           {
-            if (clientOptions != IntPtr.Zero)
+            if (!node.IsDisposed)
             {
-              NativeRclInterface.rclcs_client_dispose_options(clientOptions);
+              int ret = NativeRcl.rcl_client_fini(ref clientHandle, ref node.nodeHandle);
+              if (disposing)
+              {
+                Utils.CheckReturnEnum(ret);
+              }
             }
           }
           catch (Exception e)
@@ -207,20 +202,44 @@ namespace ROS2
           }
           finally
           {
-            if (responseScratchMessage != null)
+            try
             {
-              ((IDisposable)responseScratchMessage).Dispose();
-              responseScratchMessage = null;
+              if (clientOptions != IntPtr.Zero)
+              {
+                NativeRclInterface.rclcs_client_dispose_options(clientOptions);
+              }
             }
-            clientOptions = IntPtr.Zero;
-            disposed = true;
+            catch (Exception e)
+            {
+              if (disposing)
+              {
+                Utils.AddException(ref disposeExceptions, e);
+              }
+            }
+            finally
+            {
+              if (responseScratchMessage != null)
+              {
+                ((IDisposable)responseScratchMessage).Dispose();
+                responseScratchMessage = null;
+              }
+              clientOptions = IntPtr.Zero;
+              disposed = true;
+            }
           }
         }
+      }
+      finally
+      {
+        Ros2cs.ExitWaitSetMutex();
       }
 
       if (disposing)
       {
-        logger.LogInfo("Client destroyed");
+        if (log)
+        {
+          logger.LogInfo("Client destroyed");
+        }
         Utils.ThrowCollectedExceptions(disposeExceptions);
       }
     }

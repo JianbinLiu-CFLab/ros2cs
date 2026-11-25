@@ -235,20 +235,20 @@ namespace ROS2
 
     ~Service()
     {
-      Dispose(false);
+      Dispose(false, false);
     }
 
     /// <summary>Release the service and its native options.</summary>
     public void Dispose()
     {
-      Dispose(true);
+      Dispose(true, true);
       GC.SuppressFinalize(this);
     }
 
     /// <summary>Release this service during node disposal without re-entering node removal.</summary>
     void INodeChildEntity.DisposeFromNode(bool disposing)
     {
-      Dispose(disposing);
+      Dispose(disposing, false);
       if (disposing)
       {
         GC.SuppressFinalize(this);
@@ -256,41 +256,36 @@ namespace ROS2
     }
 
     /// <summary>Shared service disposal path used by explicit disposal, node disposal, and finalization.</summary>
-    private void Dispose(bool disposing)
+    private void Dispose(bool disposing, bool log)
     {
-      List<Exception> disposeExceptions = null;
-      lock (mutex)
+      if (!Ros2cs.TryEnterWaitSetMutex(disposing))
       {
-        if (disposed)
+        if (!disposing)
         {
-          return;
+          GC.ReRegisterForFinalize(this);
         }
+        return;
+      }
 
-        try
+      List<Exception> disposeExceptions = null;
+      try
+      {
+        lock (mutex)
         {
-          if (!node.IsDisposed)
+          if (disposed)
           {
-            int ret = NativeRcl.rcl_service_fini(ref serviceHandle, ref node.nodeHandle);
-            if (disposing)
-            {
-              Utils.CheckReturnEnum(ret);
-            }
+            return;
           }
-        }
-        catch (Exception e)
-        {
-          if (disposing)
-          {
-            Utils.AddException(ref disposeExceptions, e);
-          }
-        }
-        finally
-        {
+
           try
           {
-            if (serviceOptions != IntPtr.Zero)
+            if (!node.IsDisposed)
             {
-              NativeRclInterface.rclcs_service_dispose_options(serviceOptions);
+              int ret = NativeRcl.rcl_service_fini(ref serviceHandle, ref node.nodeHandle);
+              if (disposing)
+              {
+                Utils.CheckReturnEnum(ret);
+              }
             }
           }
           catch (Exception e)
@@ -302,20 +297,44 @@ namespace ROS2
           }
           finally
           {
-            if (requestMessage != null)
+            try
             {
-              ((IDisposable)requestMessage).Dispose();
-              requestMessage = null;
+              if (serviceOptions != IntPtr.Zero)
+              {
+                NativeRclInterface.rclcs_service_dispose_options(serviceOptions);
+              }
             }
-            serviceOptions = IntPtr.Zero;
-            disposed = true;
+            catch (Exception e)
+            {
+              if (disposing)
+              {
+                Utils.AddException(ref disposeExceptions, e);
+              }
+            }
+            finally
+            {
+              if (requestMessage != null)
+              {
+                ((IDisposable)requestMessage).Dispose();
+                requestMessage = null;
+              }
+              serviceOptions = IntPtr.Zero;
+              disposed = true;
+            }
           }
         }
+      }
+      finally
+      {
+        Ros2cs.ExitWaitSetMutex();
       }
 
       if (disposing)
       {
-        Ros2csLogger.GetInstance().LogInfo("Service destroyed");
+        if (log)
+        {
+          Ros2csLogger.GetInstance().LogInfo("Service destroyed");
+        }
         Utils.ThrowCollectedExceptions(disposeExceptions);
       }
     }
