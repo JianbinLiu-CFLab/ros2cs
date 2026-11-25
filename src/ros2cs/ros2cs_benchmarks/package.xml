@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>ros2cs_spin_benchmarks</name>
+  <version>2.0.0</version>
+  <description>Reproducible ros2cs spin-path benchmark harness.</description>
+  <maintainer email="jiliu@tu-dresden.de">Jianbin Liu</maintainer>
+  <license>Apache License 2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>dotnet_cmake_module</buildtool_depend>
+
+  <build_depend>ros2cs_common</build_depend>
+  <build_depend>ros2cs_core</build_depend>
+  <build_depend>std_msgs</build_depend>
+
+  <exec_depend>ros2cs_common</exec_depend>
+  <exec_depend>ros2cs_core</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
