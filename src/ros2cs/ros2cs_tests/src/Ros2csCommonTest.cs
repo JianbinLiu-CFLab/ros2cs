@@ -72,28 +72,46 @@ namespace ROS2.Test
         }
 
         [Test]
-        public void DirectSpinFallbackIsReportedAsInformation()
+        public void DirectSpinFallbackIsReportedOnceAsInformation()
         {
-            MethodInfo logMethod = typeof(Ros2cs).GetMethod(
-                "LogDirectSpinFallback",
-                BindingFlags.NonPublic | BindingFlags.Static);
-            Assert.That(logMethod, Is.Not.Null);
-
+            string previousSpinFallback = Environment.GetEnvironmentVariable("ROS2CS_SPIN_FALLBACK");
             int informationCount = 0;
             int warningCount = 0;
             string informationMessage = null;
             Ros2csLogger.SetCallback(LogLevel.INFO, message =>
             {
-                informationCount++;
-                informationMessage = (string)message;
+                string text = (string)message;
+                if (text.Contains("using direct spin fallback without rcl_wait"))
+                {
+                    informationCount++;
+                    informationMessage = text;
+                }
             });
             Ros2csLogger.SetCallback(LogLevel.WARNING, _ => warningCount++);
 
-            logMethod.Invoke(null, new object[] { "ROS_DISTRO=lyrical" });
+            try
+            {
+                Environment.SetEnvironmentVariable("ROS2CS_SPIN_FALLBACK", "direct");
+                Ros2cs.Init();
+                INode node = Ros2cs.CreateNode("direct_spin_fallback_log_test_node");
+                node.CreateSubscription<std_msgs.msg.Int32>(
+                    "direct_spin_fallback_log_test_topic",
+                    _ => { });
 
-            Assert.That(informationCount, Is.EqualTo(1));
-            Assert.That(warningCount, Is.Zero);
-            StringAssert.Contains("using direct spin fallback without rcl_wait", informationMessage);
+                Assert.That(Ros2cs.SpinOnce(node, 0.01), Is.True);
+                Assert.That(Ros2cs.SpinOnce(node, 0.01), Is.True);
+                Assert.That(informationCount, Is.EqualTo(1));
+                Assert.That(warningCount, Is.Zero);
+                StringAssert.Contains("using direct spin fallback without rcl_wait", informationMessage);
+            }
+            finally
+            {
+                if (Ros2cs.Ok())
+                {
+                    Ros2cs.Shutdown();
+                }
+                Environment.SetEnvironmentVariable("ROS2CS_SPIN_FALLBACK", previousSpinFallback);
+            }
         }
 
         [Test]
