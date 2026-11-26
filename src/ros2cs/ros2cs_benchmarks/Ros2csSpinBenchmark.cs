@@ -339,7 +339,8 @@ namespace Ros2csSpinBenchmarks
       {
         SchemaVersion = SchemaVersion,
         TimestampUtc = DateTimeOffset.UtcNow,
-        Commit = Environment.GetEnvironmentVariable("ROS2CS_BENCHMARK_SOURCE_COMMIT") ?? "unknown",
+        Commit = Environment.GetEnvironmentVariable("ROS2CS_BENCHMARK_SOURCE_COMMIT") ??
+          Environment.GetEnvironmentVariable("ROS2CS_BENCHMARK_COMMIT") ?? "unknown",
         SourceDirty = Environment.GetEnvironmentVariable("ROS2CS_BENCHMARK_SOURCE_DIRTY") ?? "unknown",
         SourceRoot = Environment.GetEnvironmentVariable("ROS2CS_BENCHMARK_SOURCE_ROOT") ?? "unknown",
         Distro = arguments.Distro,
