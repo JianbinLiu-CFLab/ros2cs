@@ -116,6 +116,13 @@ jobs:
         run: |
           . /opt/ros/jazzy/setup.sh
           . install/setup.sh
+          source_commit="$(git -C src/ros2cs rev-parse HEAD)"
+          if [ -n "$(git -C src/ros2cs status --porcelain)" ]; then
+            source_dirty=true
+          else
+            source_dirty=false
+          fi
+          source_root="$GITHUB_WORKSPACE/ros2cs_ws/src/ros2cs"
           benchmark=install/lib/ros2cs_spin_benchmarks/dotnet/ros2cs_spin_benchmark.dll
           for mode in wait-set direct; do
             if [ "$mode" = "direct" ]; then
@@ -126,6 +133,10 @@ jobs:
             for load in idle high; do
               output="/tmp/ros2cs-benchmark-${mode}-${load}.json"
               ROS2CS_SPIN_FALLBACK="$fallback" \
+                ROS2CS_BENCHMARK_COMMIT="$source_commit" \
+                ROS2CS_BENCHMARK_SOURCE_COMMIT="$source_commit" \
+                ROS2CS_BENCHMARK_SOURCE_DIRTY="$source_dirty" \
+                ROS2CS_BENCHMARK_SOURCE_ROOT="$source_root" \
                 dotnet "$benchmark" \
                 --distro jazzy \
                 --mode "$mode" \
@@ -150,6 +161,12 @@ jobs:
               raise SystemExit("benchmark effective mode mismatch")
           if result.get("metrics", {}).get("spinCalls", 0) <= 0:
               raise SystemExit("benchmark did not record spin calls")
+          if result.get("commit") in (None, "unknown"):
+              raise SystemExit("benchmark did not record source commit")
+          if result.get("sourceDirty") != "false":
+              raise SystemExit("benchmark source tree was not recorded as clean")
+          if result.get("sourceRoot") in (None, "unknown"):
+              raise SystemExit("benchmark did not record source root")
           PY
             done
           done
