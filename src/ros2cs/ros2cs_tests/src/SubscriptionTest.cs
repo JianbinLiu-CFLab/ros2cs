@@ -21,6 +21,7 @@
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace ROS2.Test
 {
@@ -30,11 +31,10 @@ namespace ROS2.Test
         INode node;
         Publisher<std_msgs.msg.Int32> publisher;
         private const double SpinOnceTimeoutSeconds = 0.01;
-        private const int EndpointDiscoverySpins = 5;
+        private static readonly TimeSpan EndpointDiscoveryTimeout = TimeSpan.FromSeconds(5);
         private const int DefaultQosDepth = 10;
         private const int DefaultQosDrainSpins = DefaultQosDepth + 1;
         private const int SensorDataQosDepth = 5;
-        private const int IncompatibleQosWarmupSpins = 3;
         private const int IncompatibleQosPublishAttempts = 3;
 
         [OneTimeSetUp]
@@ -66,13 +66,14 @@ namespace ROS2.Test
             node.Dispose();
         }
 
-        private void AllowEndpointDiscovery()
+        private void AssertPublisherMatch(Publisher<std_msgs.msg.Int32> candidate)
         {
-            // 5 spins at 10 ms is a short local DDS discovery window before publishing assertions.
-            for (int i = 0; i < EndpointDiscoverySpins; i++)
-            {
-                Ros2cs.SpinOnce(node, SpinOnceTimeoutSeconds);
-            }
+            Assert.That(
+                SpinWait.SpinUntil(
+                    () => candidate.GetSubscriptionCountForTests() > 0,
+                    EndpointDiscoveryTimeout),
+                Is.True,
+                "DDS publisher did not match a subscriber in time");
         }
 
         [Test]
@@ -167,7 +168,7 @@ namespace ROS2.Test
             int count = 0;
             node.CreateSubscription<std_msgs.msg.Int32>("subscription_test_topic",
                                                         (msg) => { count += 1; });
-            AllowEndpointDiscovery();
+            AssertPublisherMatch(publisher);
 
             using var published_msg = new std_msgs.msg.Int32();
             published_msg.Data = 42;
@@ -197,7 +198,7 @@ namespace ROS2.Test
             node.CreateSubscription<std_msgs.msg.Int32>("subscription_test_topic",
                                                         (msg) => { count += 1; },
                                                         qosProfile);
-            AllowEndpointDiscovery();
+            AssertPublisherMatch(publisher);
 
             using var published_msg = new std_msgs.msg.Int32();
             published_msg.Data = 42;
@@ -225,6 +226,8 @@ namespace ROS2.Test
             using var qosProfile = new QualityOfServiceProfile(QosPresetProfile.SENSOR_DATA);
             using var bestEffortPublisher =
                 node.CreatePublisher<std_msgs.msg.Int32>("subscription_qos_incompatible_topic", qosProfile);
+            using var compatiblePublisher =
+                node.CreatePublisher<std_msgs.msg.Int32>("subscription_qos_incompatible_topic");
 
             node.CreateSubscription<std_msgs.msg.Int32>(
                 "subscription_qos_incompatible_topic",
@@ -233,17 +236,14 @@ namespace ROS2.Test
             using var publishedMsg = new std_msgs.msg.Int32();
             publishedMsg.Data = 42;
 
-            // Warm up discovery before proving BEST_EFFORT publisher and RELIABLE subscriber stay unmatched.
-            for (int i = 0; i < IncompatibleQosWarmupSpins; i++)
-            {
-                Ros2cs.SpinOnce(node, SpinOnceTimeoutSeconds);
-            }
+            AssertPublisherMatch(compatiblePublisher);
             for (int i = 0; i < IncompatibleQosPublishAttempts; i++)
             {
                 bestEffortPublisher.Publish(publishedMsg);
                 Ros2cs.SpinOnce(node, SpinOnceTimeoutSeconds);
             }
 
+            Assert.That(bestEffortPublisher.GetSubscriptionCountForTests(), Is.Zero);
             Assert.That(count, Is.Zero);
         }
     }

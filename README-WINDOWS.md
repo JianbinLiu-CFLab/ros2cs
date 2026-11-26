@@ -83,9 +83,10 @@ separate run with `ROS2CS_SPIN_FALLBACK=waitset`.
   - It invokes `colcon_build` with `--merge-install` argument to simplify libraries installation
   - You can build tests by adding `-with_tests` argument
   - Successful builds write `ros2cs_build_info.txt` and `.ros2cs_build_distro`
-    under the install base. The default `install/` base refuses to mix a new
-    `ROS_DISTRO` with a previous recorded distro; pass `-install_base` for
-    intentionally isolated multi-distro builds.
+    under the install base. The default install base is
+    `install-$ROS_DISTRO` (for example, `install-jazzy`) and refuses to mix a
+    new distro with a previous recorded distro; pass `-install_base` for an
+    intentionally isolated custom path.
 - Run tests (`test.ps1`)
   - Successful or failing test runs write `ros2cs_test_info.txt` under the
     build base with git commit, `ROS_DISTRO`, and colcon test exit codes.
@@ -121,10 +122,12 @@ artifact evidence when comparing Jazzy and Lyrical results.
 
 ### Standalone version (Windows)
 
-By default, Windows build process generates standalone libraries in `install/standalone` directory.
+By default, Windows build process generates standalone libraries in
+`install-$ROS_DISTRO/standalone` (for example, `install-jazzy/standalone`).
 You can disable this feature by setting CMake option `STANDALONE_BUILD` to `OFF`.
 
-To run standalone application you must deploy it with libraries from both `install/bin` and `install/standalone`.
+To run standalone application you must deploy it with libraries from both
+`install-$ROS_DISTRO/bin` and `install-$ROS_DISTRO/standalone`.
 
 To run examples with standalone build you should modify `PATH`  environment variable so your executable will find all the required libraries (if executable lies in a different directory than libraries).
 Additionally all libraries need to be in a visible path, since they are loaded dynamically at runtime.

@@ -78,6 +78,11 @@ namespace ROS2
       get { return waitSetWaitActive; }
     }
 
+    internal static bool IsSpinActiveForTests
+    {
+      get { return waitSetWaitActive || directSpinWaitActive; }
+    }
+
     /// <summary>Enter the wait-set gate for explicit disposal or bounded finalization.</summary>
     internal static bool TryEnterWaitSetMutex(bool explicitDisposal)
     {
@@ -100,6 +105,7 @@ namespace ROS2
     private static volatile string directSpinFallbackReason;
     private static int directSpinFallbackLogged;
     private static volatile bool waitSetWaitActive;
+    private static volatile bool directSpinWaitActive;
 
     /// <summary>Whether the current thread is executing subscription/client/service callbacks.</summary>
     internal static bool IsInSpinCallback
@@ -408,6 +414,7 @@ namespace ROS2
       List<IClientBase> allClients;
       List<IServiceBase> allServices;
       bool success;
+      string directSpinFallbackLogReason = null;
 
       lock (mutex)
       {
@@ -447,9 +454,20 @@ namespace ROS2
 
         if (useDirectSpinFallback)
         {
-          LogDirectSpinFallbackOnce(directSpinFallbackReason);
-          SleepForSpinTimeout(timeoutSec);
-          success = true;
+          if (Interlocked.Exchange(ref directSpinFallbackLogged, 1) == 0)
+          {
+            directSpinFallbackLogReason = directSpinFallbackReason;
+          }
+          try
+          {
+            directSpinWaitActive = true;
+            SleepForSpinTimeout(timeoutSec);
+            success = true;
+          }
+          finally
+          {
+            directSpinWaitActive = false;
+          }
         }
         else
         {
@@ -492,6 +510,11 @@ namespace ROS2
             waitSetWaitActive = false;
           }
         }
+      }
+
+      if (directSpinFallbackLogReason != null)
+      {
+        LogDirectSpinFallback(directSpinFallbackLogReason);
       }
 
       if (success)
@@ -562,14 +585,11 @@ namespace ROS2
     }
 
     /// <summary>Emit the direct spin fallback mode once as informational runtime context.</summary>
-    private static void LogDirectSpinFallbackOnce(string reason)
+    private static void LogDirectSpinFallback(string reason)
     {
-      if (Interlocked.Exchange(ref directSpinFallbackLogged, 1) == 0)
-      {
-        Ros2csLogger.GetInstance().LogInfo(
-          reason + " detected; using direct spin fallback without rcl_wait. " +
-          "Shutdown remains serialized, but callback delivery is bounded by the spin timeout.");
-      }
+      Ros2csLogger.GetInstance().LogInfo(
+        reason + " detected; using direct spin fallback without rcl_wait. " +
+        "Shutdown remains serialized, but callback delivery is bounded by the spin timeout.");
     }
 
     private static bool IsTruthy(string value)

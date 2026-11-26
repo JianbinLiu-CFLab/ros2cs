@@ -309,6 +309,17 @@ namespace ROS2
         typeof(PublisherFiniType));
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate int PublisherGetSubscriptionCountType(
+        ref rcl_publisher_t publisher,
+        ref UIntPtr subscription_count);
+    internal static PublisherGetSubscriptionCountType
+        rcl_publisher_get_subscription_count =
+        (PublisherGetSubscriptionCountType)Marshal.GetDelegateForFunctionPointer(dllLoadUtils.GetProcAddress(
+        nativeRCL,
+        "rcl_publisher_get_subscription_count"),
+        typeof(PublisherGetSubscriptionCountType));
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate int PublishType(ref rcl_publisher_t publisher, IntPtr message, IntPtr allocator);
     internal static PublishType
         rcl_publish =

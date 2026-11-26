@@ -105,8 +105,11 @@ import xml.etree.ElementTree as ET
 
 root = pathlib.Path(sys.argv[1])
 count = 0
-if root.exists():
-    for path in root.rglob("*.xml"):
+package_roots = (root / "rosidl_generator_cs", root / "ros2cs_tests")
+for package_root in package_roots:
+    if not package_root.exists():
+        continue
+    for path in package_root.rglob("*.xml"):
         try:
             tree = ET.parse(path)
         except ET.ParseError:

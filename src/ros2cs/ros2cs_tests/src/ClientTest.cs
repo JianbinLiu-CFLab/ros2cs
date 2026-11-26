@@ -242,6 +242,17 @@ namespace ROS2.Test
         }
 
         [Test]
+        public void ClientTryWaitForServiceSupportsMaximumTimeout()
+        {
+            using var service = Node.CreateService<AddTwoInts_Request, AddTwoInts_Response>(
+                SERVICE_NAME,
+                HandleRequest
+            );
+
+            Assert.That(Client.TryWaitForService(TimeSpan.MaxValue), Is.True);
+        }
+
+        [Test]
         public void ClientWaitForServiceAfterDisposeReturnsFalse()
         {
             Client.Dispose();

@@ -31,7 +31,7 @@ namespace ROS2.Test
     public class InitShutdownTest
     {
         private const int InitShutdownStressIterations = 50;
-        private const int SpinEntryDelayMs = 100;
+        private static readonly TimeSpan SpinEntryTimeout = TimeSpan.FromSeconds(2);
         private static readonly TimeSpan SpinShutdownJoinTimeout = TimeSpan.FromSeconds(2);
 
         [TearDown]
@@ -164,8 +164,10 @@ namespace ROS2.Test
                 }
             });
 
-            // Give the spin task a chance to enter rcl_wait before shutdown serializes against it.
-            Thread.Sleep(SpinEntryDelayMs);
+            Assert.That(
+                SpinWait.SpinUntil(() => Ros2cs.IsSpinActiveForTests, SpinEntryTimeout),
+                Is.True,
+                "SpinOnce did not enter an active spin wait");
             Assert.DoesNotThrow(() => Ros2cs.Shutdown());
 
             Assert.That(spinTask.Wait(SpinShutdownJoinTimeout), Is.True);
@@ -217,8 +219,10 @@ namespace ROS2.Test
                 }
             });
 
-            // Give the spin loop a chance to enter its wait path before shutdown.
-            Thread.Sleep(SpinEntryDelayMs);
+            Assert.That(
+                SpinWait.SpinUntil(() => Ros2cs.IsSpinActiveForTests, SpinEntryTimeout),
+                Is.True,
+                "Spin did not enter an active spin wait");
             Ros2cs.Shutdown();
 
             Assert.That(spinTask.Wait(SpinShutdownJoinTimeout), Is.True);
@@ -241,8 +245,10 @@ namespace ROS2.Test
                 }
             });
 
-            // Give the spin task a chance to enter rcl_wait before shutdown serializes against it.
-            Thread.Sleep(SpinEntryDelayMs);
+            Assert.That(
+                SpinWait.SpinUntil(() => Ros2cs.IsSpinActiveForTests, SpinEntryTimeout),
+                Is.True,
+                "SpinOnce did not enter an active spin wait");
             Assert.DoesNotThrow(() => Ros2cs.Shutdown());
 
             Assert.That(spinTask.Wait(SpinShutdownJoinTimeout), Is.True);
