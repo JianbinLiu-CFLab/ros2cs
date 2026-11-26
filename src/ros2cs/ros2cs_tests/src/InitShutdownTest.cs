@@ -143,6 +143,19 @@ namespace ROS2.Test
         }
 
         [Test]
+        public void SpinRejectsNegativeTimeout()
+        {
+            Ros2cs.Init();
+            var node = Ros2cs.CreateNode("negative_spin_timeout_node");
+            node.CreateSubscription<std_msgs.msg.Int32>(
+                "negative_spin_timeout_topic",
+                _ => { });
+
+            Assert.Throws<ArgumentOutOfRangeException>(() => Ros2cs.SpinOnce(node, -1.0));
+            Assert.Throws<ArgumentOutOfRangeException>(() => Ros2cs.Spin(node, -1.0));
+        }
+
+        [Test]
         public void ShutdownDuringActiveSpinOnceDoesNotThrow()
         {
             Ros2cs.Init();

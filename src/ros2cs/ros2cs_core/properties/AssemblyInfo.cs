@@ -15,3 +15,4 @@
 using System.Runtime.CompilerServices;
 
 [assembly:InternalsVisibleTo("ros2cs_tests")]
+[assembly:InternalsVisibleTo("ros2cs_spin_benchmark")]

@@ -65,6 +65,7 @@ namespace ROS2
     private int subscriptionStorageIndex;
     private int clientStorageIndex;
     private int serviceStorageIndex;
+    private bool storageSynchronized = true;
 
     internal WaitSet(ref rcl_context_t context, rcl_allocator_t allocator)
     {
@@ -140,7 +141,8 @@ namespace ROS2
       lock (mutex)
       {
         ThrowIfDisposed();
-        if (SubscriptionCount == subscriptionCount &&
+        if (storageSynchronized &&
+            SubscriptionCount == subscriptionCount &&
             ClientCount == clientCount &&
             ServiceCount == serviceCount)
         {
@@ -149,6 +151,7 @@ namespace ROS2
           return;
         }
 
+        storageSynchronized = false;
         rcl_subscription_t[] newSubscriptionStorage = null;
         rcl_client_t[] newClientStorage = null;
         rcl_service_t[] newServiceStorage = null;
@@ -203,6 +206,7 @@ namespace ROS2
         clientStoragePin = newClientStoragePin;
         serviceStoragePin = newServiceStoragePin;
         ResetStorageCursors();
+        storageSynchronized = true;
       }
     }
 
@@ -424,8 +428,15 @@ namespace ROS2
     {
       lock (mutex)
       {
+        if (disposed)
+        {
+          return IntPtr.Zero;
+        }
+
         IntPtr slots = GetNativeSlots(kind);
-        if (slots == IntPtr.Zero || index > Int32.MaxValue)
+        if (slots == IntPtr.Zero ||
+            index >= GetNativeCapacity(kind) ||
+            index > (ulong)(Int32.MaxValue / IntPtr.Size))
         {
           return IntPtr.Zero;
         }
@@ -513,6 +524,21 @@ namespace ROS2
       }
     }
 
+    private ulong GetNativeCapacity(WaitSetEntityKind kind)
+    {
+      switch (kind)
+      {
+        case WaitSetEntityKind.Subscription:
+          return Handle.size_of_subscriptions.ToUInt64();
+        case WaitSetEntityKind.Client:
+          return Handle.size_of_clients.ToUInt64();
+        case WaitSetEntityKind.Service:
+          return Handle.size_of_services.ToUInt64();
+        default:
+          throw new ArgumentOutOfRangeException(nameof(kind));
+      }
+    }
+
     private static IntPtr GetArrayElementAddress<T>(GCHandle pin, T[] storage, int index) where T : struct
     {
       if (!pin.IsAllocated || storage == null || index < 0 || index >= storage.Length)
@@ -537,6 +563,7 @@ namespace ROS2
       subscriptionStorage = null;
       clientStorage = null;
       serviceStorage = null;
+      storageSynchronized = false;
       ResetStorageCursors();
     }
 

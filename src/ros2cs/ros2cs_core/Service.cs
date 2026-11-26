@@ -111,23 +111,31 @@ namespace ROS2
     /// <param name="msg">Message to be send</param>
     private void SendResp(rcl_rmw_request_id_t header, O msg)
     {
-      MessageInternals msgInternals = MessageTypeSupportHelper.AsMessageInternals(msg, nameof(msg));
-      msgInternals.WriteNativeMessage();
-      int ret = NativeRcl.rcl_send_response(ref serviceHandle, ref header, msgInternals.Handle);
-      if ((RCLReturnEnum)ret == RCLReturnEnum.RCL_RET_OK)
+      lock (mutex)
       {
-        return;
-      }
+        if (disposed || !Ros2cs.Ok())
+        {
+          return;
+        }
 
-      string errorMessage = Utils.PopRclErrorString();
-      if (errorMessage != null &&
-          errorMessage.IndexOf("client will not receive response", StringComparison.Ordinal) >= 0)
-      {
-        // Late responses can occur during reconnect/shutdown; rcl reports them even though no fix is needed.
-        return;
-      }
+        MessageInternals msgInternals = MessageTypeSupportHelper.AsMessageInternals(msg, nameof(msg));
+        msgInternals.WriteNativeMessage();
+        int ret = NativeRcl.rcl_send_response(ref serviceHandle, ref header, msgInternals.Handle);
+        if ((RCLReturnEnum)ret == RCLReturnEnum.RCL_RET_OK)
+        {
+          return;
+        }
 
-      Utils.ThrowRclException(ret, errorMessage);
+        string errorMessage = Utils.PopRclErrorString();
+        if (errorMessage != null &&
+            errorMessage.IndexOf("client will not receive response", StringComparison.Ordinal) >= 0)
+        {
+          // Late responses can occur during reconnect/shutdown; rcl reports them even though no fix is needed.
+          return;
+        }
+
+        Utils.ThrowRclException(ret, errorMessage);
+      }
     }
 
     /// <inheritdoc/>
