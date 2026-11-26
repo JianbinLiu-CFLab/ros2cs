@@ -288,6 +288,28 @@ namespace ROS2.Test
         }
 
         [Test]
+        public void DisposedClientRunsPendingContinuationsOutsideDispose()
+        {
+            Task pendingTask = Client.CallAsync(CreateRequest(42, 3));
+            using var continuationStarted = new ManualResetEventSlim(false);
+            Task continuation = pendingTask.ContinueWith(
+                _ =>
+                {
+                    using var continuationNode =
+                        Ros2cs.CreateNode("client_dispose_continuation_node");
+                    continuationStarted.Set();
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+
+            Client.Dispose();
+
+            Assert.That(continuation.Wait(TimeSpan.FromSeconds(5)), Is.True);
+            Assert.That(continuationStarted.IsSet, Is.True);
+        }
+
+        [Test]
         public void ReinitializeDisposedClient()
         {
             Client.Dispose();

@@ -26,11 +26,12 @@ namespace Ros2csSpinBenchmarks
 {
   internal static class Ros2csSpinBenchmark
   {
-    private const int SchemaVersion = 1;
+    private const int SchemaVersion = 2;
     private const string SpinFallbackEnvironmentVariable = "ROS2CS_SPIN_FALLBACK";
     private const double IdleSpinTimeoutSeconds = 0.0;
     private const double ActiveSpinTimeoutSeconds = 0.01;
     private const double DeliveryTimeoutSeconds = 5.0;
+    private static readonly TimeSpan DiscoveryTimeout = TimeSpan.FromSeconds(5);
 
     public static int Main(string[] args)
     {
@@ -68,23 +69,22 @@ namespace Ros2csSpinBenchmarks
 
         Environment.SetEnvironmentVariable(
           SpinFallbackEnvironmentVariable,
-          arguments.Mode == "direct" ? "on" : "off");
+          arguments.Mode == "direct" ? "direct" : "waitset");
 
         Ros2cs.Init();
         initialized = true;
         result.Rmw = Ros2cs.GetRMWImplementation();
+        result.EffectiveMode = Ros2cs.ActiveSpinModeForTests;
+        if (!String.Equals(result.EffectiveMode, arguments.Mode, StringComparison.Ordinal))
+        {
+          throw new InvalidOperationException(
+            "Requested mode '" + arguments.Mode + "' resolved to '" + result.EffectiveMode + "'");
+        }
 
         BenchmarkRun run = ExecuteBenchmark(arguments);
         result.Metrics = run.Metrics;
-        result.Metrics.NativeMemoryStartBytes = run.NativeMemoryStartBytes;
+        result.Metrics.ProcessPrivateMemoryStartBytes = run.ProcessPrivateMemoryStartBytes;
         result.Status = "PASS";
-        Console.WriteLine(
-          "ROS2CS_SPIN_BENCHMARK_PASS distro={0} mode={1} entities={2} load={3} throughput={4:F3}",
-          result.Distro,
-          result.Mode,
-          result.EntityCount,
-          result.LoadProfile,
-          result.Metrics.ThroughputMessagesPerSecond);
       }
       catch (Exception exception)
       {
@@ -108,8 +108,19 @@ namespace Ros2csSpinBenchmarks
           }
         }
 
-        result.Metrics.NativeMemoryEndBytes = GetPrivateMemoryBytes();
+        result.Metrics.ProcessPrivateMemoryEndBytes = GetProcessPrivateMemoryBytes();
         Environment.SetEnvironmentVariable(SpinFallbackEnvironmentVariable, previousFallback);
+      }
+
+      if (result.Status == "PASS")
+      {
+        Console.WriteLine(
+          "ROS2CS_SPIN_BENCHMARK_PASS distro={0} mode={1} entities={2} load={3} throughput={4:F3}",
+          result.Distro,
+          result.EffectiveMode,
+          result.EntityCount,
+          result.LoadProfile,
+          result.Metrics.ThroughputMessagesPerSecond);
       }
 
       return WriteResult(result, arguments.OutputPath);
@@ -117,12 +128,13 @@ namespace Ros2csSpinBenchmarks
 
     private static BenchmarkRun ExecuteBenchmark(BenchmarkArguments arguments)
     {
-      long nativeMemoryStartBytes = GetPrivateMemoryBytes();
+      long processPrivateMemoryStartBytes = GetProcessPrivateMemoryBytes();
       var state = new BenchmarkState(arguments.EntityCount, arguments.LoadProfile);
       try
       {
         using INode node = Ros2cs.CreateNode("ros2cs_spin_benchmark_node");
         CreateEntities(node, state);
+        WaitForEntityDiscovery(node, state);
 
         RunSpinIterations(node, state, arguments.WarmupIterations);
         DrainMessages(node, state);
@@ -138,7 +150,14 @@ namespace Ros2csSpinBenchmarks
         long cpuEnd = Process.GetCurrentProcess().TotalProcessorTime.Ticks;
 
         BenchmarkMetrics metrics = new BenchmarkMetrics();
-        metrics.AllocationBytesPerSpin = Math.Max(0.0, allocatedEnd - allocatedStart) / arguments.Iterations;
+        long spinCalls = Interlocked.Read(ref state.SpinCalls);
+        long drainSpinCalls = Interlocked.Read(ref state.DrainSpinCalls);
+        metrics.SpinCalls = spinCalls;
+        metrics.DrainSpinCalls = drainSpinCalls;
+        metrics.AllocationBytesPerSpin = spinCalls == 0
+          ? 0.0
+          : (double)Math.Max(0L, Interlocked.Read(ref state.SpinAllocatedBytes)) / spinCalls;
+        metrics.WorkloadAllocatedBytes = Math.Max(0L, allocatedEnd - allocatedStart);
         metrics.CpuSeconds = new TimeSpan(cpuEnd - cpuStart).TotalSeconds;
         double wallSeconds = ToSeconds(wallTicks);
         metrics.CpuPercent = wallSeconds <= 0.0
@@ -158,7 +177,7 @@ namespace Ros2csSpinBenchmarks
         metrics.LatencyP99Ms = Percentile(latencySamples, 99.0);
 
         MeasureCreateRemove(node, metrics);
-        return new BenchmarkRun(metrics, nativeMemoryStartBytes);
+        return new BenchmarkRun(metrics, processPrivateMemoryStartBytes);
       }
       finally
       {
@@ -174,7 +193,7 @@ namespace Ros2csSpinBenchmarks
       for (int i = 0; i < state.EntityCount; i++)
       {
         int entityIndex = i;
-        string topic = "ros2cs_benchmark_topic_" + i;
+        string topic = "/ros2cs_benchmark_topic_" + i;
         state.Subscriptions.Add(node.CreateSubscription<std_msgs.msg.Int64>(
           topic,
           message =>
@@ -196,6 +215,19 @@ namespace Ros2csSpinBenchmarks
           state.Publishers.Add(node.CreatePublisher<std_msgs.msg.Int64>(topic));
           state.Messages.Add(new std_msgs.msg.Int64());
           state.ActiveEntityIndices.Add(entityIndex);
+          state.ActiveTopics.Add(topic);
+        }
+      }
+    }
+
+    private static void WaitForEntityDiscovery(INode node, BenchmarkState state)
+    {
+      foreach (string topic in state.ActiveTopics)
+      {
+        if (!node.TryWaitForSubscriber(topic, DiscoveryTimeout))
+        {
+          throw new InvalidOperationException(
+            "Timed out waiting for subscriber discovery on topic '" + topic + "'");
         }
       }
     }
@@ -205,9 +237,15 @@ namespace Ros2csSpinBenchmarks
       for (int i = 0; i < iterations; i++)
       {
         PublishActiveMessages(state, i);
+        long allocatedStart = GC.GetAllocatedBytesForCurrentThread();
         Ros2cs.SpinOnce(node, state.HasActivePublishers
           ? ActiveSpinTimeoutSeconds
           : IdleSpinTimeoutSeconds);
+        long allocatedEnd = GC.GetAllocatedBytesForCurrentThread();
+        Interlocked.Add(
+          ref state.SpinAllocatedBytes,
+          Math.Max(0L, allocatedEnd - allocatedStart));
+        Interlocked.Increment(ref state.SpinCalls);
       }
     }
 
@@ -225,6 +263,7 @@ namespace Ros2csSpinBenchmarks
         Stopwatch.GetTimestamp() < deadline)
       {
         Ros2cs.SpinOnce(node, ActiveSpinTimeoutSeconds);
+        Interlocked.Increment(ref state.DrainSpinCalls);
       }
 
       long receivedMessages = Interlocked.Read(ref state.ReceivedMessages);
@@ -264,11 +303,16 @@ namespace Ros2csSpinBenchmarks
       {
         Stopwatch timer = Stopwatch.StartNew();
         ISubscription<std_msgs.msg.Int64> subscription =
-          node.CreateSubscription<std_msgs.msg.Int64>("ros2cs_benchmark_create_remove_" + i, _ => { });
+          node.CreateSubscription<std_msgs.msg.Int64>(
+            "/ros2cs_benchmark_create_remove_" + i,
+            _ => { });
         createTicks += timer.ElapsedTicks;
 
         timer.Restart();
-        subscription.Dispose();
+        if (!node.RemoveSubscription(subscription))
+        {
+          throw new InvalidOperationException("Benchmark subscription removal failed");
+        }
         removeTicks += timer.ElapsedTicks;
       }
 
@@ -290,7 +334,12 @@ namespace Ros2csSpinBenchmarks
         WarmupIterations = arguments.WarmupIterations,
         Iterations = arguments.Iterations,
         Os = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
-        Cpu = Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER") ?? "unknown",
+        Cpu = Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER") ??
+          System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString(),
+        CpuArchitecture =
+          System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString(),
+        LogicalProcessorCount = Environment.ProcessorCount,
+        ShutdownScope = "context_after_benchmark_node_disposal",
         Metrics = new BenchmarkMetrics()
       };
     }
@@ -327,16 +376,16 @@ namespace Ros2csSpinBenchmarks
       return ((long)entityIndex << 32) | (sequence & UInt32.MaxValue);
     }
 
-    private static long GetPrivateMemoryBytes()
+    private static long GetProcessPrivateMemoryBytes()
     {
       return Process.GetCurrentProcess().PrivateMemorySize64;
     }
 
-    private static double Percentile(List<double> values, double percentile)
+    private static double? Percentile(List<double> values, double percentile)
     {
       if (values.Count == 0)
       {
-        return 0.0;
+        return null;
       }
 
       values.Sort();
@@ -372,6 +421,7 @@ namespace Ros2csSpinBenchmarks
         new List<IPublisher<std_msgs.msg.Int64>>();
       internal readonly List<std_msgs.msg.Int64> Messages = new List<std_msgs.msg.Int64>();
       internal readonly List<int> ActiveEntityIndices = new List<int>();
+      internal readonly List<string> ActiveTopics = new List<string>();
       internal readonly ConcurrentDictionary<long, long> PublishedAt =
         new ConcurrentDictionary<long, long>();
       internal readonly List<double> LatenciesMs = new List<double>();
@@ -379,6 +429,9 @@ namespace Ros2csSpinBenchmarks
       internal long Sequence;
       internal long PublishedMessages;
       internal long ReceivedMessages;
+      internal long SpinCalls;
+      internal long DrainSpinCalls;
+      internal long SpinAllocatedBytes;
 
       internal bool HasActivePublishers
       {
@@ -420,18 +473,21 @@ namespace Ros2csSpinBenchmarks
         }
         Interlocked.Exchange(ref PublishedMessages, 0);
         Interlocked.Exchange(ref ReceivedMessages, 0);
+        Interlocked.Exchange(ref SpinCalls, 0);
+        Interlocked.Exchange(ref DrainSpinCalls, 0);
+        Interlocked.Exchange(ref SpinAllocatedBytes, 0);
       }
     }
 
     private sealed class BenchmarkRun
     {
       internal readonly BenchmarkMetrics Metrics;
-      internal readonly long NativeMemoryStartBytes;
+      internal readonly long ProcessPrivateMemoryStartBytes;
 
-      internal BenchmarkRun(BenchmarkMetrics metrics, long nativeMemoryStartBytes)
+      internal BenchmarkRun(BenchmarkMetrics metrics, long processPrivateMemoryStartBytes)
       {
         Metrics = metrics;
-        NativeMemoryStartBytes = nativeMemoryStartBytes;
+        ProcessPrivateMemoryStartBytes = processPrivateMemoryStartBytes;
       }
     }
 
@@ -446,28 +502,35 @@ namespace Ros2csSpinBenchmarks
       public string Rmw { get; set; }
       public string Os { get; set; }
       public string Cpu { get; set; }
+      public string CpuArchitecture { get; set; }
+      public int LogicalProcessorCount { get; set; }
       public string Mode { get; set; }
+      public string EffectiveMode { get; set; }
       public int EntityCount { get; set; }
       public string LoadProfile { get; set; }
       public int WarmupIterations { get; set; }
       public int Iterations { get; set; }
+      public string ShutdownScope { get; set; }
       public BenchmarkMetrics Metrics { get; set; }
     }
 
     private sealed class BenchmarkMetrics
     {
       public double AllocationBytesPerSpin { get; set; }
+      public long WorkloadAllocatedBytes { get; set; }
+      public long SpinCalls { get; set; }
+      public long DrainSpinCalls { get; set; }
       public double CpuSeconds { get; set; }
       public double CpuPercent { get; set; }
       public double ThroughputMessagesPerSecond { get; set; }
-      public double LatencyP50Ms { get; set; }
-      public double LatencyP95Ms { get; set; }
-      public double LatencyP99Ms { get; set; }
+      public double? LatencyP50Ms { get; set; }
+      public double? LatencyP95Ms { get; set; }
+      public double? LatencyP99Ms { get; set; }
       public double CreateLatencyMs { get; set; }
       public double RemoveLatencyMs { get; set; }
       public double ShutdownLatencyMs { get; set; }
-      public long? NativeMemoryStartBytes { get; set; }
-      public long? NativeMemoryEndBytes { get; set; }
+      public long? ProcessPrivateMemoryStartBytes { get; set; }
+      public long? ProcessPrivateMemoryEndBytes { get; set; }
     }
 
     private sealed class BenchmarkArguments

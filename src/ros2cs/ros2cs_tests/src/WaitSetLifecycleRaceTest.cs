@@ -33,7 +33,7 @@ namespace ROS2.Test
         public void SetUp()
         {
             previousSpinFallback = Environment.GetEnvironmentVariable("ROS2CS_SPIN_FALLBACK");
-            Environment.SetEnvironmentVariable("ROS2CS_SPIN_FALLBACK", "off");
+            Environment.SetEnvironmentVariable("ROS2CS_SPIN_FALLBACK", "waitset");
             Ros2cs.Init();
         }
 
@@ -159,7 +159,7 @@ namespace ROS2.Test
         }
 
         [Test]
-        public void FinalizerPathSkipsNativeFiniWhenWaitSetGateIsBusy()
+        public void FinalizerPathRetriesNativeFiniAfterWaitSetGateIsReleased()
         {
             var node = Ros2cs.CreateNode("waitset_finalizer_gate_node");
             var subscription = node.CreateSubscription<std_msgs.msg.Int32>(
@@ -175,7 +175,8 @@ namespace ROS2.Test
             }
 
             Assert.That(subscription.IsDisposed, Is.False);
-            subscription.Dispose();
+            ((INodeChildEntity)subscription).DisposeFromNode(false);
+            Assert.That(subscription.IsDisposed, Is.True);
         }
 
         [Test]

@@ -98,6 +98,62 @@ jobs:
               -DCMAKE_C_COMPILER_LAUNCHER=sccache \
               -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
 
+      - name: Build ros2cs spin benchmarks
+        working-directory: ros2cs_ws
+        run: |
+          . /opt/ros/jazzy/setup.sh
+          . install/setup.sh
+          colcon build \
+            --packages-up-to ros2cs_spin_benchmarks \
+            --merge-install \
+            --event-handlers console_direct+ \
+            --cmake-args \
+              -DCMAKE_C_COMPILER_LAUNCHER=sccache \
+              -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+
+      - name: Run ros2cs benchmark smoke
+        working-directory: ros2cs_ws
+        run: |
+          . /opt/ros/jazzy/setup.sh
+          . install/setup.sh
+          benchmark=install/lib/ros2cs_spin_benchmarks/dotnet/ros2cs_spin_benchmark.dll
+          for mode in wait-set direct; do
+            if [ "$mode" = "direct" ]; then
+              fallback=direct
+            else
+              fallback=waitset
+            fi
+            for load in idle high; do
+              output="/tmp/ros2cs-benchmark-${mode}-${load}.json"
+              ROS2CS_SPIN_FALLBACK="$fallback" \
+                dotnet "$benchmark" \
+                --distro jazzy \
+                --mode "$mode" \
+                --entities 2 \
+                --load "$load" \
+                --warmup 1 \
+                --iterations 4 \
+                --output "$output"
+              python3 - "$output" "$mode" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          path = pathlib.Path(sys.argv[1])
+          requested_mode = sys.argv[2]
+          result = json.loads(path.read_text())
+          if result.get("status") != "PASS":
+              raise SystemExit(f"benchmark status was {result.get('status')}: {result.get('statusReason')}")
+          if result.get("mode") != requested_mode:
+              raise SystemExit("benchmark requested mode mismatch")
+          if result.get("effectiveMode") != requested_mode:
+              raise SystemExit("benchmark effective mode mismatch")
+          if result.get("metrics", {}).get("spinCalls", 0) <= 0:
+              raise SystemExit("benchmark did not record spin calls")
+          PY
+            done
+          done
+
       - name: Show sccache stats
         if: always()
         run: sccache --show-stats

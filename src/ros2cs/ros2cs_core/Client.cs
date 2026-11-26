@@ -164,6 +164,7 @@ namespace ROS2
       }
 
       List<Exception> disposeExceptions = null;
+      List<TaskCompletionSource<O>> pendingSources = null;
       try
       {
         lock (mutex)
@@ -173,13 +174,11 @@ namespace ROS2
             return;
           }
 
-          // Complete pending calls so callers do not wait forever after shutdown/reconnect.
           lock (Requests)
           {
-            foreach (var source in Requests.Values)
-            {
-              source.Item1.TrySetException(new ObjectDisposedException("client has been disposed"));
-            }
+            pendingSources = Requests.Values
+              .Select(source => source.Item1)
+              .ToList();
             Requests.Clear();
             RequestSequencesByTask.Clear();
           }
@@ -234,6 +233,15 @@ namespace ROS2
       finally
       {
         Ros2cs.ExitWaitSetMutex();
+      }
+
+      if (pendingSources != null)
+      {
+        ObjectDisposedException exception = new ObjectDisposedException("client has been disposed");
+        foreach (TaskCompletionSource<O> source in pendingSources)
+        {
+          source.TrySetException(exception);
+        }
       }
 
       if (disposing)
@@ -500,7 +508,8 @@ namespace ROS2
             throw new InvalidOperationException("Cannot call as the owning node is already disposed");
           }
           long sequence_number = SendRequest(msg);
-          source = new TaskCompletionSource<O>(options);
+          source = new TaskCompletionSource<O>(
+            options | TaskCreationOptions.RunContinuationsAsynchronously);
           return RegisterSource(source, sequence_number);
       }
     }

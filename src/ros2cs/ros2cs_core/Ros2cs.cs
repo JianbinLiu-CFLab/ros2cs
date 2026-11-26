@@ -83,6 +83,11 @@ namespace ROS2
       get { return waitSetWaitActive || directSpinWaitActive; }
     }
 
+    internal static string ActiveSpinModeForTests
+    {
+      get { return useDirectSpinFallback ? "direct" : "wait-set"; }
+    }
+
     /// <summary>Enter the wait-set gate for explicit disposal or bounded finalization.</summary>
     internal static bool TryEnterWaitSetMutex(bool explicitDisposal)
     {
@@ -360,6 +365,7 @@ namespace ROS2
     /// <param name="timoutSec"> Maximum time to wait for execution item (e. g. subscription) </param>
     public static void Spin(INode node, double timeoutSec = 0.1)
     {
+      ValidateSpinTimeout(timeoutSec);
       while (initialized)
       {
         if (!SpinOnce(node, timeoutSec))
@@ -377,6 +383,7 @@ namespace ROS2
     /// <see cref="Spin(INode,double)"/>
     public static void Spin(List<INode> nodes, double timeoutSec = 0.1)
     {
+      ValidateSpinTimeout(timeoutSec);
       while (initialized)
       {
         if (!SpinOnce(nodes, timeoutSec))
@@ -394,6 +401,7 @@ namespace ROS2
     /// <see cref="Spin(INode,double)"/>
     public static bool SpinOnce(INode node, double timeoutSec = 0.1)
     {
+      ValidateSpinTimeout(timeoutSec);
       return SpinOnceCore(node, null, timeoutSec);
     }
 
@@ -404,7 +412,16 @@ namespace ROS2
     /// <see cref="SpinOnce(INode,double)"/>
     public static bool SpinOnce(List<INode> nodes, double timeoutSec = 0.1)
     {
+      ValidateSpinTimeout(timeoutSec);
       return SpinOnceCore(null, nodes, timeoutSec);
+    }
+
+    private static void ValidateSpinTimeout(double timeoutSec)
+    {
+      if (timeoutSec < 0)
+      {
+        throw new ArgumentOutOfRangeException(nameof(timeoutSec));
+      }
     }
 
     /// <summary>Shared spin path for single-node and multi-node public overloads.</summary>

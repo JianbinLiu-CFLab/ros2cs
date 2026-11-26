@@ -307,7 +307,6 @@ namespace ROS2
       }
       if (!Ros2cs.Ok())
       {
-        logger.LogWarning("Cannot " + operationDescription + " as shutdown was called");
         throw new NotInitializedException();
       }
     }
@@ -447,15 +446,16 @@ namespace ROS2
     /// <see cref="INode.CreateClient"/>
     public Client<I, O> CreateClient<I, O>(string topic, QualityOfServiceProfile qos = null) where I : Message, new() where O : Message, new()
     {
+      Client<I, O> client;
       lock (mutex)
       {
         ThrowIfNodeNotUsable("create client");
 
-        Client<I, O> client = new Client<I, O>(topic, this, qos);
+        client = new Client<I, O>(topic, this, qos);
         clients.Add(client);
-        logger.LogInfo("Created Client for topic " + topic);
-        return client;
       }
+      logger.LogInfo("Created Client for topic " + topic);
+      return client;
     }
     /// <summary> Remove a client </summary>
     /// <see cref="INode.RemoveClient"/>
@@ -498,15 +498,16 @@ namespace ROS2
     /// <see cref="INode.CreateService"/>
     public Service<I, O> CreateService<I, O>(string topic, Func<I, O> callback, QualityOfServiceProfile qos = null) where I : Message, new() where O : Message, new()
     {
+      Service<I, O> service;
       lock (mutex)
       {
         ThrowIfNodeNotUsable("create service");
 
-        Service<I, O> service = new Service<I, O>(topic, this, callback, qos);
+        service = new Service<I, O>(topic, this, callback, qos);
         services.Add(service);
-        logger.LogInfo("Created service for topic " + topic);
-        return service;
       }
+      logger.LogInfo("Created service for topic " + topic);
+      return service;
     }
 
     /// <summary> Remove a service </summary>
@@ -548,30 +549,32 @@ namespace ROS2
     /// <see cref="INode.CreatePublisher"/>
     public Publisher<T> CreatePublisher<T>(string topic, QualityOfServiceProfile qos = null) where T : Message, new()
     {
+      Publisher<T> publisher;
       lock (mutex)
       {
         ThrowIfNodeNotUsable("create publisher");
 
-        Publisher<T> publisher = new Publisher<T>(topic, this, qos);
+        publisher = new Publisher<T>(topic, this, qos);
         publishers.Add(publisher);
-        logger.LogInfo("Created Publisher for topic " + topic);
-        return publisher;
       }
+      logger.LogInfo("Created Publisher for topic " + topic);
+      return publisher;
     }
 
     /// <summary> Create a subscription for this node for a given topic, callback, qos and message type </summary>
     /// <see cref="INode.CreateSubscription"/>
     public Subscription<T> CreateSubscription<T>(string topic, Action<T> callback, QualityOfServiceProfile qos = null) where T : Message, new()
     {
+      Subscription<T> subscription;
       lock (mutex)
       {
         ThrowIfNodeNotUsable("create subscription");
 
-        Subscription<T> subscription = new Subscription<T>(topic, this, callback, qos);
+        subscription = new Subscription<T>(topic, this, callback, qos);
         subscriptions.Add(subscription);
-        logger.LogInfo("Created subscription for topic " + topic);
-        return subscription;
       }
+      logger.LogInfo("Created subscription for topic " + topic);
+      return subscription;
     }
 
     /// <summary> Remove a publisher </summary>
