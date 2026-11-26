@@ -72,18 +72,13 @@ namespace ROS2.Test
         }
 
         [Test]
-        public void DirectSpinFallbackIsReportedOnceAsInformation()
+        public void DirectSpinFallbackIsReportedAsInformation()
         {
-            FieldInfo loggedField = typeof(Ros2cs).GetField(
-                "directSpinFallbackLogged",
-                BindingFlags.NonPublic | BindingFlags.Static);
             MethodInfo logMethod = typeof(Ros2cs).GetMethod(
-                "LogDirectSpinFallbackOnce",
+                "LogDirectSpinFallback",
                 BindingFlags.NonPublic | BindingFlags.Static);
-            Assert.That(loggedField, Is.Not.Null);
             Assert.That(logMethod, Is.Not.Null);
 
-            int previousLoggedValue = (int)loggedField.GetValue(null);
             int informationCount = 0;
             int warningCount = 0;
             string informationMessage = null;
@@ -94,20 +89,11 @@ namespace ROS2.Test
             });
             Ros2csLogger.SetCallback(LogLevel.WARNING, _ => warningCount++);
 
-            try
-            {
-                loggedField.SetValue(null, 0);
-                logMethod.Invoke(null, new object[] { "ROS_DISTRO=lyrical" });
-                logMethod.Invoke(null, new object[] { "ROS_DISTRO=lyrical" });
+            logMethod.Invoke(null, new object[] { "ROS_DISTRO=lyrical" });
 
-                Assert.That(informationCount, Is.EqualTo(1));
-                Assert.That(warningCount, Is.Zero);
-                StringAssert.Contains("using direct spin fallback without rcl_wait", informationMessage);
-            }
-            finally
-            {
-                loggedField.SetValue(null, previousLoggedValue);
-            }
+            Assert.That(informationCount, Is.EqualTo(1));
+            Assert.That(warningCount, Is.Zero);
+            StringAssert.Contains("using direct spin fallback without rcl_wait", informationMessage);
         }
 
         [Test]

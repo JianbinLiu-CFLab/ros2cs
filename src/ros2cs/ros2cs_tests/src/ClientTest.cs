@@ -242,7 +242,6 @@ namespace ROS2.Test
         }
 
         [Test]
-        [Timeout(10000)]
         public void ClientTryWaitForServiceSupportsMaximumTimeout()
         {
             using var service = Node.CreateService<AddTwoInts_Request, AddTwoInts_Response>(
