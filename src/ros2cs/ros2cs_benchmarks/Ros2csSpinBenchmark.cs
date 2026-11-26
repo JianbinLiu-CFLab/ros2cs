@@ -176,6 +176,15 @@ namespace Ros2csSpinBenchmarks
         metrics.LatencyP95Ms = Percentile(latencySamples, 95.0);
         metrics.LatencyP99Ms = Percentile(latencySamples, 99.0);
 
+        List<double> spinDurationSamples;
+        lock (state.SpinDurationLock)
+        {
+          spinDurationSamples = state.SpinDurationMs.ToList();
+        }
+        metrics.SpinDurationP50Ms = Percentile(spinDurationSamples, 50.0);
+        metrics.SpinDurationP95Ms = Percentile(spinDurationSamples, 95.0);
+        metrics.SpinDurationP99Ms = Percentile(spinDurationSamples, 99.0);
+
         MeasureCreateRemove(node, metrics);
         return new BenchmarkRun(metrics, processPrivateMemoryStartBytes);
       }
@@ -238,10 +247,12 @@ namespace Ros2csSpinBenchmarks
       {
         PublishActiveMessages(state, i);
         long allocatedStart = GC.GetAllocatedBytesForCurrentThread();
+        long spinStart = Stopwatch.GetTimestamp();
         Ros2cs.SpinOnce(node, state.HasActivePublishers
           ? ActiveSpinTimeoutSeconds
           : IdleSpinTimeoutSeconds);
         long allocatedEnd = GC.GetAllocatedBytesForCurrentThread();
+        state.RecordSpinDuration(Stopwatch.GetTimestamp() - spinStart);
         Interlocked.Add(
           ref state.SpinAllocatedBytes,
           Math.Max(0L, allocatedEnd - allocatedStart));
@@ -262,7 +273,9 @@ namespace Ros2csSpinBenchmarks
         Interlocked.Read(ref state.PublishedMessages) &&
         Stopwatch.GetTimestamp() < deadline)
       {
+        long spinStart = Stopwatch.GetTimestamp();
         Ros2cs.SpinOnce(node, ActiveSpinTimeoutSeconds);
+        state.RecordSpinDuration(Stopwatch.GetTimestamp() - spinStart);
         Interlocked.Increment(ref state.DrainSpinCalls);
       }
 
@@ -326,7 +339,9 @@ namespace Ros2csSpinBenchmarks
       {
         SchemaVersion = SchemaVersion,
         TimestampUtc = DateTimeOffset.UtcNow,
-        Commit = Environment.GetEnvironmentVariable("ROS2CS_BENCHMARK_COMMIT") ?? "unknown",
+        Commit = Environment.GetEnvironmentVariable("ROS2CS_BENCHMARK_SOURCE_COMMIT") ?? "unknown",
+        SourceDirty = Environment.GetEnvironmentVariable("ROS2CS_BENCHMARK_SOURCE_DIRTY") ?? "unknown",
+        SourceRoot = Environment.GetEnvironmentVariable("ROS2CS_BENCHMARK_SOURCE_ROOT") ?? "unknown",
         Distro = arguments.Distro,
         Mode = arguments.Mode,
         EntityCount = arguments.EntityCount,
@@ -426,12 +441,23 @@ namespace Ros2csSpinBenchmarks
         new ConcurrentDictionary<long, long>();
       internal readonly List<double> LatenciesMs = new List<double>();
       internal readonly object LatencyLock = new object();
+      internal readonly List<double> SpinDurationMs = new List<double>();
+      internal readonly object SpinDurationLock = new object();
       internal long Sequence;
       internal long PublishedMessages;
       internal long ReceivedMessages;
       internal long SpinCalls;
       internal long DrainSpinCalls;
       internal long SpinAllocatedBytes;
+
+      internal void RecordSpinDuration(long stopwatchTicks)
+      {
+        double durationMs = ToMilliseconds(stopwatchTicks);
+        lock (SpinDurationLock)
+        {
+          SpinDurationMs.Add(durationMs);
+        }
+      }
 
       internal bool HasActivePublishers
       {
@@ -471,6 +497,10 @@ namespace Ros2csSpinBenchmarks
         {
           LatenciesMs.Clear();
         }
+        lock (SpinDurationLock)
+        {
+          SpinDurationMs.Clear();
+        }
         Interlocked.Exchange(ref PublishedMessages, 0);
         Interlocked.Exchange(ref ReceivedMessages, 0);
         Interlocked.Exchange(ref SpinCalls, 0);
@@ -498,6 +528,8 @@ namespace Ros2csSpinBenchmarks
       public string Status { get; set; }
       public string StatusReason { get; set; }
       public string Commit { get; set; }
+      public string SourceDirty { get; set; }
+      public string SourceRoot { get; set; }
       public string Distro { get; set; }
       public string Rmw { get; set; }
       public string Os { get; set; }
@@ -526,6 +558,9 @@ namespace Ros2csSpinBenchmarks
       public double? LatencyP50Ms { get; set; }
       public double? LatencyP95Ms { get; set; }
       public double? LatencyP99Ms { get; set; }
+      public double? SpinDurationP50Ms { get; set; }
+      public double? SpinDurationP95Ms { get; set; }
+      public double? SpinDurationP99Ms { get; set; }
       public double CreateLatencyMs { get; set; }
       public double RemoveLatencyMs { get; set; }
       public double ShutdownLatencyMs { get; set; }
