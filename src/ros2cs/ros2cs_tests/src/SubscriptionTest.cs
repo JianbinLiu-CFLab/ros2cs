@@ -21,6 +21,7 @@
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace ROS2.Test
 {
@@ -65,12 +66,14 @@ namespace ROS2.Test
             node.Dispose();
         }
 
-        private void AssertEndpointDiscovery(string topicName)
+        private void AssertPublisherMatch(Publisher<std_msgs.msg.Int32> candidate)
         {
             Assert.That(
-                node.TryWaitForSubscriber(topicName, EndpointDiscoveryTimeout),
+                SpinWait.SpinUntil(
+                    () => candidate.GetSubscriptionCountForTests() > 0,
+                    EndpointDiscoveryTimeout),
                 Is.True,
-                "DDS subscriber endpoint was not discovered in time");
+                "DDS publisher did not match a subscriber in time");
         }
 
         [Test]
@@ -165,7 +168,7 @@ namespace ROS2.Test
             int count = 0;
             node.CreateSubscription<std_msgs.msg.Int32>("subscription_test_topic",
                                                         (msg) => { count += 1; });
-            AssertEndpointDiscovery("/subscription_test_topic");
+            AssertPublisherMatch(publisher);
 
             using var published_msg = new std_msgs.msg.Int32();
             published_msg.Data = 42;
@@ -195,7 +198,7 @@ namespace ROS2.Test
             node.CreateSubscription<std_msgs.msg.Int32>("subscription_test_topic",
                                                         (msg) => { count += 1; },
                                                         qosProfile);
-            AssertEndpointDiscovery("/subscription_test_topic");
+            AssertPublisherMatch(publisher);
 
             using var published_msg = new std_msgs.msg.Int32();
             published_msg.Data = 42;
@@ -223,6 +226,8 @@ namespace ROS2.Test
             using var qosProfile = new QualityOfServiceProfile(QosPresetProfile.SENSOR_DATA);
             using var bestEffortPublisher =
                 node.CreatePublisher<std_msgs.msg.Int32>("subscription_qos_incompatible_topic", qosProfile);
+            using var compatiblePublisher =
+                node.CreatePublisher<std_msgs.msg.Int32>("subscription_qos_incompatible_topic");
 
             node.CreateSubscription<std_msgs.msg.Int32>(
                 "subscription_qos_incompatible_topic",
@@ -231,14 +236,14 @@ namespace ROS2.Test
             using var publishedMsg = new std_msgs.msg.Int32();
             publishedMsg.Data = 42;
 
-            // Confirm the subscriber is visible before proving the QoS endpoints stay unmatched.
-            AssertEndpointDiscovery("/subscription_qos_incompatible_topic");
+            AssertPublisherMatch(compatiblePublisher);
             for (int i = 0; i < IncompatibleQosPublishAttempts; i++)
             {
                 bestEffortPublisher.Publish(publishedMsg);
                 Ros2cs.SpinOnce(node, SpinOnceTimeoutSeconds);
             }
 
+            Assert.That(bestEffortPublisher.GetSubscriptionCountForTests(), Is.Zero);
             Assert.That(count, Is.Zero);
         }
     }

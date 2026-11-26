@@ -148,6 +148,7 @@ namespace ROS2.Test
         }
 
         [Test]
+        [Timeout(10000)]
         public void TryWaitForPublisherSupportsMaximumTimeout()
         {
             using var publisherNode = Ros2cs.CreateNode("graph_wait_max_timeout_publisher_node");

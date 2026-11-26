@@ -103,6 +103,18 @@ namespace ROS2
       }
     }
 
+    internal int GetSubscriptionCountForTests()
+    {
+      lock (mutex)
+      {
+        UIntPtr count = UIntPtr.Zero;
+        Utils.CheckReturnEnum(NativeRcl.rcl_publisher_get_subscription_count(
+          ref publisherHandle,
+          ref count));
+        return checked((int)count.ToUInt64());
+      }
+    }
+
     /// <summary>Shared publisher disposal path used by explicit disposal, node disposal, and finalization.</summary>
     private void Dispose(bool disposing, bool log)
     {

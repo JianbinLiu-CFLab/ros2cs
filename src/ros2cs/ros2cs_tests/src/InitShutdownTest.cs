@@ -165,9 +165,9 @@ namespace ROS2.Test
             });
 
             Assert.That(
-                SpinWait.SpinUntil(() => Ros2cs.IsWaitSetWaitActiveForTests, SpinEntryTimeout),
+                SpinWait.SpinUntil(() => Ros2cs.IsSpinActiveForTests, SpinEntryTimeout),
                 Is.True,
-                "SpinOnce did not enter the native wait-set wait");
+                "SpinOnce did not enter an active spin wait");
             Assert.DoesNotThrow(() => Ros2cs.Shutdown());
 
             Assert.That(spinTask.Wait(SpinShutdownJoinTimeout), Is.True);
@@ -220,9 +220,9 @@ namespace ROS2.Test
             });
 
             Assert.That(
-                SpinWait.SpinUntil(() => Ros2cs.IsWaitSetWaitActiveForTests, SpinEntryTimeout),
+                SpinWait.SpinUntil(() => Ros2cs.IsSpinActiveForTests, SpinEntryTimeout),
                 Is.True,
-                "Spin did not enter the native wait-set wait");
+                "Spin did not enter an active spin wait");
             Ros2cs.Shutdown();
 
             Assert.That(spinTask.Wait(SpinShutdownJoinTimeout), Is.True);
@@ -246,9 +246,9 @@ namespace ROS2.Test
             });
 
             Assert.That(
-                SpinWait.SpinUntil(() => Ros2cs.IsWaitSetWaitActiveForTests, SpinEntryTimeout),
+                SpinWait.SpinUntil(() => Ros2cs.IsSpinActiveForTests, SpinEntryTimeout),
                 Is.True,
-                "SpinOnce did not enter the native wait-set wait");
+                "SpinOnce did not enter an active spin wait");
             Assert.DoesNotThrow(() => Ros2cs.Shutdown());
 
             Assert.That(spinTask.Wait(SpinShutdownJoinTimeout), Is.True);
