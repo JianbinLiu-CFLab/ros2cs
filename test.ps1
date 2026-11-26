@@ -152,15 +152,24 @@ function Get-ColconTestCount {
         return 0
     }
 
-    Get-ChildItem -LiteralPath $BuildBase -Recurse -Filter "*.xml" -File -ErrorAction SilentlyContinue | ForEach-Object {
-        try {
-            [xml]$xml = Get-Content -LiteralPath $_.FullName -Raw
-            $nodes = $xml.SelectNodes("//testcase")
-            if ($null -ne $nodes) {
-                $count += $nodes.Count
+    $packageRoots = @(
+        (Join-Path $BuildBase "rosidl_generator_cs")
+        (Join-Path $BuildBase "ros2cs_tests")
+    )
+    foreach ($packageRoot in $packageRoots) {
+        if (-not (Test-Path -LiteralPath $packageRoot)) {
+            continue
+        }
+        Get-ChildItem -LiteralPath $packageRoot -Recurse -Filter "*.xml" -File -ErrorAction SilentlyContinue | ForEach-Object {
+            try {
+                [xml]$xml = Get-Content -LiteralPath $_.FullName -Raw
+                $nodes = $xml.SelectNodes("//testcase")
+                if ($null -ne $nodes) {
+                    $count += $nodes.Count
+                }
+            } catch {
+                # Non-JUnit XML files are ignored; colcon test-result will report malformed result files.
             }
-        } catch {
-            # Non-JUnit XML files are ignored; colcon test-result will report malformed result files.
         }
     }
     return $count

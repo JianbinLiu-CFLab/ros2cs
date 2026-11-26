@@ -24,6 +24,7 @@
 // - Added opt-in node options while keeping default creation behavior unchanged.
 
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
@@ -363,7 +364,7 @@ namespace ROS2
         throw new ArgumentOutOfRangeException(nameof(timeout));
       }
 
-      DateTime deadline = DateTime.UtcNow + timeout;
+      Stopwatch timer = Stopwatch.StartNew();
       while (true)
       {
         if (condition())
@@ -371,7 +372,7 @@ namespace ROS2
           return true;
         }
 
-        TimeSpan remaining = deadline - DateTime.UtcNow;
+        TimeSpan remaining = timeout - timer.Elapsed;
         if (remaining <= TimeSpan.Zero)
         {
           return false;

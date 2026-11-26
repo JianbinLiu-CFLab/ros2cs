@@ -408,6 +408,7 @@ namespace ROS2
       List<IClientBase> allClients;
       List<IServiceBase> allServices;
       bool success;
+      string directSpinFallbackLogReason = null;
 
       lock (mutex)
       {
@@ -447,7 +448,7 @@ namespace ROS2
 
         if (useDirectSpinFallback)
         {
-          LogDirectSpinFallbackOnce(directSpinFallbackReason);
+          directSpinFallbackLogReason = directSpinFallbackReason;
           SleepForSpinTimeout(timeoutSec);
           success = true;
         }
@@ -492,6 +493,11 @@ namespace ROS2
             waitSetWaitActive = false;
           }
         }
+      }
+
+      if (directSpinFallbackLogReason != null)
+      {
+        LogDirectSpinFallbackOnce(directSpinFallbackLogReason);
       }
 
       if (success)

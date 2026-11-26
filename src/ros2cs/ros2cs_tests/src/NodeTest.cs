@@ -38,6 +38,7 @@ namespace ROS2.Test
         const string GRAPH_NAMES_TYPES_TOPIC = "/graph_names_and_types_test_topic";
         const string GRAPH_NAMES_TYPES_EXPECTED_TYPE = "std_msgs/msg/Bool";
         const string GRAPH_WAIT_PUBLISHER_TOPIC = "/graph_wait_publisher_topic";
+        const string GRAPH_WAIT_MAX_TIMEOUT_TOPIC = "/graph_wait_max_timeout_topic";
         const string GRAPH_WAIT_SUBSCRIBER_TOPIC = "/graph_wait_subscriber_topic";
         const string GRAPH_WAIT_MISSING_TOPIC = "/graph_wait_missing_topic";
         static readonly TimeSpan GraphTimeout = TimeSpan.FromSeconds(5);
@@ -144,6 +145,15 @@ namespace ROS2.Test
             using var publisher = publisherNode.CreatePublisher<std_msgs.msg.String>(GRAPH_WAIT_PUBLISHER_TOPIC);
 
             Assert.That(observer.TryWaitForPublisher(GRAPH_WAIT_PUBLISHER_TOPIC, GraphTimeout), Is.True);
+        }
+
+        [Test]
+        public void TryWaitForPublisherSupportsMaximumTimeout()
+        {
+            using var publisherNode = Ros2cs.CreateNode("graph_wait_max_timeout_publisher_node");
+            using var publisher = publisherNode.CreatePublisher<std_msgs.msg.String>(GRAPH_WAIT_MAX_TIMEOUT_TOPIC);
+
+            Assert.That(node.TryWaitForPublisher(GRAPH_WAIT_MAX_TIMEOUT_TOPIC, TimeSpan.MaxValue), Is.True);
         }
 
         [Test]

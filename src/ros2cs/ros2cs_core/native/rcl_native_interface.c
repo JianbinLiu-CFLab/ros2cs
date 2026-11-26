@@ -292,11 +292,14 @@ void rclcs_dispose_topic_names_and_types(rclcs_topic_names_and_types_t * result)
     }
     if (result->types != NULL)
     {
-      for (size_t j = 0; j < result->types[i].size; j++)
+      if (result->types[i].data != NULL)
       {
-        free(result->types[i].data[j]);
+        for (size_t j = 0; j < result->types[i].size; j++)
+        {
+          free(result->types[i].data[j]);
+        }
+        free(result->types[i].data);
       }
-      free(result->types[i].data);
     }
   }
 

@@ -22,6 +22,7 @@
 
 using System;
 using System.Collections;
+using System.Diagnostics;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -71,6 +72,7 @@ namespace ROS2
     private Dictionary<Task<O>, long> RequestSequencesByTask;
 
     private Ros2csLogger logger = Ros2csLogger.GetInstance();
+    private int unknownResponseWarningLogged;
 
     // Native client/options handles are finalized before the owning node is finalized.
     private rcl_client_t clientHandle;
@@ -272,7 +274,7 @@ namespace ROS2
         throw new ArgumentOutOfRangeException(nameof(timeout));
       }
 
-      DateTime deadline = DateTime.UtcNow + timeout;
+      Stopwatch timer = Stopwatch.StartNew();
       while (true)
       {
         if (IsServiceAvailable())
@@ -280,7 +282,7 @@ namespace ROS2
           return true;
         }
 
-        TimeSpan remaining = deadline - DateTime.UtcNow;
+        TimeSpan remaining = timeout - timer.Elapsed;
         if (remaining <= TimeSpan.Zero)
         {
           return false;
@@ -386,7 +388,10 @@ namespace ROS2
       }
       else
       {
-        logger.LogWarning("Received response with unknown sequence number or after client disposal");
+        if (Interlocked.Exchange(ref unknownResponseWarningLogged, 1) == 0)
+        {
+          logger.LogWarning("Received response with unknown sequence number or after client disposal");
+        }
         return false;
       }
     }
