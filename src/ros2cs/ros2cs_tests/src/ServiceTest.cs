@@ -182,8 +182,9 @@ namespace ROS2.Test
                     return response;
                 });
             using var client = Node.CreateClient<AddTwoInts_Request, AddTwoInts_Response>(SERVICE_NAME);
+            Assert.That(client.TryWaitForService(ServiceResponseTimeout), Is.True);
             Task<AddTwoInts_Response> pendingResponse = client.CallAsync(CreateRequest(4, 5));
-            Task spinTask = Task.Run(() => Ros2cs.SpinOnce(Node, 0.1));
+            Task serviceTakeTask = Task.Run(() => Service.TakeMessage());
 
             try
             {
@@ -195,9 +196,18 @@ namespace ROS2.Test
                 releaseCallback.Set();
             }
 
-            Assert.That(spinTask.Wait(ServiceResponseTimeout), Is.True);
-            Assert.That(spinTask.IsFaulted, Is.False);
+            Assert.That(serviceTakeTask.Wait(ServiceResponseTimeout), Is.True);
+            Assert.That(serviceTakeTask.IsFaulted, Is.False);
+
+            DateTime deadline = DateTime.UtcNow + ServiceResponseTimeout;
+            while (!pendingResponse.IsCompleted && DateTime.UtcNow < deadline)
+            {
+                Assert.DoesNotThrow(() => client.TakeMessage());
+                Thread.Sleep(ServiceTakeRetryDelay);
+            }
+
             Assert.That(pendingResponse.IsCompleted, Is.False);
+            Assert.That(client.PendingRequests.Count, Is.EqualTo(1));
             Assert.DoesNotThrow(() => client.Dispose());
         }
     }
