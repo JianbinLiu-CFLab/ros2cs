@@ -126,13 +126,28 @@ namespace Ros2csSpinBenchmarks
       return WriteResult(result, arguments.OutputPath);
     }
 
+    private static int EstimateSpinDurationCapacity(BenchmarkArguments arguments)
+    {
+      long activeEntityCount = arguments.LoadProfile == "idle"
+        ? 0
+        : arguments.LoadProfile == "few-active"
+          ? Math.Max(1, arguments.EntityCount / 100)
+          : arguments.EntityCount;
+      long publishingIterations = arguments.LoadProfile == "low"
+        ? (arguments.Iterations + 9L) / 10L
+        : arguments.Iterations;
+      long expectedDrainSamples = activeEntityCount * publishingIterations;
+      long capacity = Math.Max(0L, arguments.Iterations) + expectedDrainSamples;
+      return capacity >= int.MaxValue ? int.MaxValue : (int)capacity;
+    }
+
     private static BenchmarkRun ExecuteBenchmark(BenchmarkArguments arguments)
     {
       long processPrivateMemoryStartBytes = GetProcessPrivateMemoryBytes();
       var state = new BenchmarkState(
         arguments.EntityCount,
         arguments.LoadProfile,
-        arguments.Iterations);
+        EstimateSpinDurationCapacity(arguments));
       try
       {
         using INode node = Ros2cs.CreateNode("ros2cs_spin_benchmark_node");
