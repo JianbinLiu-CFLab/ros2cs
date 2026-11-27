@@ -126,18 +126,9 @@ namespace Ros2csSpinBenchmarks
       return WriteResult(result, arguments.OutputPath);
     }
 
-    private static int EstimateSpinDurationCapacity(BenchmarkArguments arguments)
+    private static int GetSpinDurationCapacity(BenchmarkArguments arguments)
     {
-      long activeEntityCount = arguments.LoadProfile == "idle"
-        ? 0
-        : arguments.LoadProfile == "few-active"
-          ? Math.Max(1, arguments.EntityCount / 100)
-          : arguments.EntityCount;
-      long publishingIterations = arguments.LoadProfile == "low"
-        ? (arguments.Iterations + 9L) / 10L
-        : arguments.Iterations;
-      long expectedDrainSamples = activeEntityCount * publishingIterations;
-      long capacity = Math.Max(0L, arguments.Iterations) + expectedDrainSamples;
+      long capacity = Math.Max(0L, arguments.Iterations) + 512L;
       return capacity >= int.MaxValue ? int.MaxValue : (int)capacity;
     }
 
@@ -147,7 +138,7 @@ namespace Ros2csSpinBenchmarks
       var state = new BenchmarkState(
         arguments.EntityCount,
         arguments.LoadProfile,
-        EstimateSpinDurationCapacity(arguments));
+        GetSpinDurationCapacity(arguments));
       try
       {
         using INode node = Ros2cs.CreateNode("ros2cs_spin_benchmark_node");
@@ -200,6 +191,8 @@ namespace Ros2csSpinBenchmarks
           spinDurationSamples = state.SpinDurationMs.ToList();
         }
         metrics.SpinDurationSampleCount = spinDurationSamples.Count;
+        metrics.SpinDurationCapacityExpansions =
+          Interlocked.Read(ref state.SpinDurationCapacityExpansions);
         metrics.SpinDurationP50Ms = Percentile(spinDurationSamples, 50.0);
         metrics.SpinDurationP95Ms = Percentile(spinDurationSamples, 95.0);
         metrics.SpinDurationP99Ms = Percentile(spinDurationSamples, 99.0);
@@ -470,6 +463,7 @@ namespace Ros2csSpinBenchmarks
       internal long ReceivedMessages;
       internal long SpinCalls;
       internal long DrainSpinCalls;
+      internal long SpinDurationCapacityExpansions;
       internal long SpinAllocatedBytes;
 
       internal void RecordSpinDuration(long stopwatchTicks)
@@ -477,6 +471,10 @@ namespace Ros2csSpinBenchmarks
         double durationMs = ToMilliseconds(stopwatchTicks);
         lock (SpinDurationLock)
         {
+          if (SpinDurationMs.Count == SpinDurationMs.Capacity)
+          {
+            SpinDurationCapacityExpansions++;
+          }
           SpinDurationMs.Add(durationMs);
         }
       }
@@ -528,6 +526,7 @@ namespace Ros2csSpinBenchmarks
         Interlocked.Exchange(ref ReceivedMessages, 0);
         Interlocked.Exchange(ref SpinCalls, 0);
         Interlocked.Exchange(ref DrainSpinCalls, 0);
+        Interlocked.Exchange(ref SpinDurationCapacityExpansions, 0);
         Interlocked.Exchange(ref SpinAllocatedBytes, 0);
       }
     }
@@ -576,6 +575,7 @@ namespace Ros2csSpinBenchmarks
       public long SpinCalls { get; set; }
       public long DrainSpinCalls { get; set; }
       public long SpinDurationSampleCount { get; set; }
+      public long SpinDurationCapacityExpansions { get; set; }
       public double CpuSeconds { get; set; }
       public double CpuPercent { get; set; }
       public double ThroughputMessagesPerSecond { get; set; }
