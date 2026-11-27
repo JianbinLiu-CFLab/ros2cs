@@ -48,6 +48,12 @@ namespace ROS2
     [ThreadStatic]
     // Tracks callback execution per spinning thread to reject deadlock-prone synchronous client calls.
     private static int spinCallbackDepth;
+    [ThreadStatic]
+    private static ISubscriptionBase[] spinSubscriptionSnapshot;
+    [ThreadStatic]
+    private static IClientBase[] spinClientSnapshot;
+    [ThreadStatic]
+    private static IServiceBase[] spinServiceSnapshot;
     private static volatile bool initialized = false;  // for most part equivalent to rcl::ok()
     // true before first Init() so FiniContext() is a no-op in the pre-init state.
     // After Init(), it prevents rcl_context_fini from running twice across shutdown/finalization.
@@ -427,144 +433,176 @@ namespace ROS2
     /// <summary>Shared spin path for single-node and multi-node public overloads.</summary>
     private static bool SpinOnceCore(INode singleNode, List<INode> nodes, double timeoutSec)
     {
-      List<ISubscriptionBase> allSubscriptions;
-      List<IClientBase> allClients;
-      List<IServiceBase> allServices;
-      bool success;
+      bool useThreadStaticSnapshot = spinCallbackDepth == 0;
+      ISubscriptionBase[] allSubscriptions = useThreadStaticSnapshot
+        ? spinSubscriptionSnapshot
+        : null;
+      IClientBase[] allClients = useThreadStaticSnapshot ? spinClientSnapshot : null;
+      IServiceBase[] allServices = useThreadStaticSnapshot ? spinServiceSnapshot : null;
+      int subscriptionCount = 0;
+      int clientCount = 0;
+      int serviceCount = 0;
       string directSpinFallbackLogReason = null;
 
-      lock (mutex)
+      try
       {
-        if (!initialized)
+        lock (mutex)
         {
-          return false;
-        }
-
-        // Snapshot entity collections under the global/node locks, then release them before waiting.
-        allSubscriptions = new List<ISubscriptionBase>();
-        allClients = new List<IClientBase>();
-        allServices = new List<IServiceBase>();
-        if (singleNode != null)
-        {
-          AppendNodeEntities(singleNode, allSubscriptions, allClients, allServices);
-        }
-        else
-        {
-          foreach (INode nodeInterface in nodes)
-          {
-            AppendNodeEntities(nodeInterface, allSubscriptions, allClients, allServices);
-          }
-        }
-      }
-
-      if (allSubscriptions.Count == 0 && allClients.Count == 0 && allServices.Count == 0)
-      {
-        return false;
-      }
-
-      lock (waitSetMutex)
-      {
-        if (!initialized)
-        {
-          return false;
-        }
-
-        if (useDirectSpinFallback)
-        {
-          if (Interlocked.Exchange(ref directSpinFallbackLogged, 1) == 0)
-          {
-            directSpinFallbackLogReason = directSpinFallbackReason;
-          }
-          try
-          {
-            directSpinWaitActive = true;
-            SleepForSpinTimeout(timeoutSec);
-            success = true;
-          }
-          finally
-          {
-            directSpinWaitActive = false;
-          }
-        }
-        else
-        {
-          if (WaitSet == null)
+          if (!initialized)
           {
             return false;
           }
 
-          WaitSet.Resize(
-            (ulong)allSubscriptions.Count,
-            (ulong)allClients.Count,
-            (ulong)allServices.Count
-          );
-          foreach(var subscription in allSubscriptions)
+          // Snapshot entity collections under the global/node locks, then release them before waiting.
+          if (singleNode != null)
           {
-            AddResult result = WaitSet.TryAddSubscription(subscription, out ulong _);
-            ThrowIfWaitSetFull(result, "subscription");
+            AppendNodeEntities(
+              singleNode,
+              ref allSubscriptions,
+              ref subscriptionCount,
+              ref allClients,
+              ref clientCount,
+              ref allServices,
+              ref serviceCount);
           }
-          foreach(var client in allClients)
+          else
           {
-            AddResult result = WaitSet.TryAddClient(client, out ulong _);
-            ThrowIfWaitSetFull(result, "client");
-          }
-          foreach(var service in allServices)
-          {
-            AddResult result = WaitSet.TryAddService(service, out ulong _);
-            ThrowIfWaitSetFull(result, "service");
-          }
-          try
-          {
-            waitSetWaitActive = true;
-            success = WaitSet.Wait(TimeSpan.FromSeconds(timeoutSec));
-          }
-          catch (WaitSetEmptyException)
-          {
-            return false;
-          }
-          finally
-          {
-            waitSetWaitActive = false;
+            foreach (INode nodeInterface in nodes)
+            {
+              AppendNodeEntities(
+                nodeInterface,
+                ref allSubscriptions,
+                ref subscriptionCount,
+                ref allClients,
+                ref clientCount,
+                ref allServices,
+                ref serviceCount);
+            }
           }
         }
-      }
 
-      if (directSpinFallbackLogReason != null)
-      {
-        LogDirectSpinFallback(directSpinFallbackLogReason);
-      }
-
-      if (success)
-      {
-        if (!Ros2cs.Ok())
+        if (subscriptionCount == 0 && clientCount == 0 && serviceCount == 0)
         {
           return false;
         }
 
-        // Mark callback execution so synchronous client calls can fail fast instead of blocking spin.
-        spinCallbackDepth++;
-        try
+        bool success;
+        lock (waitSetMutex)
         {
-          // Sequential processing. Isolate each entity so one user callback cannot stop the whole batch.
-          foreach (ISubscriptionBase subscription in allSubscriptions)
+          if (!initialized)
           {
-            TryTakeMessage(subscription);
+            return false;
           }
-          foreach (IClientBase client in allClients)
+
+          if (useDirectSpinFallback)
           {
-            TryTakeMessage(client);
+            if (Interlocked.Exchange(ref directSpinFallbackLogged, 1) == 0)
+            {
+              directSpinFallbackLogReason = directSpinFallbackReason;
+            }
+            try
+            {
+              directSpinWaitActive = true;
+              SleepForSpinTimeout(timeoutSec);
+              success = true;
+            }
+            finally
+            {
+              directSpinWaitActive = false;
+            }
           }
-          foreach (IServiceBase service in allServices)
+          else
           {
-            TryTakeMessage(service);
+            if (WaitSet == null)
+            {
+              return false;
+            }
+
+            WaitSet.Resize(
+              (ulong)subscriptionCount,
+              (ulong)clientCount,
+              (ulong)serviceCount
+            );
+            for (int i = 0; i < subscriptionCount; i++)
+            {
+              AddResult result = WaitSet.TryAddSubscription(allSubscriptions[i], out ulong _);
+              ThrowIfWaitSetFull(result, "subscription");
+            }
+            for (int i = 0; i < clientCount; i++)
+            {
+              AddResult result = WaitSet.TryAddClient(allClients[i], out ulong _);
+              ThrowIfWaitSetFull(result, "client");
+            }
+            for (int i = 0; i < serviceCount; i++)
+            {
+              AddResult result = WaitSet.TryAddService(allServices[i], out ulong _);
+              ThrowIfWaitSetFull(result, "service");
+            }
+            try
+            {
+              waitSetWaitActive = true;
+              success = WaitSet.Wait(TimeSpan.FromSeconds(timeoutSec));
+            }
+            catch (WaitSetEmptyException)
+            {
+              return false;
+            }
+            finally
+            {
+              waitSetWaitActive = false;
+            }
           }
         }
-        finally
+
+        if (directSpinFallbackLogReason != null)
         {
-          spinCallbackDepth--;
+          LogDirectSpinFallback(directSpinFallbackLogReason);
+        }
+
+        if (success)
+        {
+          if (!Ros2cs.Ok())
+          {
+            return false;
+          }
+
+          // Mark callback execution so synchronous client calls can fail fast instead of blocking spin.
+          spinCallbackDepth++;
+          try
+          {
+            // Sequential processing. Isolate each entity so one user callback cannot stop the whole batch.
+            for (int i = 0; i < subscriptionCount; i++)
+            {
+              TryTakeMessage(allSubscriptions[i]);
+            }
+            for (int i = 0; i < clientCount; i++)
+            {
+              TryTakeMessage(allClients[i]);
+            }
+            for (int i = 0; i < serviceCount; i++)
+            {
+              TryTakeMessage(allServices[i]);
+            }
+          }
+          finally
+          {
+            spinCallbackDepth--;
+          }
+        }
+        return true;
+      }
+      finally
+      {
+        ClearSnapshot(allSubscriptions, subscriptionCount);
+        ClearSnapshot(allClients, clientCount);
+        ClearSnapshot(allServices, serviceCount);
+        if (useThreadStaticSnapshot)
+        {
+          spinSubscriptionSnapshot = allSubscriptions;
+          spinClientSnapshot = allClients;
+          spinServiceSnapshot = allServices;
         }
       }
-      return true;
     }
 
     /// <summary>Bounded fallback used by the Lyrical preview where rcl_wait can crash after repeated context cycling.</summary>
@@ -626,9 +664,12 @@ namespace ROS2
     /// <summary>Append entities from a concrete ros2cs node, ignoring foreign/disposed interface instances.</summary>
     private static void AppendNodeEntities(
       INode nodeInterface,
-      List<ISubscriptionBase> allSubscriptions,
-      List<IClientBase> allClients,
-      List<IServiceBase> allServices)
+      ref ISubscriptionBase[] allSubscriptions,
+      ref int subscriptionCount,
+      ref IClientBase[] allClients,
+      ref int clientCount,
+      ref IServiceBase[] allServices,
+      ref int serviceCount)
     {
       Node node = nodeInterface as Node;
       if (node == null)
@@ -636,7 +677,23 @@ namespace ROS2
         return;
       }
 
-      node.AppendEntities(allSubscriptions, allClients, allServices);
+      node.AppendEntities(
+        ref allSubscriptions,
+        ref subscriptionCount,
+        ref allClients,
+        ref clientCount,
+        ref allServices,
+        ref serviceCount);
+    }
+
+    /// <summary>Clear references held by a completed spin snapshot.</summary>
+    private static void ClearSnapshot<T>(T[] snapshot, int count)
+      where T : class
+    {
+      if (snapshot != null && count > 0)
+      {
+        Array.Clear(snapshot, 0, count);
+      }
     }
 
     /// <summary>Finalize the global rcl context exactly once.</summary>
