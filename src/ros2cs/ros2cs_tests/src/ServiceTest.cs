@@ -160,5 +160,45 @@ namespace ROS2.Test
             using var response = pendingResponse.Result;
             Assert.That(response.Sum, Is.EqualTo(0));
         }
+
+        [Test]
+        public void ServiceDisposeDuringCallbackSkipsLateResponse()
+        {
+            using var callbackStarted = new ManualResetEventSlim(false);
+            using var releaseCallback = new ManualResetEventSlim(false);
+            Service.Dispose();
+            Service = Node.CreateService<AddTwoInts_Request, AddTwoInts_Response>(
+                SERVICE_NAME,
+                msg =>
+                {
+                    callbackStarted.Set();
+                    if (!releaseCallback.Wait(ServiceResponseTimeout))
+                    {
+                        throw new TimeoutException("Timed out waiting to release service callback");
+                    }
+
+                    var response = new AddTwoInts_Response();
+                    response.Sum = msg.A + msg.B;
+                    return response;
+                });
+            using var client = Node.CreateClient<AddTwoInts_Request, AddTwoInts_Response>(SERVICE_NAME);
+            Task<AddTwoInts_Response> pendingResponse = client.CallAsync(CreateRequest(4, 5));
+            Task spinTask = Task.Run(() => Ros2cs.SpinOnce(Node, 0.1));
+
+            try
+            {
+                Assert.That(callbackStarted.Wait(ServiceResponseTimeout), Is.True);
+                Assert.DoesNotThrow(() => Service.Dispose());
+            }
+            finally
+            {
+                releaseCallback.Set();
+            }
+
+            Assert.That(spinTask.Wait(ServiceResponseTimeout), Is.True);
+            Assert.That(spinTask.IsFaulted, Is.False);
+            Assert.That(pendingResponse.IsCompleted, Is.False);
+            Assert.DoesNotThrow(() => client.Dispose());
+        }
     }
 }

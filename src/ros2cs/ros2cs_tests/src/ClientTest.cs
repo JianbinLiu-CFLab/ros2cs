@@ -292,9 +292,16 @@ namespace ROS2.Test
         {
             Task pendingTask = Client.CallAsync(CreateRequest(42, 3));
             using var continuationStarted = new ManualResetEventSlim(false);
+            int disposeThreadId = Environment.CurrentManagedThreadId;
+            int continuationThreadId = 0;
+            bool continuationObservedDisposedTask = false;
             Task continuation = pendingTask.ContinueWith(
-                _ =>
+                completedTask =>
                 {
+                    continuationThreadId = Environment.CurrentManagedThreadId;
+                    continuationObservedDisposedTask = completedTask.IsFaulted &&
+                        completedTask.Exception.InnerExceptions.Any(
+                            exception => exception is ObjectDisposedException);
                     using var continuationNode =
                         Ros2cs.CreateNode("client_dispose_continuation_node");
                     continuationStarted.Set();
@@ -307,6 +314,13 @@ namespace ROS2.Test
 
             Assert.That(continuation.Wait(TimeSpan.FromSeconds(5)), Is.True);
             Assert.That(continuationStarted.IsSet, Is.True);
+            Assert.That(continuationThreadId, Is.Not.EqualTo(disposeThreadId));
+            Assert.That(continuationObservedDisposedTask, Is.True);
+            Assert.That(pendingTask.IsFaulted, Is.True);
+            Assert.That(
+                pendingTask.Exception.InnerExceptions.Any(
+                    exception => exception is ObjectDisposedException),
+                Is.True);
         }
 
         [Test]
