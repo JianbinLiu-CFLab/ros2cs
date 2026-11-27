@@ -49,6 +49,8 @@ namespace ROS2
     // Tracks callback execution per spinning thread to reject deadlock-prone synchronous client calls.
     private static int spinCallbackDepth;
     [ThreadStatic]
+    private static int spinInvocationDepth;
+    [ThreadStatic]
     private static ISubscriptionBase[] spinSubscriptionSnapshot;
     [ThreadStatic]
     private static IClientBase[] spinClientSnapshot;
@@ -433,7 +435,8 @@ namespace ROS2
     /// <summary>Shared spin path for single-node and multi-node public overloads.</summary>
     private static bool SpinOnceCore(INode singleNode, List<INode> nodes, double timeoutSec)
     {
-      bool useThreadStaticSnapshot = spinCallbackDepth == 0;
+      bool useThreadStaticSnapshot = spinInvocationDepth == 0;
+      spinInvocationDepth++;
       ISubscriptionBase[] allSubscriptions = useThreadStaticSnapshot
         ? spinSubscriptionSnapshot
         : null;
@@ -602,6 +605,7 @@ namespace ROS2
           spinClientSnapshot = allClients;
           spinServiceSnapshot = allServices;
         }
+        spinInvocationDepth--;
       }
     }
 

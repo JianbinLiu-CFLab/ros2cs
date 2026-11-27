@@ -121,48 +121,57 @@ namespace ROS2.Test
         {
             using var outerNode = Ros2cs.CreateNode("nested_snapshot_outer_node");
             using var innerNode = Ros2cs.CreateNode("nested_snapshot_inner_node");
-            using var outerPublisher =
+            using var firstOuterPublisher =
                 outerNode.CreatePublisher<std_msgs.msg.Int32>("nested_snapshot_outer_topic");
+            using var secondOuterPublisher =
+                outerNode.CreatePublisher<std_msgs.msg.Int32>("nested_snapshot_outer_topic_two");
             using var innerPublisher =
                 innerNode.CreatePublisher<std_msgs.msg.Int32>("nested_snapshot_inner_topic");
 
             int outerCallbackCount = 0;
             int innerCallbackCount = 0;
-            bool nestedSpinInvoked = false;
+            int nestedSpinInvoked = 0;
             outerNode.CreateSubscription<std_msgs.msg.Int32>(
                 "nested_snapshot_outer_topic",
                 _ =>
                 {
-                    outerCallbackCount++;
-                    if (!nestedSpinInvoked)
+                    Interlocked.Increment(ref outerCallbackCount);
+                    if (Interlocked.Exchange(ref nestedSpinInvoked, 1) == 0)
                     {
-                        nestedSpinInvoked = true;
                         Ros2cs.SpinOnce(innerNode, 0.1);
                     }
                 });
+            outerNode.CreateSubscription<std_msgs.msg.Int32>(
+                "nested_snapshot_outer_topic_two",
+                _ => Interlocked.Increment(ref outerCallbackCount));
             innerNode.CreateSubscription<std_msgs.msg.Int32>(
                 "nested_snapshot_inner_topic",
                 _ => innerCallbackCount++);
 
             Assert.That(
                 SpinWait.SpinUntil(
-                    () => outerPublisher.GetSubscriptionCountForTests() > 0 &&
+                    () => firstOuterPublisher.GetSubscriptionCountForTests() > 0 &&
+                          secondOuterPublisher.GetSubscriptionCountForTests() > 0 &&
                           innerPublisher.GetSubscriptionCountForTests() > 0,
                     EndpointDiscoveryTimeout),
                 Is.True,
                 "DDS publishers did not match nested snapshot subscriptions");
 
-            using var outerMessage = new std_msgs.msg.Int32();
+            Ros2cs.SpinOnce(outerNode, 0.0);
+
+            using var firstOuterMessage = new std_msgs.msg.Int32();
+            using var secondOuterMessage = new std_msgs.msg.Int32();
             using var innerMessage = new std_msgs.msg.Int32();
-            outerPublisher.Publish(outerMessage);
+            firstOuterPublisher.Publish(firstOuterMessage);
+            secondOuterPublisher.Publish(secondOuterMessage);
             innerPublisher.Publish(innerMessage);
 
-            for (int i = 0; i < 10 && outerCallbackCount == 0; i++)
+            for (int i = 0; i < 10 && outerCallbackCount < 2; i++)
             {
                 Ros2cs.SpinOnce(outerNode, SpinOnceTimeoutSeconds);
             }
 
-            Assert.That(outerCallbackCount, Is.EqualTo(1));
+            Assert.That(outerCallbackCount, Is.EqualTo(2));
             Assert.That(innerCallbackCount, Is.EqualTo(1));
         }
 

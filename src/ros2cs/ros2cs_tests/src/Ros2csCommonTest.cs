@@ -12,6 +12,7 @@ using System.IO;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using NUnit.Framework;
 
@@ -103,6 +104,86 @@ namespace ROS2.Test
                 Assert.That(informationCount, Is.EqualTo(1));
                 Assert.That(warningCount, Is.Zero);
                 StringAssert.Contains("using direct spin fallback without rcl_wait", informationMessage);
+            }
+            finally
+            {
+                if (Ros2cs.Ok())
+                {
+                    Ros2cs.Shutdown();
+                }
+                Environment.SetEnvironmentVariable("ROS2CS_SPIN_FALLBACK", previousSpinFallback);
+            }
+        }
+
+        [Test]
+        public void DirectSpinFallbackLoggerReentryPreservesOuterSnapshot()
+        {
+            string previousSpinFallback = Environment.GetEnvironmentVariable("ROS2CS_SPIN_FALLBACK");
+            int outerCallbackCount = 0;
+            int innerCallbackCount = 0;
+            int loggerReentryCount = 0;
+            INode warmupNode = null;
+            INode outerNode = null;
+            INode innerNode = null;
+
+            try
+            {
+                if (Ros2cs.Ok())
+                {
+                    Ros2cs.Shutdown();
+                }
+
+                Environment.SetEnvironmentVariable("ROS2CS_SPIN_FALLBACK", "waitset");
+                Ros2cs.Init();
+                warmupNode = Ros2cs.CreateNode("direct_spin_logger_warmup_node");
+                warmupNode.CreateSubscription<std_msgs.msg.Int32>(
+                    "direct_spin_logger_warmup_topic",
+                    _ => { });
+                Ros2cs.SpinOnce(warmupNode, 0.0);
+                Ros2cs.Shutdown();
+
+                Environment.SetEnvironmentVariable("ROS2CS_SPIN_FALLBACK", "direct");
+                Ros2cs.Init();
+                outerNode = Ros2cs.CreateNode("direct_spin_logger_outer_node");
+                innerNode = Ros2cs.CreateNode("direct_spin_logger_inner_node");
+                using var firstOuterPublisher =
+                    outerNode.CreatePublisher<std_msgs.msg.Int32>("direct_spin_logger_outer_topic");
+                using var secondOuterPublisher =
+                    outerNode.CreatePublisher<std_msgs.msg.Int32>("direct_spin_logger_outer_topic_two");
+                using var innerPublisher =
+                    innerNode.CreatePublisher<std_msgs.msg.Int32>("direct_spin_logger_inner_topic");
+
+                outerNode.CreateSubscription<std_msgs.msg.Int32>(
+                    "direct_spin_logger_outer_topic",
+                    _ => Interlocked.Increment(ref outerCallbackCount));
+                outerNode.CreateSubscription<std_msgs.msg.Int32>(
+                    "direct_spin_logger_outer_topic_two",
+                    _ => Interlocked.Increment(ref outerCallbackCount));
+                innerNode.CreateSubscription<std_msgs.msg.Int32>(
+                    "direct_spin_logger_inner_topic",
+                    _ => Interlocked.Increment(ref innerCallbackCount));
+
+                using var firstOuterMessage = new std_msgs.msg.Int32();
+                using var secondOuterMessage = new std_msgs.msg.Int32();
+                using var innerMessage = new std_msgs.msg.Int32();
+                firstOuterPublisher.Publish(firstOuterMessage);
+                secondOuterPublisher.Publish(secondOuterMessage);
+                innerPublisher.Publish(innerMessage);
+
+                Ros2csLogger.SetCallback(LogLevel.INFO, message =>
+                {
+                    string text = (string)message;
+                    if (text.Contains("using direct spin fallback without rcl_wait") &&
+                        Interlocked.Exchange(ref loggerReentryCount, 1) == 0)
+                    {
+                        Ros2cs.SpinOnce(innerNode, 0.0);
+                    }
+                });
+
+                Assert.That(Ros2cs.SpinOnce(outerNode, 0.0), Is.True);
+                Assert.That(outerCallbackCount, Is.EqualTo(2));
+                Assert.That(innerCallbackCount, Is.EqualTo(1));
+                Assert.That(loggerReentryCount, Is.EqualTo(1));
             }
             finally
             {
