@@ -219,13 +219,26 @@ namespace ROS2
             }
             finally
             {
-              if (responseScratchMessage != null)
+              try
               {
-                ((IDisposable)responseScratchMessage).Dispose();
-                responseScratchMessage = null;
+                if (responseScratchMessage != null)
+                {
+                  ((IDisposable)responseScratchMessage).Dispose();
+                }
               }
-              clientOptions = IntPtr.Zero;
-              disposed = true;
+              catch (Exception e)
+              {
+                if (disposing)
+                {
+                  Utils.AddException(ref disposeExceptions, e);
+                }
+              }
+              finally
+              {
+                responseScratchMessage = null;
+                clientOptions = IntPtr.Zero;
+                disposed = true;
+              }
             }
           }
         }

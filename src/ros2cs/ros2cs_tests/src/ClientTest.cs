@@ -21,10 +21,12 @@
 using System;
 using System.Linq;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using NUnit.Framework;
 using example_interfaces.srv;
+using ROS2.Internal;
 
 namespace ROS2.Test
 {
@@ -292,9 +294,16 @@ namespace ROS2.Test
         {
             Task pendingTask = Client.CallAsync(CreateRequest(42, 3));
             using var continuationStarted = new ManualResetEventSlim(false);
+            int disposeThreadId = Environment.CurrentManagedThreadId;
+            int continuationThreadId = 0;
+            bool continuationObservedDisposedTask = false;
             Task continuation = pendingTask.ContinueWith(
-                _ =>
+                completedTask =>
                 {
+                    continuationThreadId = Environment.CurrentManagedThreadId;
+                    continuationObservedDisposedTask = completedTask.IsFaulted &&
+                        completedTask.Exception.InnerExceptions.Any(
+                            exception => exception is ObjectDisposedException);
                     using var continuationNode =
                         Ros2cs.CreateNode("client_dispose_continuation_node");
                     continuationStarted.Set();
@@ -307,6 +316,38 @@ namespace ROS2.Test
 
             Assert.That(continuation.Wait(TimeSpan.FromSeconds(5)), Is.True);
             Assert.That(continuationStarted.IsSet, Is.True);
+            Assert.That(continuationThreadId, Is.Not.EqualTo(disposeThreadId));
+            Assert.That(continuationObservedDisposedTask, Is.True);
+            Assert.That(pendingTask.IsFaulted, Is.True);
+            Assert.That(
+                pendingTask.Exception.InnerExceptions.Any(
+                    exception => exception is ObjectDisposedException),
+                Is.True);
+        }
+
+        [Test]
+        public void DisposingClientCompletesPendingTasksWhenScratchMessageDisposeFails()
+        {
+            Task<AddTwoInts_Response> pendingTask = Client.CallAsync(CreateRequest(42, 3));
+            var throwingMessage = new ThrowingResponseMessage();
+            FieldInfo scratchField = typeof(Client<AddTwoInts_Request, AddTwoInts_Response>)
+                .GetField("responseScratchMessage", BindingFlags.Instance | BindingFlags.NonPublic);
+            scratchField.SetValue(Client, throwingMessage);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => Client.Dispose());
+
+            Assert.That(exception.Message, Is.EqualTo("response scratch disposal failed"));
+            Assert.That(Client.IsDisposed, Is.True);
+            Assert.That(Client.PendingRequests.Count, Is.Zero);
+            Assert.That(pendingTask.IsFaulted, Is.True);
+            Assert.That(
+                pendingTask.Exception.InnerExceptions.Any(
+                    error => error is ObjectDisposedException),
+                Is.True);
+
+            Assert.DoesNotThrow(() => Client.Dispose());
+            Assert.That(throwingMessage.DisposeCalls, Is.EqualTo(1));
         }
 
         [Test]
@@ -372,6 +413,29 @@ namespace ROS2.Test
             Assert.That(this.Client.PendingRequests.Count, Is.Zero);
 
             Assert.DoesNotThrow(() => { Ros2cs.SpinOnce(Node, 0.1); });            
+        }
+
+        private sealed class ThrowingResponseMessage : Message, MessageInternals
+        {
+            public IntPtr Handle { get { return IntPtr.Zero; } }
+            public IntPtr TypeSupportHandle { get { return IntPtr.Zero; } }
+            public bool IsDisposed { get; private set; }
+            public int DisposeCalls { get; private set; }
+
+            public void ReadNativeMessage()
+            {
+            }
+
+            public void WriteNativeMessage()
+            {
+            }
+
+            public void Dispose()
+            {
+                DisposeCalls++;
+                IsDisposed = true;
+                throw new InvalidOperationException("response scratch disposal failed");
+            }
         }
     }
 }

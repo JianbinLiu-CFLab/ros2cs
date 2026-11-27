@@ -143,7 +143,7 @@ namespace Ros2csSpinBenchmarks
       {
         using INode node = Ros2cs.CreateNode("ros2cs_spin_benchmark_node");
         CreateEntities(node, state);
-        WaitForEntityDiscovery(node, state);
+        WaitForEntityDiscovery(state);
 
         RunSpinIterations(node, state, arguments.WarmupIterations);
         DrainMessages(node, state);
@@ -233,22 +233,28 @@ namespace Ros2csSpinBenchmarks
 
         if (state.IsActive(entityIndex))
         {
-          state.Publishers.Add(node.CreatePublisher<std_msgs.msg.Int64>(topic));
+          Publisher<std_msgs.msg.Int64> publisher = node.CreatePublisher<std_msgs.msg.Int64>(topic);
+          state.Publishers.Add(publisher);
           state.Messages.Add(new std_msgs.msg.Int64());
           state.ActiveEntityIndices.Add(entityIndex);
-          state.ActiveTopics.Add(topic);
         }
       }
     }
 
-    private static void WaitForEntityDiscovery(INode node, BenchmarkState state)
+    private static void WaitForEntityDiscovery(BenchmarkState state)
     {
-      foreach (string topic in state.ActiveTopics)
+      foreach (Publisher<std_msgs.msg.Int64> publisher in state.Publishers)
       {
-        if (!node.TryWaitForSubscriber(topic, DiscoveryTimeout))
+        Stopwatch timer = Stopwatch.StartNew();
+        while (publisher.GetSubscriptionCountForTests() == 0 &&
+          timer.Elapsed < DiscoveryTimeout)
         {
-          throw new InvalidOperationException(
-            "Timed out waiting for subscriber discovery on topic '" + topic + "'");
+          Thread.Sleep(TimeSpan.FromMilliseconds(50));
+        }
+        if (publisher.GetSubscriptionCountForTests() == 0)
+        {
+          throw new InvalidOperationException("Timed out waiting for matched subscription on topic '" +
+            publisher.Topic + "'");
         }
       }
     }
@@ -447,11 +453,10 @@ namespace Ros2csSpinBenchmarks
       internal readonly string LoadProfile;
       internal readonly List<ISubscription<std_msgs.msg.Int64>> Subscriptions =
         new List<ISubscription<std_msgs.msg.Int64>>();
-      internal readonly List<IPublisher<std_msgs.msg.Int64>> Publishers =
-        new List<IPublisher<std_msgs.msg.Int64>>();
+      internal readonly List<Publisher<std_msgs.msg.Int64>> Publishers =
+        new List<Publisher<std_msgs.msg.Int64>>();
       internal readonly List<std_msgs.msg.Int64> Messages = new List<std_msgs.msg.Int64>();
       internal readonly List<int> ActiveEntityIndices = new List<int>();
-      internal readonly List<string> ActiveTopics = new List<string>();
       internal readonly ConcurrentDictionary<long, long> PublishedAt =
         new ConcurrentDictionary<long, long>();
       internal readonly List<double> LatenciesMs = new List<double>();
