@@ -21,6 +21,8 @@ namespace ROS2.Test
     [TestFixture]
     public class Ros2csCommonTest
     {
+        private static readonly TimeSpan EndpointDiscoveryTimeout = TimeSpan.FromSeconds(5);
+
         [SetUp]
         public void ResetCommonState()
         {
@@ -163,12 +165,22 @@ namespace ROS2.Test
                     "direct_spin_logger_inner_topic",
                     _ => Interlocked.Increment(ref innerCallbackCount));
 
+                Assert.That(
+                    SpinWait.SpinUntil(
+                        () => firstOuterPublisher.GetSubscriptionCountForTests() > 0 &&
+                              secondOuterPublisher.GetSubscriptionCountForTests() > 0 &&
+                              innerPublisher.GetSubscriptionCountForTests() > 0,
+                        EndpointDiscoveryTimeout),
+                    Is.True,
+                    "DDS publishers did not match logger reentry subscriptions");
+
                 using var firstOuterMessage = new std_msgs.msg.Int32();
                 using var secondOuterMessage = new std_msgs.msg.Int32();
                 using var innerMessage = new std_msgs.msg.Int32();
                 firstOuterPublisher.Publish(firstOuterMessage);
                 secondOuterPublisher.Publish(secondOuterMessage);
                 innerPublisher.Publish(innerMessage);
+                Thread.Sleep(TimeSpan.FromMilliseconds(100));
 
                 Ros2csLogger.SetCallback(LogLevel.INFO, message =>
                 {
@@ -176,11 +188,26 @@ namespace ROS2.Test
                     if (text.Contains("using direct spin fallback without rcl_wait") &&
                         Interlocked.Exchange(ref loggerReentryCount, 1) == 0)
                     {
-                        Ros2cs.SpinOnce(innerNode, 0.0);
+                        for (int attempt = 0;
+                             attempt < 20 && Volatile.Read(ref innerCallbackCount) == 0;
+                             attempt++)
+                        {
+                            Ros2cs.SpinOnce(innerNode, 0.0);
+                            Thread.Sleep(5);
+                        }
                     }
                 });
 
-                Assert.That(Ros2cs.SpinOnce(outerNode, 0.0), Is.True);
+                bool spinResult = false;
+                Assert.DoesNotThrow(() => spinResult = Ros2cs.SpinOnce(outerNode, 0.0));
+                Assert.That(spinResult, Is.True);
+                for (int attempt = 0;
+                     attempt < 20 && Volatile.Read(ref outerCallbackCount) < 2;
+                     attempt++)
+                {
+                    Assert.DoesNotThrow(() => Ros2cs.SpinOnce(outerNode, 0.0));
+                    Thread.Sleep(5);
+                }
                 Assert.That(outerCallbackCount, Is.EqualTo(2));
                 Assert.That(innerCallbackCount, Is.EqualTo(1));
                 Assert.That(loggerReentryCount, Is.EqualTo(1));

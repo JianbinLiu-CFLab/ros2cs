@@ -125,8 +125,10 @@ namespace ROS2.Test
                 outerNode.CreatePublisher<std_msgs.msg.Int32>("nested_snapshot_outer_topic");
             using var secondOuterPublisher =
                 outerNode.CreatePublisher<std_msgs.msg.Int32>("nested_snapshot_outer_topic_two");
-            using var innerPublisher =
+            using var firstInnerPublisher =
                 innerNode.CreatePublisher<std_msgs.msg.Int32>("nested_snapshot_inner_topic");
+            using var secondInnerPublisher =
+                innerNode.CreatePublisher<std_msgs.msg.Int32>("nested_snapshot_inner_topic_two");
 
             int outerCallbackCount = 0;
             int innerCallbackCount = 0;
@@ -146,13 +148,17 @@ namespace ROS2.Test
                 _ => Interlocked.Increment(ref outerCallbackCount));
             innerNode.CreateSubscription<std_msgs.msg.Int32>(
                 "nested_snapshot_inner_topic",
-                _ => innerCallbackCount++);
+                _ => Interlocked.Increment(ref innerCallbackCount));
+            innerNode.CreateSubscription<std_msgs.msg.Int32>(
+                "nested_snapshot_inner_topic_two",
+                _ => Interlocked.Increment(ref innerCallbackCount));
 
             Assert.That(
                 SpinWait.SpinUntil(
                     () => firstOuterPublisher.GetSubscriptionCountForTests() > 0 &&
                           secondOuterPublisher.GetSubscriptionCountForTests() > 0 &&
-                          innerPublisher.GetSubscriptionCountForTests() > 0,
+                          firstInnerPublisher.GetSubscriptionCountForTests() > 0 &&
+                          secondInnerPublisher.GetSubscriptionCountForTests() > 0,
                     EndpointDiscoveryTimeout),
                 Is.True,
                 "DDS publishers did not match nested snapshot subscriptions");
@@ -161,10 +167,12 @@ namespace ROS2.Test
 
             using var firstOuterMessage = new std_msgs.msg.Int32();
             using var secondOuterMessage = new std_msgs.msg.Int32();
-            using var innerMessage = new std_msgs.msg.Int32();
+            using var firstInnerMessage = new std_msgs.msg.Int32();
+            using var secondInnerMessage = new std_msgs.msg.Int32();
             firstOuterPublisher.Publish(firstOuterMessage);
             secondOuterPublisher.Publish(secondOuterMessage);
-            innerPublisher.Publish(innerMessage);
+            firstInnerPublisher.Publish(firstInnerMessage);
+            secondInnerPublisher.Publish(secondInnerMessage);
 
             for (int i = 0; i < 10 && outerCallbackCount < 2; i++)
             {
@@ -172,7 +180,7 @@ namespace ROS2.Test
             }
 
             Assert.That(outerCallbackCount, Is.EqualTo(2));
-            Assert.That(innerCallbackCount, Is.EqualTo(1));
+            Assert.That(innerCallbackCount, Is.EqualTo(2));
         }
 
         [Test]
