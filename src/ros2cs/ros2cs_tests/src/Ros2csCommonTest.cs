@@ -135,7 +135,7 @@ namespace ROS2.Test
                     Ros2cs.Shutdown();
                 }
 
-                Environment.SetEnvironmentVariable("ROS2CS_SPIN_FALLBACK", "waitset");
+                Environment.SetEnvironmentVariable("ROS2CS_SPIN_FALLBACK", "direct");
                 Ros2cs.Init();
                 warmupNode = Ros2cs.CreateNode("direct_spin_logger_warmup_node");
                 warmupNode.CreateSubscription<std_msgs.msg.Int32>(

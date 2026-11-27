@@ -145,7 +145,14 @@ namespace ROS2.Test
                 });
             outerNode.CreateSubscription<std_msgs.msg.Int32>(
                 "nested_snapshot_outer_topic_two",
-                _ => Interlocked.Increment(ref outerCallbackCount));
+                _ =>
+                {
+                    Interlocked.Increment(ref outerCallbackCount);
+                    if (Interlocked.Exchange(ref nestedSpinInvoked, 1) == 0)
+                    {
+                        Ros2cs.SpinOnce(innerNode, 0.1);
+                    }
+                });
             innerNode.CreateSubscription<std_msgs.msg.Int32>(
                 "nested_snapshot_inner_topic",
                 _ => Interlocked.Increment(ref innerCallbackCount));
@@ -181,6 +188,7 @@ namespace ROS2.Test
 
             Assert.That(outerCallbackCount, Is.EqualTo(2));
             Assert.That(innerCallbackCount, Is.EqualTo(2));
+            Assert.That(nestedSpinInvoked, Is.EqualTo(1));
         }
 
         [Test]
