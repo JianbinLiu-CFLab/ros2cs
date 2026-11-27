@@ -129,7 +129,10 @@ namespace Ros2csSpinBenchmarks
     private static BenchmarkRun ExecuteBenchmark(BenchmarkArguments arguments)
     {
       long processPrivateMemoryStartBytes = GetProcessPrivateMemoryBytes();
-      var state = new BenchmarkState(arguments.EntityCount, arguments.LoadProfile);
+      var state = new BenchmarkState(
+        arguments.EntityCount,
+        arguments.LoadProfile,
+        arguments.Iterations);
       try
       {
         using INode node = Ros2cs.CreateNode("ros2cs_spin_benchmark_node");
@@ -181,6 +184,7 @@ namespace Ros2csSpinBenchmarks
         {
           spinDurationSamples = state.SpinDurationMs.ToList();
         }
+        metrics.SpinDurationSampleCount = spinDurationSamples.Count;
         metrics.SpinDurationP50Ms = Percentile(spinDurationSamples, 50.0);
         metrics.SpinDurationP95Ms = Percentile(spinDurationSamples, 95.0);
         metrics.SpinDurationP99Ms = Percentile(spinDurationSamples, 99.0);
@@ -251,8 +255,9 @@ namespace Ros2csSpinBenchmarks
         Ros2cs.SpinOnce(node, state.HasActivePublishers
           ? ActiveSpinTimeoutSeconds
           : IdleSpinTimeoutSeconds);
+        long spinEnd = Stopwatch.GetTimestamp();
         long allocatedEnd = GC.GetAllocatedBytesForCurrentThread();
-        state.RecordSpinDuration(Stopwatch.GetTimestamp() - spinStart);
+        state.RecordSpinDuration(spinEnd - spinStart);
         Interlocked.Add(
           ref state.SpinAllocatedBytes,
           Math.Max(0L, allocatedEnd - allocatedStart));
@@ -275,7 +280,8 @@ namespace Ros2csSpinBenchmarks
       {
         long spinStart = Stopwatch.GetTimestamp();
         Ros2cs.SpinOnce(node, ActiveSpinTimeoutSeconds);
-        state.RecordSpinDuration(Stopwatch.GetTimestamp() - spinStart);
+        long spinEnd = Stopwatch.GetTimestamp();
+        state.RecordSpinDuration(spinEnd - spinStart);
         Interlocked.Increment(ref state.DrainSpinCalls);
       }
 
@@ -442,7 +448,7 @@ namespace Ros2csSpinBenchmarks
         new ConcurrentDictionary<long, long>();
       internal readonly List<double> LatenciesMs = new List<double>();
       internal readonly object LatencyLock = new object();
-      internal readonly List<double> SpinDurationMs = new List<double>();
+      internal readonly List<double> SpinDurationMs;
       internal readonly object SpinDurationLock = new object();
       internal long Sequence;
       internal long PublishedMessages;
@@ -465,10 +471,11 @@ namespace Ros2csSpinBenchmarks
         get { return Publishers.Count > 0; }
       }
 
-      internal BenchmarkState(int entityCount, string loadProfile)
+      internal BenchmarkState(int entityCount, string loadProfile, int spinDurationCapacity)
       {
         EntityCount = entityCount;
         LoadProfile = loadProfile;
+        SpinDurationMs = new List<double>(Math.Max(0, spinDurationCapacity));
       }
 
       internal bool IsActive(int index)
@@ -553,6 +560,7 @@ namespace Ros2csSpinBenchmarks
       public long WorkloadAllocatedBytes { get; set; }
       public long SpinCalls { get; set; }
       public long DrainSpinCalls { get; set; }
+      public long SpinDurationSampleCount { get; set; }
       public double CpuSeconds { get; set; }
       public double CpuPercent { get; set; }
       public double ThroughputMessagesPerSecond { get; set; }

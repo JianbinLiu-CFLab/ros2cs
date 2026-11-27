@@ -147,6 +147,7 @@ jobs:
                 --output "$output"
               python3 - "$output" "$mode" <<'PY'
           import json
+          import math
           import pathlib
           import sys
 
@@ -159,8 +160,31 @@ jobs:
               raise SystemExit("benchmark requested mode mismatch")
           if result.get("effectiveMode") != requested_mode:
               raise SystemExit("benchmark effective mode mismatch")
-          if result.get("metrics", {}).get("spinCalls", 0) <= 0:
-              raise SystemExit("benchmark did not record spin calls")
+          metrics = result.get("metrics", {})
+          spin_calls = metrics.get("spinCalls")
+          drain_spin_calls = metrics.get("drainSpinCalls")
+          sample_count = metrics.get("spinDurationSampleCount")
+          if type(spin_calls) is not int or spin_calls <= 0:
+              raise SystemExit("benchmark did not record valid spin calls")
+          durations = [
+              metrics.get("spinDurationP50Ms"),
+              metrics.get("spinDurationP95Ms"),
+              metrics.get("spinDurationP99Ms"),
+          ]
+          if any(
+              type(value) not in (int, float)
+              or not math.isfinite(value)
+              or value < 0
+              for value in durations
+          ):
+              raise SystemExit("invalid spin duration percentiles")
+          if durations != sorted(durations):
+              raise SystemExit("invalid spin duration percentile ordering")
+          if any(type(value) is not int for value in
+                 (spin_calls, drain_spin_calls, sample_count)):
+              raise SystemExit("invalid spin duration sample counters")
+          if sample_count != spin_calls + drain_spin_calls:
+              raise SystemExit("spin duration sample count mismatch")
           if result.get("commit") in (None, "unknown"):
               raise SystemExit("benchmark did not record source commit")
           if result.get("sourceDirty") != "false":
