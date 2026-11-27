@@ -22,6 +22,7 @@ using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace ROS2.Test
 {
@@ -86,6 +87,158 @@ namespace ROS2.Test
             Ros2cs.SpinOnce(node, SpinOnceTimeoutSeconds);
 
             Assert.That(callbackTriggered, Is.True);
+        }
+
+        [Test]
+        public void RepeatedSpinOnceReusesSnapshotStorage()
+        {
+            node.CreateSubscription<std_msgs.msg.Int32>(
+                "snapshot_reuse_allocation_topic",
+                _ => { });
+
+            for (int i = 0; i < 8; i++)
+            {
+                Ros2cs.SpinOnce(node, 0.0);
+            }
+
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+            const int measuredSpins = 32;
+            long allocatedStart = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < measuredSpins; i++)
+            {
+                Ros2cs.SpinOnce(node, 0.0);
+            }
+
+            double allocatedPerSpin =
+                (double)(GC.GetAllocatedBytesForCurrentThread() - allocatedStart) / measuredSpins;
+            Assert.That(allocatedPerSpin, Is.LessThan(128.0));
+        }
+
+        [Test]
+        public void NestedSpinOnAnotherNodePreservesOuterSnapshot()
+        {
+            using var outerNode = Ros2cs.CreateNode("nested_snapshot_outer_node");
+            using var innerNode = Ros2cs.CreateNode("nested_snapshot_inner_node");
+            using var firstOuterPublisher =
+                outerNode.CreatePublisher<std_msgs.msg.Int32>("nested_snapshot_outer_topic");
+            using var secondOuterPublisher =
+                outerNode.CreatePublisher<std_msgs.msg.Int32>("nested_snapshot_outer_topic_two");
+            using var firstInnerPublisher =
+                innerNode.CreatePublisher<std_msgs.msg.Int32>("nested_snapshot_inner_topic");
+            using var secondInnerPublisher =
+                innerNode.CreatePublisher<std_msgs.msg.Int32>("nested_snapshot_inner_topic_two");
+
+            int outerCallbackCount = 0;
+            int innerCallbackCount = 0;
+            int nestedSpinInvoked = 0;
+            outerNode.CreateSubscription<std_msgs.msg.Int32>(
+                "nested_snapshot_outer_topic",
+                _ =>
+                {
+                    Interlocked.Increment(ref outerCallbackCount);
+                    if (Interlocked.Exchange(ref nestedSpinInvoked, 1) == 0)
+                    {
+                        Ros2cs.SpinOnce(innerNode, 0.1);
+                    }
+                });
+            outerNode.CreateSubscription<std_msgs.msg.Int32>(
+                "nested_snapshot_outer_topic_two",
+                _ =>
+                {
+                    Interlocked.Increment(ref outerCallbackCount);
+                    if (Interlocked.Exchange(ref nestedSpinInvoked, 1) == 0)
+                    {
+                        Ros2cs.SpinOnce(innerNode, 0.1);
+                    }
+                });
+            innerNode.CreateSubscription<std_msgs.msg.Int32>(
+                "nested_snapshot_inner_topic",
+                _ => Interlocked.Increment(ref innerCallbackCount));
+            innerNode.CreateSubscription<std_msgs.msg.Int32>(
+                "nested_snapshot_inner_topic_two",
+                _ => Interlocked.Increment(ref innerCallbackCount));
+
+            Assert.That(
+                SpinWait.SpinUntil(
+                    () => firstOuterPublisher.GetSubscriptionCountForTests() > 0 &&
+                          secondOuterPublisher.GetSubscriptionCountForTests() > 0 &&
+                          firstInnerPublisher.GetSubscriptionCountForTests() > 0 &&
+                          secondInnerPublisher.GetSubscriptionCountForTests() > 0,
+                    EndpointDiscoveryTimeout),
+                Is.True,
+                "DDS publishers did not match nested snapshot subscriptions");
+
+            Ros2cs.SpinOnce(outerNode, 0.0);
+
+            using var firstOuterMessage = new std_msgs.msg.Int32();
+            using var secondOuterMessage = new std_msgs.msg.Int32();
+            using var firstInnerMessage = new std_msgs.msg.Int32();
+            using var secondInnerMessage = new std_msgs.msg.Int32();
+            firstOuterPublisher.Publish(firstOuterMessage);
+            secondOuterPublisher.Publish(secondOuterMessage);
+            firstInnerPublisher.Publish(firstInnerMessage);
+            secondInnerPublisher.Publish(secondInnerMessage);
+
+            for (int i = 0; i < 10 && outerCallbackCount < 2; i++)
+            {
+                Ros2cs.SpinOnce(outerNode, SpinOnceTimeoutSeconds);
+            }
+
+            Assert.That(outerCallbackCount, Is.EqualTo(2));
+            Assert.That(innerCallbackCount, Is.EqualTo(2));
+            Assert.That(nestedSpinInvoked, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void ConcurrentSpinOnSeparateNodesUsesIndependentSnapshots()
+        {
+            using var firstNode = Ros2cs.CreateNode("concurrent_snapshot_first_node");
+            using var secondNode = Ros2cs.CreateNode("concurrent_snapshot_second_node");
+            using var firstPublisher =
+                firstNode.CreatePublisher<std_msgs.msg.Int32>("concurrent_snapshot_first_topic");
+            using var secondPublisher =
+                secondNode.CreatePublisher<std_msgs.msg.Int32>("concurrent_snapshot_second_topic");
+
+            int firstCallbackCount = 0;
+            int secondCallbackCount = 0;
+            firstNode.CreateSubscription<std_msgs.msg.Int32>(
+                "concurrent_snapshot_first_topic",
+                _ => Interlocked.Increment(ref firstCallbackCount));
+            secondNode.CreateSubscription<std_msgs.msg.Int32>(
+                "concurrent_snapshot_second_topic",
+                _ => Interlocked.Increment(ref secondCallbackCount));
+
+            Assert.That(
+                SpinWait.SpinUntil(
+                    () => firstPublisher.GetSubscriptionCountForTests() > 0 &&
+                          secondPublisher.GetSubscriptionCountForTests() > 0,
+                    EndpointDiscoveryTimeout),
+                Is.True,
+                "DDS publishers did not match concurrent snapshot subscriptions");
+
+            using var firstMessage = new std_msgs.msg.Int32();
+            using var secondMessage = new std_msgs.msg.Int32();
+            firstPublisher.Publish(firstMessage);
+            secondPublisher.Publish(secondMessage);
+
+            using var startGate = new ManualResetEventSlim(false);
+            Task firstSpin = Task.Run(() =>
+            {
+                startGate.Wait();
+                Ros2cs.SpinOnce(firstNode, 0.1);
+            });
+            Task secondSpin = Task.Run(() =>
+            {
+                startGate.Wait();
+                Ros2cs.SpinOnce(secondNode, 0.1);
+            });
+            startGate.Set();
+
+            Assert.That(Task.WaitAll(new[] { firstSpin, secondSpin }, TimeSpan.FromSeconds(5)), Is.True);
+            Assert.That(firstCallbackCount, Is.EqualTo(1));
+            Assert.That(secondCallbackCount, Is.EqualTo(1));
         }
 
         [Test]

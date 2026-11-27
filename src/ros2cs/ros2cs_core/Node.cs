@@ -234,29 +234,44 @@ namespace ROS2
       }
     }
 
-    /// <summary>Copy live waitable entities into spin-local lists while holding the node lock.</summary>
+    /// <summary>Copy live waitable entities into snapshot arrays while holding the node lock.</summary>
     internal void AppendEntities(
-      List<ISubscriptionBase> targetSubscriptions,
-      List<IClientBase> targetClients,
-      List<IServiceBase> targetServices)
+      ref ISubscriptionBase[] targetSubscriptions,
+      ref int subscriptionCount,
+      ref IClientBase[] targetClients,
+      ref int clientCount,
+      ref IServiceBase[] targetServices,
+      ref int serviceCount)
     {
       lock (mutex)
       {
-        AppendLiveEntities(subscriptions, targetSubscriptions);
-        AppendLiveEntities(clients, targetClients);
-        AppendLiveEntities(services, targetServices);
+        AppendLiveEntities(subscriptions, ref targetSubscriptions, ref subscriptionCount);
+        AppendLiveEntities(clients, ref targetClients, ref clientCount);
+        AppendLiveEntities(services, ref targetServices, ref serviceCount);
       }
     }
 
-    /// <summary>Copy only live child entities into a spin-local snapshot.</summary>
-    private static void AppendLiveEntities<T>(IEnumerable<T> source, List<T> target)
+    /// <summary>Copy only live child entities into a snapshot array.</summary>
+    private static void AppendLiveEntities<T>(
+      HashSet<T> source,
+      ref T[] target,
+      ref int count)
       where T : class, IExtendedDisposable
     {
       foreach (T entity in source)
       {
         if (!entity.IsDisposed)
         {
-          target.Add(entity);
+          if (target == null)
+          {
+            target = new T[4];
+          }
+          else if (count == target.Length)
+          {
+            Array.Resize(ref target, target.Length * 2);
+          }
+
+          target[count++] = entity;
         }
       }
     }
