@@ -207,13 +207,9 @@ namespace ROS2.Test
             finally
             {
                 releaseCallback.Set();
-                SpinWait.SpinUntil(
-                    () => serviceTakeTask.IsCompleted,
-                    ServiceResponseTimeout);
+                Assert.That(serviceTakeTask.Wait(ServiceResponseTimeout), Is.True, "Service take did not finish");
             }
 
-            Assert.That(serviceTakeTask.IsCompleted, Is.True);
-            Assert.That(serviceTakeTask.IsFaulted, Is.False);
             Assert.That(callbackCompleted.IsSet, Is.True);
 
             DateTime deadline = DateTime.UtcNow + ServiceResponseTimeout;

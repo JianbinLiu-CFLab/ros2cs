@@ -1,4 +1,4 @@
-﻿// Copyright 2019 Dyno Robotics (by Samuel Lindgren samuel@dynorobotics.se)
+// Copyright 2019 Dyno Robotics (by Samuel Lindgren samuel@dynorobotics.se)
 // Copyright 2019-2021 Robotec.ai
 // Modifications Copyright (c) 2026 Jianbin Liu.
 //
@@ -21,6 +21,7 @@
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -129,40 +130,35 @@ namespace ROS2.Test
                 innerNode.CreatePublisher<std_msgs.msg.Int32>("nested_snapshot_inner_topic");
             using var secondInnerPublisher =
                 innerNode.CreatePublisher<std_msgs.msg.Int32>("nested_snapshot_inner_topic_two");
-
+            using var firstOuterMessage = new std_msgs.msg.Int32();
+            using var secondOuterMessage = new std_msgs.msg.Int32();
+            using var firstInnerMessage = new std_msgs.msg.Int32();
+            using var secondInnerMessage = new std_msgs.msg.Int32();
             int outerCallbackCount = 0;
             int innerCallbackCount = 0;
-            int nestedSpinInvoked = 0;
-            outerNode.CreateSubscription<std_msgs.msg.Int32>(
-                "nested_snapshot_outer_topic",
-                _ =>
+            bool outerSnapshotPreserved = false;
+            void OnOuterMessage(std_msgs.msg.Int32 message)
+            {
+                if (++outerCallbackCount != 1)
                 {
-                    Interlocked.Increment(ref outerCallbackCount);
-                    if (Interlocked.Exchange(ref nestedSpinInvoked, 1) == 0)
-                    {
-                        DateTime deadline = DateTime.UtcNow + EndpointDiscoveryTimeout;
-                        while (Volatile.Read(ref innerCallbackCount) < 2 &&
-                               DateTime.UtcNow < deadline)
-                        {
-                            Ros2cs.SpinOnce(innerNode, SpinOnceTimeoutSeconds);
-                        }
-                    }
-                });
-            outerNode.CreateSubscription<std_msgs.msg.Int32>(
-                "nested_snapshot_outer_topic_two",
-                _ =>
+                    return;
+                }
+
+                var snapshot = GetSubscriptionSnapshot();
+                var first = snapshot[0];
+                var second = snapshot[1];
+                secondOuterPublisher.Publish(secondOuterMessage);
+                SpinWait.SpinUntil(() =>
                 {
-                    Interlocked.Increment(ref outerCallbackCount);
-                    if (Interlocked.Exchange(ref nestedSpinInvoked, 1) == 0)
-                    {
-                        DateTime deadline = DateTime.UtcNow + EndpointDiscoveryTimeout;
-                        while (Volatile.Read(ref innerCallbackCount) < 2 &&
-                               DateTime.UtcNow < deadline)
-                        {
-                            Ros2cs.SpinOnce(innerNode, SpinOnceTimeoutSeconds);
-                        }
-                    }
-                });
+                    Ros2cs.SpinOnce(innerNode, SpinOnceTimeoutSeconds);
+                    return innerCallbackCount == 2;
+                }, EndpointDiscoveryTimeout);
+                outerSnapshotPreserved = first != null && second != null &&
+                    ReferenceEquals(first, snapshot[0]) && ReferenceEquals(second, snapshot[1]);
+            }
+
+            outerNode.CreateSubscription<std_msgs.msg.Int32>("nested_snapshot_outer_topic", OnOuterMessage);
+            outerNode.CreateSubscription<std_msgs.msg.Int32>("nested_snapshot_outer_topic_two", OnOuterMessage);
             innerNode.CreateSubscription<std_msgs.msg.Int32>(
                 "nested_snapshot_inner_topic",
                 _ => Interlocked.Increment(ref innerCallbackCount));
@@ -182,10 +178,6 @@ namespace ROS2.Test
 
             Ros2cs.SpinOnce(outerNode, 0.0);
 
-            using var firstOuterMessage = new std_msgs.msg.Int32();
-            using var secondOuterMessage = new std_msgs.msg.Int32();
-            using var firstInnerMessage = new std_msgs.msg.Int32();
-            using var secondInnerMessage = new std_msgs.msg.Int32();
             firstOuterPublisher.Publish(firstOuterMessage);
             secondOuterPublisher.Publish(secondOuterMessage);
             firstInnerPublisher.Publish(firstInnerMessage);
@@ -198,7 +190,7 @@ namespace ROS2.Test
 
             Assert.That(outerCallbackCount, Is.EqualTo(2));
             Assert.That(innerCallbackCount, Is.EqualTo(2));
-            Assert.That(nestedSpinInvoked, Is.EqualTo(1));
+            Assert.That(outerSnapshotPreserved, Is.True, "Nested spin changed the active outer snapshot");
         }
 
         [Test]
@@ -211,66 +203,65 @@ namespace ROS2.Test
             using var secondPublisher =
                 secondNode.CreatePublisher<std_msgs.msg.Int32>("concurrent_snapshot_second_topic");
 
-            int firstCallbackCount = 0;
-            int secondCallbackCount = 0;
             using var firstCallbackStarted = new ManualResetEventSlim(false);
-            using var secondCallbackStarted = new ManualResetEventSlim(false);
             using var releaseFirstCallback = new ManualResetEventSlim(false);
-            firstNode.CreateSubscription<std_msgs.msg.Int32>(
-                "concurrent_snapshot_first_topic",
-                _ =>
-                {
-                    firstCallbackStarted.Set();
-                    releaseFirstCallback.Wait(EndpointDiscoveryTimeout);
-                    Interlocked.Increment(ref firstCallbackCount);
-                });
+            bool firstCallbackReleased = false;
+            bool secondCallbackRan = false;
+            firstNode.CreateSubscription<std_msgs.msg.Int32>("concurrent_snapshot_first_topic", _ =>
+            {
+                firstCallbackStarted.Set();
+                firstCallbackReleased = releaseFirstCallback.Wait(EndpointDiscoveryTimeout);
+            });
             secondNode.CreateSubscription<std_msgs.msg.Int32>(
-                "concurrent_snapshot_second_topic",
-                _ =>
-                {
-                    secondCallbackStarted.Set();
-                    Interlocked.Increment(ref secondCallbackCount);
-                });
+                "concurrent_snapshot_second_topic", _ => secondCallbackRan = true);
 
-            Assert.That(
-                SpinWait.SpinUntil(
-                    () => firstPublisher.GetSubscriptionCountForTests() > 0 &&
-                          secondPublisher.GetSubscriptionCountForTests() > 0,
-                    EndpointDiscoveryTimeout),
-                Is.True,
-                "DDS publishers did not match concurrent snapshot subscriptions");
+            Assert.That(SpinWait.SpinUntil(
+                () => firstPublisher.GetSubscriptionCountForTests() > 0 &&
+                      secondPublisher.GetSubscriptionCountForTests() > 0,
+                EndpointDiscoveryTimeout), Is.True, "DDS publishers did not match concurrent snapshot subscriptions");
 
             using var firstMessage = new std_msgs.msg.Int32();
             using var secondMessage = new std_msgs.msg.Int32();
-            firstPublisher.Publish(firstMessage);
-            secondPublisher.Publish(secondMessage);
-
-            using var startGate = new ManualResetEventSlim(false);
+            ISubscriptionBase[] firstSnapshot = null;
             Task firstSpin = Task.Run(() =>
             {
-                startGate.Wait();
-                Ros2cs.SpinOnce(firstNode, 0.1);
+                Ros2cs.SpinOnce(firstNode, 0.0);
+                firstSnapshot = GetSubscriptionSnapshot();
+                firstPublisher.Publish(firstMessage);
+                SpinWait.SpinUntil(() =>
+                {
+                    Ros2cs.SpinOnce(firstNode, SpinOnceTimeoutSeconds);
+                    return firstCallbackStarted.IsSet;
+                }, EndpointDiscoveryTimeout);
             });
-            Task secondSpin = Task.Run(() =>
-            {
-                startGate.Wait();
-                Ros2cs.SpinOnce(secondNode, 0.1);
-            });
-            startGate.Set();
-
             try
             {
                 Assert.That(firstCallbackStarted.Wait(EndpointDiscoveryTimeout), Is.True);
-                Assert.That(secondCallbackStarted.Wait(EndpointDiscoveryTimeout), Is.True);
+                Ros2cs.SpinOnce(secondNode, 0.0);
+                var secondSnapshot = GetSubscriptionSnapshot();
+                Assert.That(firstSnapshot, Is.Not.Null);
+                Assert.That(secondSnapshot, Is.Not.Null);
+                Assert.That(secondSnapshot, Is.Not.SameAs(firstSnapshot), "Spin threads shared a subscription snapshot");
+
+                secondPublisher.Publish(secondMessage);
+                Assert.That(SpinWait.SpinUntil(() =>
+                {
+                    Ros2cs.SpinOnce(secondNode, SpinOnceTimeoutSeconds);
+                    return secondCallbackRan;
+                }, EndpointDiscoveryTimeout), Is.True);
             }
             finally
             {
                 releaseFirstCallback.Set();
+                Assert.That(firstSpin.Wait(EndpointDiscoveryTimeout), Is.True, "First spin did not finish");
             }
+            Assert.That(firstCallbackReleased, Is.True, "First callback timed out during the second spin");
+        }
 
-            Assert.That(Task.WaitAll(new[] { firstSpin, secondSpin }, EndpointDiscoveryTimeout), Is.True);
-            Assert.That(firstCallbackCount, Is.EqualTo(1));
-            Assert.That(secondCallbackCount, Is.EqualTo(1));
+        private static ISubscriptionBase[] GetSubscriptionSnapshot()
+        {
+            var field = typeof(Ros2cs).GetField("spinSubscriptionSnapshot", BindingFlags.NonPublic | BindingFlags.Static);
+            return (ISubscriptionBase[])field.GetValue(null);
         }
 
         [Test]
