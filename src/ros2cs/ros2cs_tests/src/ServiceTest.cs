@@ -166,6 +166,7 @@ namespace ROS2.Test
         {
             using var callbackStarted = new ManualResetEventSlim(false);
             using var releaseCallback = new ManualResetEventSlim(false);
+            using var callbackCompleted = new ManualResetEventSlim(false);
             Service.Dispose();
             Service = Node.CreateService<AddTwoInts_Request, AddTwoInts_Response>(
                 SERVICE_NAME,
@@ -179,12 +180,26 @@ namespace ROS2.Test
 
                     var response = new AddTwoInts_Response();
                     response.Sum = msg.A + msg.B;
+                    callbackCompleted.Set();
                     return response;
                 });
             using var client = Node.CreateClient<AddTwoInts_Request, AddTwoInts_Response>(SERVICE_NAME);
             Assert.That(client.TryWaitForService(ServiceResponseTimeout), Is.True);
             Task<AddTwoInts_Response> pendingResponse = client.CallAsync(CreateRequest(4, 5));
-            Task serviceTakeTask = Task.Run(() => Service.TakeMessage());
+            bool serviceTakeCompleted = false;
+            Exception serviceTakeException = null;
+            Task serviceTakeTask = Task.Run(() =>
+            {
+                DateTime deadline = DateTime.UtcNow + ServiceResponseTimeout;
+                while (!callbackStarted.IsSet && DateTime.UtcNow < deadline)
+                {
+                    Service.TakeMessage();
+                    if (!callbackStarted.IsSet)
+                    {
+                        Thread.Sleep(ServiceTakeRetryDelay);
+                    }
+                }
+            });
 
             try
             {
@@ -194,10 +209,15 @@ namespace ROS2.Test
             finally
             {
                 releaseCallback.Set();
+                serviceTakeCompleted = SpinWait.SpinUntil(
+                    () => serviceTakeTask.IsCompleted,
+                    ServiceResponseTimeout);
+                serviceTakeException = serviceTakeTask.Exception;
             }
 
-            Assert.That(serviceTakeTask.Wait(ServiceResponseTimeout), Is.True);
-            Assert.That(serviceTakeTask.IsFaulted, Is.False);
+            Assert.That(serviceTakeCompleted, Is.True, "Service take did not finish");
+            Assert.That(serviceTakeTask.IsFaulted, Is.False, serviceTakeException?.ToString());
+            Assert.That(callbackCompleted.IsSet, Is.True);
 
             DateTime deadline = DateTime.UtcNow + ServiceResponseTimeout;
             while (!pendingResponse.IsCompleted && DateTime.UtcNow < deadline)
