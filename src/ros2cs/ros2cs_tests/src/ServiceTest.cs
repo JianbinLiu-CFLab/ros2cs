@@ -178,14 +178,16 @@ namespace ROS2.Test
                         throw new TimeoutException("Timed out waiting to release service callback");
                     }
 
-                    callbackCompleted.Set();
                     var response = new AddTwoInts_Response();
                     response.Sum = msg.A + msg.B;
+                    callbackCompleted.Set();
                     return response;
                 });
             using var client = Node.CreateClient<AddTwoInts_Request, AddTwoInts_Response>(SERVICE_NAME);
             Assert.That(client.TryWaitForService(ServiceResponseTimeout), Is.True);
             Task<AddTwoInts_Response> pendingResponse = client.CallAsync(CreateRequest(4, 5));
+            bool serviceTakeCompleted = false;
+            Exception serviceTakeException = null;
             Task serviceTakeTask = Task.Run(() =>
             {
                 DateTime deadline = DateTime.UtcNow + ServiceResponseTimeout;
@@ -207,9 +209,14 @@ namespace ROS2.Test
             finally
             {
                 releaseCallback.Set();
-                Assert.That(serviceTakeTask.Wait(ServiceResponseTimeout), Is.True, "Service take did not finish");
+                serviceTakeCompleted = SpinWait.SpinUntil(
+                    () => serviceTakeTask.IsCompleted,
+                    ServiceResponseTimeout);
+                serviceTakeException = serviceTakeTask.Exception;
             }
 
+            Assert.That(serviceTakeCompleted, Is.True, "Service take did not finish");
+            Assert.That(serviceTakeTask.IsFaulted, Is.False, serviceTakeException?.ToString());
             Assert.That(callbackCompleted.IsSet, Is.True);
 
             DateTime deadline = DateTime.UtcNow + ServiceResponseTimeout;

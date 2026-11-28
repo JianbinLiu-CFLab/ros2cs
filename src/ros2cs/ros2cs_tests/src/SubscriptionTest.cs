@@ -136,9 +136,12 @@ namespace ROS2.Test
             using var secondInnerMessage = new std_msgs.msg.Int32();
             int outerCallbackCount = 0;
             int innerCallbackCount = 0;
+            int firstOuterCallbackCount = 0;
+            int secondOuterCallbackCount = 0;
             bool outerSnapshotPreserved = false;
-            void OnOuterMessage(std_msgs.msg.Int32 message)
+            void OnFirstOuterMessage(std_msgs.msg.Int32 message)
             {
+                Interlocked.Increment(ref firstOuterCallbackCount);
                 if (++outerCallbackCount != 1)
                 {
                     return;
@@ -147,7 +150,6 @@ namespace ROS2.Test
                 var snapshot = GetSubscriptionSnapshot();
                 var first = snapshot[0];
                 var second = snapshot[1];
-                secondOuterPublisher.Publish(secondOuterMessage);
                 SpinWait.SpinUntil(() =>
                 {
                     Ros2cs.SpinOnce(innerNode, SpinOnceTimeoutSeconds);
@@ -157,8 +159,14 @@ namespace ROS2.Test
                     ReferenceEquals(first, snapshot[0]) && ReferenceEquals(second, snapshot[1]);
             }
 
-            outerNode.CreateSubscription<std_msgs.msg.Int32>("nested_snapshot_outer_topic", OnOuterMessage);
-            outerNode.CreateSubscription<std_msgs.msg.Int32>("nested_snapshot_outer_topic_two", OnOuterMessage);
+            void OnSecondOuterMessage(std_msgs.msg.Int32 message)
+            {
+                Interlocked.Increment(ref secondOuterCallbackCount);
+                Interlocked.Increment(ref outerCallbackCount);
+            }
+
+            outerNode.CreateSubscription<std_msgs.msg.Int32>("nested_snapshot_outer_topic", OnFirstOuterMessage);
+            outerNode.CreateSubscription<std_msgs.msg.Int32>("nested_snapshot_outer_topic_two", OnSecondOuterMessage);
             innerNode.CreateSubscription<std_msgs.msg.Int32>(
                 "nested_snapshot_inner_topic",
                 _ => Interlocked.Increment(ref innerCallbackCount));
@@ -189,6 +197,8 @@ namespace ROS2.Test
             }
 
             Assert.That(outerCallbackCount, Is.EqualTo(2));
+            Assert.That(firstOuterCallbackCount, Is.EqualTo(1));
+            Assert.That(secondOuterCallbackCount, Is.EqualTo(1));
             Assert.That(innerCallbackCount, Is.EqualTo(2));
             Assert.That(outerSnapshotPreserved, Is.True, "Nested spin changed the active outer snapshot");
         }
@@ -207,6 +217,8 @@ namespace ROS2.Test
             using var releaseFirstCallback = new ManualResetEventSlim(false);
             bool firstCallbackReleased = false;
             bool secondCallbackRan = false;
+            bool firstSpinCompleted = false;
+            Exception firstSpinException = null;
             firstNode.CreateSubscription<std_msgs.msg.Int32>("concurrent_snapshot_first_topic", _ =>
             {
                 firstCallbackStarted.Set();
@@ -253,8 +265,13 @@ namespace ROS2.Test
             finally
             {
                 releaseFirstCallback.Set();
-                Assert.That(firstSpin.Wait(EndpointDiscoveryTimeout), Is.True, "First spin did not finish");
+                firstSpinCompleted = SpinWait.SpinUntil(
+                    () => firstSpin.IsCompleted,
+                    EndpointDiscoveryTimeout);
+                firstSpinException = firstSpin.Exception;
             }
+            Assert.That(firstSpinCompleted, Is.True, "First spin did not finish");
+            Assert.That(firstSpin.IsFaulted, Is.False, firstSpinException?.ToString());
             Assert.That(firstCallbackReleased, Is.True, "First callback timed out during the second spin");
         }
 
