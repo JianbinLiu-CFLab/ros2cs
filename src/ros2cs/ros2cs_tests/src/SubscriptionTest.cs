@@ -142,10 +142,7 @@ namespace ROS2.Test
             void OnFirstOuterMessage(std_msgs.msg.Int32 message)
             {
                 Interlocked.Increment(ref firstOuterCallbackCount);
-                if (++outerCallbackCount != 1)
-                {
-                    return;
-                }
+                ++outerCallbackCount;
 
                 var snapshot = GetSubscriptionSnapshot();
                 var first = snapshot[0];
