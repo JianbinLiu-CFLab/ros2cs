@@ -140,7 +140,12 @@ namespace ROS2.Test
                     Interlocked.Increment(ref outerCallbackCount);
                     if (Interlocked.Exchange(ref nestedSpinInvoked, 1) == 0)
                     {
-                        Ros2cs.SpinOnce(innerNode, 0.1);
+                        DateTime deadline = DateTime.UtcNow + EndpointDiscoveryTimeout;
+                        while (Volatile.Read(ref innerCallbackCount) < 2 &&
+                               DateTime.UtcNow < deadline)
+                        {
+                            Ros2cs.SpinOnce(innerNode, SpinOnceTimeoutSeconds);
+                        }
                     }
                 });
             outerNode.CreateSubscription<std_msgs.msg.Int32>(
@@ -150,7 +155,12 @@ namespace ROS2.Test
                     Interlocked.Increment(ref outerCallbackCount);
                     if (Interlocked.Exchange(ref nestedSpinInvoked, 1) == 0)
                     {
-                        Ros2cs.SpinOnce(innerNode, 0.1);
+                        DateTime deadline = DateTime.UtcNow + EndpointDiscoveryTimeout;
+                        while (Volatile.Read(ref innerCallbackCount) < 2 &&
+                               DateTime.UtcNow < deadline)
+                        {
+                            Ros2cs.SpinOnce(innerNode, SpinOnceTimeoutSeconds);
+                        }
                     }
                 });
             innerNode.CreateSubscription<std_msgs.msg.Int32>(
@@ -203,12 +213,24 @@ namespace ROS2.Test
 
             int firstCallbackCount = 0;
             int secondCallbackCount = 0;
+            using var firstCallbackStarted = new ManualResetEventSlim(false);
+            using var secondCallbackStarted = new ManualResetEventSlim(false);
+            using var releaseFirstCallback = new ManualResetEventSlim(false);
             firstNode.CreateSubscription<std_msgs.msg.Int32>(
                 "concurrent_snapshot_first_topic",
-                _ => Interlocked.Increment(ref firstCallbackCount));
+                _ =>
+                {
+                    firstCallbackStarted.Set();
+                    releaseFirstCallback.Wait(EndpointDiscoveryTimeout);
+                    Interlocked.Increment(ref firstCallbackCount);
+                });
             secondNode.CreateSubscription<std_msgs.msg.Int32>(
                 "concurrent_snapshot_second_topic",
-                _ => Interlocked.Increment(ref secondCallbackCount));
+                _ =>
+                {
+                    secondCallbackStarted.Set();
+                    Interlocked.Increment(ref secondCallbackCount);
+                });
 
             Assert.That(
                 SpinWait.SpinUntil(
@@ -236,7 +258,17 @@ namespace ROS2.Test
             });
             startGate.Set();
 
-            Assert.That(Task.WaitAll(new[] { firstSpin, secondSpin }, TimeSpan.FromSeconds(5)), Is.True);
+            try
+            {
+                Assert.That(firstCallbackStarted.Wait(EndpointDiscoveryTimeout), Is.True);
+                Assert.That(secondCallbackStarted.Wait(EndpointDiscoveryTimeout), Is.True);
+            }
+            finally
+            {
+                releaseFirstCallback.Set();
+            }
+
+            Assert.That(Task.WaitAll(new[] { firstSpin, secondSpin }, EndpointDiscoveryTimeout), Is.True);
             Assert.That(firstCallbackCount, Is.EqualTo(1));
             Assert.That(secondCallbackCount, Is.EqualTo(1));
         }
